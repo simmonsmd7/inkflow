@@ -1306,3 +1306,52 @@ Frontend Routes:
 - Verified: Page layout matches dark theme design
 Status: COMPLETE
 Next: P6.4 - Photo ID upload and verification
+
+=== ITERATION 28 ===
+Date: 2026-01-10
+Task: P6.4 - Photo ID upload and verification
+Changes:
+- backend/app/routers/consent.py: Added public photo ID upload endpoint (/upload/{access_token}/photo-id) for token-based authentication, updated staff endpoint to require auth
+- frontend/src/pages/ConsentSigning.tsx: Added photo upload step after form submission if template requires photo ID, includes file selection, preview, upload progress, and skip option
+- frontend/src/services/consent.ts: Added uploadPhotoIdWithToken function for public photo ID uploads using access token
+Status: COMPLETE
+Next: P6.5 - Secure storage with encryption
+
+=== ITERATION 29 ===
+Date: 2026-01-10
+Task: P6.5 - Secure storage with encryption
+Changes:
+Backend:
+- backend/app/services/encryption.py: NEW - Fernet encryption service with:
+  - AES-128-CBC encryption with HMAC-SHA256 authentication
+  - encrypt()/decrypt() for string data
+  - encrypt_bytes()/decrypt_bytes() for raw bytes
+  - encrypt_file()/decrypt_file() for file encryption
+  - encrypt_and_save() for encrypted file storage
+  - Auto-derived dev key from JWT_SECRET when ENCRYPTION_KEY not set
+- backend/app/config.py: Added ENCRYPTION_KEY setting and is_encryption_configured property
+- backend/app/routers/consent.py: Updated for secure storage:
+  - Signature data encrypted before database storage
+  - Photo ID files encrypted at rest (.enc extension)
+  - signature_data masked as "[ENCRYPTED]" in API responses
+  - GET /submissions/{id}/signature/decrypt - Decrypt signature (staff only)
+  - GET /submissions/{id}/photo-id/decrypt - Decrypt photo ID image (staff only)
+  - All decryption endpoints logged to audit trail
+
+Frontend:
+- frontend/src/services/consent.ts: Added secure data access functions:
+  - getDecryptedSignature() - Fetch decrypted signature base64 data
+  - getDecryptedPhotoId() - Fetch decrypted photo ID as blob URL
+
+Security Features:
+- Sensitive consent data (signatures, photo IDs) encrypted at rest
+- Decryption requires authentication and is audited
+- Photo IDs stored with random-ish names and .enc extension
+- Raw encrypted data never exposed in standard API responses
+
+- Verified: Frontend build passes with no TypeScript errors
+- Verified: Backend starts successfully with encryption service
+- Verified: Decrypt endpoints registered in OpenAPI spec
+- Verified: Application loads correctly in browser
+Status: COMPLETE
+Next: P6.6 - Consent form retrieval and audit log
