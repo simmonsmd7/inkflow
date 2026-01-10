@@ -169,11 +169,82 @@ Use Chrome browser tools to systematically verify all features work correctly:
 6. If bugs found: fix immediately, re-verify, then continue
 7. Log verification results in ralph.log
 
-### Phase 11: Future Enhancements (DO NOT IMPLEMENT - requires manual setup)
+### Phase 11: Production Simulation & Stress Test
+Seed realistic data and simulate production workflows to ensure system stability:
+
+#### Data Seeding (create seed script: backend/scripts/seed_data.py)
+- [ ] **P11.1** Create seed script with realistic test data:
+  - 2 studios (main studio + satellite location)
+  - 1 owner, 4 artists, 1 receptionist per studio
+  - 50+ clients with varied booking histories
+  - 100+ bookings across all statuses (pending, confirmed, completed, cancelled, no-show)
+  - Commission rules and calculated payouts
+  - Consent form templates and signed submissions
+  - Aftercare templates and sent instructions
+  - Message conversations with varied statuses
+  - Run seed script and verify data appears correctly
+
+#### End-to-End Production Workflows (use browser tools)
+- [ ] **P11.2** Simulate complete new client journey:
+  - Client visits booking page, submits request with reference images
+  - Artist reviews queue, sends quote with deposit request
+  - Client pays deposit via Stripe (use test card 4242424242424242)
+  - Booking confirmed, calendar updated
+  - Client signs consent form with signature
+  - Appointment completed, commission calculated
+  - Aftercare sent, client receives follow-up
+
+- [ ] **P11.3** Simulate busy studio day:
+  - Multiple bookings scheduled for same day
+  - Process reminders for upcoming appointments
+  - Handle one reschedule, one cancellation, one no-show
+  - Complete 3+ appointments and verify commissions
+  - Check dashboard shows accurate daily stats
+
+- [ ] **P11.4** Simulate pay period close:
+  - Review all earned commissions for period
+  - Close pay period and mark as paid
+  - Export CSV and PDF reports
+  - Verify payout history is accurate
+
+#### Stress Testing
+- [ ] **P11.5** Test concurrent operations:
+  - Open multiple browser tabs simultaneously
+  - Submit multiple booking requests rapidly
+  - Send multiple messages in quick succession
+  - Verify no data corruption or race conditions
+  - Check backend logs for errors
+
+- [ ] **P11.6** Test edge cases:
+  - Very long text inputs (bio, design ideas, notes)
+  - Special characters in all text fields
+  - Large file uploads (reference images, photo IDs)
+  - Rapid navigation between pages
+  - Session timeout and re-authentication
+
+- [ ] **P11.7** Performance verification:
+  - Dashboard loads with seeded data < 2 seconds
+  - Booking queue pagination works correctly
+  - Analytics charts render with large datasets
+  - Export functions handle 100+ records
+  - No memory leaks after extended usage
+
+#### Final Cleanup
+- [ ] **P11.8** Document any issues found and fixes applied
+- [ ] **P11.9** Reset to clean state OR keep seeded data (log decision)
+
+**Stress Test Protocol:**
+1. Use browser tools to perform actions rapidly
+2. Monitor backend console for errors
+3. Check browser console for JavaScript errors
+4. Verify data integrity after each test
+5. Log all findings in ralph.log
+
+### Phase 12: Future Enhancements (DO NOT IMPLEMENT - requires manual setup)
 These features require external service setup that cannot be automated:
-- [ ] **P11.1** Instagram DM integration (requires Meta business verification + app review)
-- [ ] **P11.2** Facebook Messenger integration (requires Meta approval)
-- [ ] **P11.3** WhatsApp Business integration (requires Meta approval)
+- [ ] **P12.1** Instagram DM integration (requires Meta business verification + app review)
+- [ ] **P12.2** Facebook Messenger integration (requires Meta approval)
+- [ ] **P12.3** WhatsApp Business integration (requires Meta approval)
 
 ---
 
@@ -373,10 +444,10 @@ cd frontend && npm run build
 
 ## When Complete
 
-When all Phase 1-10 tasks are checked off (including verification):
+When all Phase 1-11 tasks are checked off (including verification and stress testing):
 1. Run frontend build check one final time
-2. Confirm all verification tasks passed
-3. Output "INKFLOW_MVP_COMPLETE" in ralph.log
+2. Confirm all verification and stress tests passed
+3. Output "INKFLOW_MVP_COMPLETE - PRODUCTION READY" in ralph.log
 4. Exit
 
 ---
