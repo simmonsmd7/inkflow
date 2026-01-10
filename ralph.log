@@ -2095,3 +2095,38 @@ Navigation & Routes:
 - Verified: Routes work correctly (redirects to login when unauthenticated)
 Status: COMPLETE
 Next: P9.3 - Upcoming appointments
+
+=== ITERATION 47 ===
+Date: 2026-01-10
+Task: P9.3 - Upcoming appointments
+
+Changes:
+Frontend Page (ClientUpcomingAppointments.tsx - NEW):
+- Displays upcoming scheduled appointments (confirmed, deposit_paid statuses)
+- Countdown display showing days/hours until appointment
+- "TODAY" badge for same-day appointments
+- Appointment cards with date, time, duration, artist, studio info
+- Deposit paid indicator with checkmark
+- Links to view full booking details
+- Empty state when no upcoming appointments
+- Loading skeleton and error states
+- Sorted by scheduled date (soonest first)
+- Back navigation to client portal
+- Link to view all bookings
+
+Frontend Routes (App.tsx):
+- Added /client/appointments route
+- Imported ClientUpcomingAppointments component
+
+Frontend Portal (ClientPortal.tsx):
+- Updated Appointments card from "Coming soon" to active link
+- Links to /client/appointments
+
+Frontend Exports (pages/index.ts):
+- Exported ClientUpcomingAppointments component
+
+- Verified: Frontend build passes with no TypeScript errors
+- Verified: Route redirects to login when not authenticated
+- Verified: Navigation from portal to appointments works
+Status: COMPLETE
+Next: P9.4 - Consent form signing
