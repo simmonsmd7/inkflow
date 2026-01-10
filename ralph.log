@@ -1063,3 +1063,21 @@ Database:
 - Verified: Backend imports successfully with all new models
 Status: COMPLETE
 Next: P5.5 - Commission reports/export
+
+=== ITERATION 35 ===
+Date: 2026-01-10
+Task: P5.5 - Payout reports and history
+Changes:
+- backend/app/schemas/commission.py: Added ArtistPayoutSummary, PayoutReportSummary, PayoutHistoryItem, PayoutHistoryResponse, ArtistPayoutReportResponse schemas
+- backend/app/schemas/__init__.py: Exported new payout report types
+- backend/app/routers/commissions.py: Added /reports/payout-history and /reports/artist-payouts endpoints
+- frontend/src/types/api.ts: Added TypeScript types for payout reports
+- frontend/src/services/commissions.ts: Added getPayoutHistory and getArtistPayoutsReport API functions
+- frontend/src/pages/Commissions.tsx: Added Payout Reports tab with:
+  - Date range filtering
+  - Toggle between Payout History and Artist Breakdown views
+  - Summary cards with total payouts, revenue, tips, artists paid
+  - Expandable payout history items showing artist breakdown per pay period
+  - Artist payouts table with totals
+Status: COMPLETE
+Next: P5.6 - Tips tracking and distribution
