@@ -1510,3 +1510,75 @@ Navigation:
 - Verified: Page renders in browser with proper navigation and auth handling
 Status: COMPLETE
 Next: P7.2 - Automatic aftercare email scheduling
+
+=== ITERATION 33 ===
+Date: 2026-01-10
+Task: P7.2 - Automatic send after appointment completion
+Changes:
+Backend Services:
+- backend/app/services/aftercare_service.py: NEW - Aftercare service with:
+  - find_best_template() - Match template by tattoo type and placement
+  - send_aftercare() - Send instructions via email or SMS
+  - send_for_booking() - Auto-send aftercare for completed booking
+  - generate_follow_up_messages() - Schedule check-ins at day 3, week 1, week 4
+  - Logs to console in dev mode (no SENDGRID_API_KEY)
+
+Backend Email:
+- backend/app/services/email.py: Added send_aftercare_email() method with:
+  - Professional HTML email template
+  - Key aftercare points section
+  - Recommended products section
+  - Products to avoid section
+  - Client access link for viewing instructions
+  - Plain text fallback
+
+Backend Router:
+- backend/app/routers/aftercare.py: Added endpoints:
+  - POST /send - Manually send aftercare instructions
+  - GET /sent - List sent aftercare with pagination and filtering
+  - GET /sent/{id} - Get single sent aftercare details
+  - GET /view/{access_token} - Public view for clients (no auth)
+
+Backend Bookings:
+- backend/app/routers/bookings.py: Added automatic aftercare sending:
+  - Imports aftercare_service
+  - Calls send_for_booking() in complete_booking endpoint
+  - Schedules follow-up messages by default
+  - Logs success/failure without blocking booking completion
+
+Frontend Types (api.ts):
+- AftercareSentSummary: List view for sent aftercare
+- AftercareSentResponse: Full sent aftercare details
+- AftercareSentListResponse: Paginated list response
+- AftercareSendInput: Manual send input schema
+
+Frontend Service (aftercare.ts):
+- listSentAftercare() - Paginated list with filters
+- getSentAftercare() - Get single sent record
+- sendAftercare() - Manual send
+- getStatusLabel() - Human-readable status labels
+- getStatusColor() - Tailwind color classes for status badges
+
+Frontend UI (Aftercare.tsx):
+- Added tab system: "Templates" and "Sent Instructions"
+- Sent Instructions tab with table view:
+  - Client name and email
+  - Template name
+  - Appointment date
+  - Status badge (pending/sent/delivered/failed)
+  - View count
+  - Sent date
+- Loading and empty states for sent tab
+- Pagination for sent list
+
+Features Implemented:
+- Automatic aftercare email when booking marked complete
+- Follow-up scheduling at day 3, week 1, week 4
+- Manual send option for staff
+- Sent history tracking with status
+- Public access link for clients to view instructions
+
+- Verified: Frontend build passes with no TypeScript errors
+- Verified: All backend imports successful
+Status: COMPLETE
+Next: P7.3 - Follow-up check-in scheduling
