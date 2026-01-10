@@ -240,11 +240,87 @@ Seed realistic data and simulate production workflows to ensure system stability
 4. Verify data integrity after each test
 5. Log all findings in ralph.log
 
-### Phase 12: Future Enhancements (DO NOT IMPLEMENT - requires manual setup)
+### Phase 12: Role-Based Access Audit (Browser Tool Required)
+Use browser tools to visit EVERY page as each user type. Identify and fix:
+- Pages showing errors (determine if access control issue or real bug)
+- Pages accessible to wrong user types (security issue)
+- Broken UI, missing data, or infinite loading states
+
+**IMPORTANT**: For each error found, diagnose the root cause:
+- If user shouldn't have access → add proper route guards/redirects
+- If real bug → fix the bug
+- Log all findings and fixes in ralph.log
+
+#### Test Users (create if missing)
+```
+Owner: owner@test.com / Test123!
+Artist: artist@test.com / Test123!
+Receptionist: receptionist@test.com / Test123!
+Client: client@test.com / Test123!
+```
+
+#### Staff Pages to Check (per role)
+```
+/dashboard
+/team
+/studio-settings
+/artist-profile
+/availability
+/booking-queue
+/inbox
+/commissions
+/consent-forms
+/aftercare
+/analytics/artists
+/analytics/revenue
+/analytics/retention
+/analytics/no-shows
+/analytics/time-slots
+```
+
+#### Client Portal Pages to Check
+```
+/client/portal
+/client/bookings
+/client/appointments
+/client/consent
+/client/aftercare
+/client/rebook/:id
+```
+
+#### Public Pages to Check (no login)
+```
+/
+/login
+/register
+/forgot-password
+/client/login
+/client/register
+/book/:studio-slug
+```
+
+- [ ] **P12.1** Audit as OWNER: Login as owner, visit ALL staff pages, screenshot each, log errors
+- [ ] **P12.2** Audit as ARTIST: Login as artist, visit ALL staff pages, identify which should be blocked vs allowed
+- [ ] **P12.3** Audit as RECEPTIONIST: Login as receptionist, visit ALL staff pages, identify access issues
+- [ ] **P12.4** Audit as CLIENT: Login as client, visit ALL client portal pages, check for errors
+- [ ] **P12.5** Audit PUBLIC pages: No login, visit all public routes, verify no auth-required content leaks
+- [ ] **P12.6** Fix all access control issues found (add redirects, guards, proper error messages)
+- [ ] **P12.7** Fix all real bugs found (broken UI, API errors, missing data handling)
+- [ ] **P12.8** Re-audit all roles to confirm fixes work
+- [ ] **P12.9** Log complete audit results: pages checked, issues found, fixes applied
+
+**Diagnosis Guide:**
+- "401 Unauthorized" or redirect to login = correct access control (if user shouldn't access)
+- "403 Forbidden" with message = correct access control (if user shouldn't access)
+- Blank page or crash = BUG - needs fix
+- Page loads but shows wrong data = BUG - needs fix
+- Page loads but user shouldn't see it = SECURITY ISSUE - add guard
+
+### Phase 13: Future Enhancements (DO NOT IMPLEMENT - requires manual setup)
 These features require external service setup that cannot be automated:
-- [ ] **P12.1** Instagram DM integration (requires Meta business verification + app review)
-- [ ] **P12.2** Facebook Messenger integration (requires Meta approval)
-- [ ] **P12.3** WhatsApp Business integration (requires Meta approval)
+- [ ] **P13.1** Instagram DM integration (requires Meta business verification + app review)
+- [ ] **P13.2** Facebook Messenger integration (requires Meta approval)
+- [ ] **P13.3** WhatsApp Business integration (requires Meta approval)
 
 ---
 
@@ -444,9 +520,9 @@ cd frontend && npm run build
 
 ## When Complete
 
-When all Phase 1-11 tasks are checked off (including verification and stress testing):
+When all Phase 1-12 tasks are checked off (including verification, stress testing, and access audit):
 1. Run frontend build check one final time
-2. Confirm all verification and stress tests passed
+2. Confirm all verification, stress tests, and access audits passed
 3. Output "INKFLOW_MVP_COMPLETE - PRODUCTION READY" in ralph.log
 4. Exit
 
