@@ -224,9 +224,8 @@ async def update_studio(
         base_slug = generate_slug(update_fields["name"])
         update_fields["slug"] = await ensure_unique_slug(db, base_slug, exclude_id=studio.id)
 
-    # Handle business hours
-    if "business_hours" in update_fields and update_fields["business_hours"]:
-        update_fields["business_hours"] = update_fields["business_hours"].model_dump()
+    # Handle business hours - already converted to dict by model_dump() above
+    # No additional processing needed
 
     for field, value in update_fields.items():
         setattr(studio, field, value)

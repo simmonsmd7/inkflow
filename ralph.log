@@ -2349,3 +2349,68 @@ Backend Health: HEALTHY (api_version: v1)
 
 Status: P10.1 COMPLETE
 Next: P10.2 - Verify studio/artist setup (create studio profile, upload logo, set hours, artist bio/portfolio)
+
+=== ITERATION 53 - P10.2 Browser Verification ===
+Date: 2026-01-10
+Task: P10.2 - Verify studio/artist setup (create studio profile, upload logo, set hours, artist bio/portfolio)
+
+Database Schema Fixes Applied:
+- Added missing columns to pay_periods: total_tips_card, total_tips_cash, total_tip_artist_share, total_tip_studio_share
+
+Backend Bug Fix Applied:
+- File: backend/app/routers/studios.py (line 228-229)
+- Issue: update_studio() was calling .model_dump() on business_hours which was already a dict after studio_data.model_dump()
+- Fix: Removed redundant .model_dump() call, added comment explaining the data flow
+
+Verification Results:
+
+1. Studio Profile Creation - VERIFIED
+   - Navigation: /settings page renders correctly
+   - Form: Name (required), Description, Email, Phone, Website
+   - Address: Line 1, Line 2, City, State, Postal Code, Country
+   - Business Hours: Day-by-day open/close times with closed toggle
+   - Logo Upload: "Upload Logo" button present with image preview area
+   - API: POST /api/v1/studios returns 201 Created
+   - API: PUT /api/v1/studios/{id} returns 200 OK
+
+2. Studio Profile Update - VERIFIED
+   - Edit existing studio: Fields populate with current values
+   - Save changes: PUT request successful (200)
+   - Business hours: JSON serialization works correctly after fix
+
+3. Artist Profile Page - VERIFIED
+   - Navigation: /profile page renders correctly
+   - About You Section:
+     - Bio textarea (placeholder: "Tell clients about yourself...")
+     - Years of Experience: Numeric input (default: 5)
+     - Hourly Rate ($): Numeric input (default: 150)
+     - Min Booking (hours): Numeric input (default: 2)
+
+4. Specialties Selection - VERIFIED
+   - Dropdown: 15 tattoo style options available
+     (Traditional, Neo-Traditional, Realism, Blackwork, Geometric,
+      Watercolor, Japanese, Tribal, Minimalist, Dotwork, Lettering,
+      New School, Trash Polka, Biomechanical, Portrait)
+   - Add button: Adds selected specialty as removable tag
+   - Multiple: Successfully added "Realism" and "Japanese"
+   - Remove: X button on each tag for removal
+
+5. Social Links - VERIFIED
+   - Instagram Handle: Text input with @ prefix
+   - Website: URL input field
+
+6. Portfolio Gallery - VERIFIED
+   - Section: "Portfolio Gallery" with "Upload Image" button
+   - Instructions: "Max 10MB per image. Supported formats: JPG, PNG, GIF, WebP."
+   - Empty state: "No portfolio images yet - Upload your first image to showcase your work"
+
+7. Save Profile - VERIFIED
+   - Button: "Save Profile" (type=submit)
+   - API: PUT /api/v1/artists/me/profile returns 200 OK
+
+Console Errors: None detected during verification
+Frontend Build: PASSES (98 modules)
+Backend Health: HEALTHY (api_version: v1)
+
+Status: P10.2 COMPLETE
+Next: P10.3 - Verify booking flow (create request, quote, deposit, confirm)
