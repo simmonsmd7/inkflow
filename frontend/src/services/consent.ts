@@ -159,6 +159,29 @@ export async function uploadPhotoIdForSubmission(
   return response.json();
 }
 
+/**
+ * Upload photo ID using access token (public, for clients after signing).
+ */
+export async function uploadPhotoIdWithToken(
+  accessToken: string,
+  file: File
+): Promise<{ photo_id_url: string; message: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/v1/consent/upload/${accessToken}/photo-id`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.detail || 'Failed to upload photo ID');
+  }
+
+  return response.json();
+}
+
 // === Helper Functions ===
 
 export function generateFieldId(): string {

@@ -883,6 +883,71 @@ async def submit_signed_consent(
     )
 
 
+@router.post("/upload/{access_token}/photo-id", response_model=PhotoIdUploadResponse)
+async def upload_photo_id_public(
+    access_token: str,
+    file: UploadFile = File(...),
+    request: Request = None,
+    db: AsyncSession = Depends(get_db),
+) -> PhotoIdUploadResponse:
+    """Upload a photo ID for a consent form submission (public, token-based)."""
+    # Find submission by access token
+    result = await db.execute(
+        select(ConsentFormSubmission).where(ConsentFormSubmission.access_token == access_token)
+    )
+    submission = result.scalar_one_or_none()
+    if not submission:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
+
+    # Don't allow upload if submission is voided
+    if submission.is_voided:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot upload photo ID to a voided submission",
+        )
+
+    # Don't allow re-upload if already verified
+    if submission.photo_id_verified:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Photo ID has already been verified",
+        )
+
+    # Validate file type
+    allowed_types = {"image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"}
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid file type. Allowed: JPEG, PNG, GIF, WebP",
+        )
+
+    # Validate file size (5MB max)
+    content = await file.read()
+    if len(content) > 5 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File too large. Maximum size is 5MB",
+        )
+
+    # Save file
+    ext = file.filename.split(".")[-1] if file.filename and "." in file.filename else "jpg"
+    filename = f"{submission.id}_photo_id.{ext}"
+    upload_dir = Path("uploads/photo_ids")
+    upload_dir.mkdir(parents=True, exist_ok=True)
+
+    file_path = upload_dir / filename
+    with open(file_path, "wb") as f:
+        f.write(content)
+
+    submission.photo_id_url = f"/uploads/photo_ids/{filename}"
+    await db.commit()
+
+    return PhotoIdUploadResponse(
+        photo_id_url=submission.photo_id_url,
+        message="Photo ID uploaded successfully",
+    )
+
+
 @router.get("/view/{access_token}", response_model=ConsentSubmissionPublicResponse)
 async def get_submission_by_token(
     access_token: str,
@@ -927,7 +992,7 @@ async def upload_photo_id(
     db: AsyncSession = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user),
 ) -> PhotoIdUploadResponse:
-    """Upload a photo ID for a consent form submission."""
+    """Upload a photo ID for a consent form submission (staff only)."""
     # Find submission
     result = await db.execute(
         select(ConsentFormSubmission).where(ConsentFormSubmission.id == submission_id)
@@ -935,6 +1000,13 @@ async def upload_photo_id(
     submission = result.scalar_one_or_none()
     if not submission:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
+
+    # Require authentication for this endpoint (staff access)
+    if not current_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required. Use /upload/{access_token}/photo-id for public uploads.",
+        )
 
     # Validate file type
     allowed_types = {"image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"}

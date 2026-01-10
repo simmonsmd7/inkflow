@@ -3,10 +3,10 @@
  * Accessible at /sign/:studioSlug/:templateId
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { SignaturePad } from '../components/SignaturePad';
-import { getTemplateForSigning, submitSignedConsent } from '../services/consent';
+import { getTemplateForSigning, submitSignedConsent, uploadPhotoIdWithToken } from '../services/consent';
 import type { ConsentFormTemplate, FormField, SubmitSigningInput } from '../types/api';
 
 export function ConsentSigning() {
@@ -18,6 +18,14 @@ export function ConsentSigning() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [accessToken, setAccessToken] = useState<string | null>(null);
+
+  // Photo ID upload state
+  const [showPhotoUpload, setShowPhotoUpload] = useState(false);
+  const [photoIdFile, setPhotoIdFile] = useState<File | null>(null);
+  const [photoIdPreview, setPhotoIdPreview] = useState<string | null>(null);
+  const [uploadingPhotoId, setUploadingPhotoId] = useState(false);
+  const [photoIdUploaded, setPhotoIdUploaded] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Form data
   const [clientName, setClientName] = useState('');
@@ -146,12 +154,72 @@ export function ConsentSigning() {
 
       const result = await submitSignedConsent(studioSlug, input);
       setAccessToken(result.access_token);
-      setSubmitted(true);
+
+      // If template requires photo ID, show the photo upload step
+      if (template.requires_photo_id) {
+        setShowPhotoUpload(true);
+      } else {
+        setSubmitted(true);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to submit consent form');
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // Handle file selection for photo ID
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        setError('Please select a valid image file (JPEG, PNG, GIF, or WebP)');
+        return;
+      }
+
+      // Validate file size (5MB max)
+      if (file.size > 5 * 1024 * 1024) {
+        setError('File is too large. Maximum size is 5MB');
+        return;
+      }
+
+      setPhotoIdFile(file);
+      setError(null);
+
+      // Create preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setPhotoIdPreview(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Handle photo ID upload
+  const handlePhotoIdUpload = async () => {
+    if (!photoIdFile || !accessToken) return;
+
+    setUploadingPhotoId(true);
+    setError(null);
+
+    try {
+      await uploadPhotoIdWithToken(accessToken, photoIdFile);
+      setPhotoIdUploaded(true);
+      setSubmitted(true);
+      setShowPhotoUpload(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to upload photo ID');
+    } finally {
+      setUploadingPhotoId(false);
+    }
+  };
+
+  // Skip photo ID upload
+  const handleSkipPhotoId = () => {
+    setSubmitted(true);
+    setShowPhotoUpload(false);
   };
 
   // Render a single form field
@@ -387,6 +455,118 @@ export function ConsentSigning() {
     );
   }
 
+  // Photo ID upload state
+  if (showPhotoUpload && !submitted) {
+    return (
+      <div className="min-h-screen bg-ink-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full">
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-semibold text-ink-900 mb-2">Upload Photo ID</h2>
+            <p className="text-ink-600">
+              Please upload a clear photo of your government-issued photo ID for verification.
+            </p>
+          </div>
+
+          {/* File upload area */}
+          <div className="mb-6">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileSelect}
+              accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+              className="hidden"
+            />
+
+            {photoIdPreview ? (
+              <div className="relative">
+                <img
+                  src={photoIdPreview}
+                  alt="Photo ID preview"
+                  className="w-full rounded-lg border border-ink-200"
+                />
+                <button
+                  onClick={() => {
+                    setPhotoIdFile(null);
+                    setPhotoIdPreview(null);
+                    if (fileInputRef.current) {
+                      fileInputRef.current.value = '';
+                    }
+                  }}
+                  className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full py-12 border-2 border-dashed border-ink-300 rounded-lg hover:border-accent-500 hover:bg-ink-50 transition-colors"
+              >
+                <div className="text-center">
+                  <svg className="w-12 h-12 text-ink-400 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <p className="text-ink-600 font-medium">Click to upload photo</p>
+                  <p className="text-ink-500 text-sm mt-1">JPEG, PNG, GIF, or WebP (max 5MB)</p>
+                </div>
+              </button>
+            )}
+          </div>
+
+          {/* Error message */}
+          {error && (
+            <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="space-y-3">
+            <button
+              onClick={handlePhotoIdUpload}
+              disabled={!photoIdFile || uploadingPhotoId}
+              className="w-full py-3 px-4 bg-accent-600 text-white font-semibold rounded-lg hover:bg-accent-700 focus:ring-4 focus:ring-accent-500/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {uploadingPhotoId ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
+                  </svg>
+                  Uploading...
+                </span>
+              ) : (
+                'Upload Photo ID'
+              )}
+            </button>
+            <button
+              onClick={handleSkipPhotoId}
+              disabled={uploadingPhotoId}
+              className="w-full py-2 text-ink-500 hover:text-ink-700 text-sm transition-colors"
+            >
+              Skip for now
+            </button>
+          </div>
+
+          <p className="text-xs text-ink-500 text-center mt-4">
+            Your photo ID is securely stored and only used for age and identity verification.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   // Success state
   if (submitted) {
     return (
@@ -399,7 +579,7 @@ export function ConsentSigning() {
           </div>
           <h2 className="text-xl font-semibold text-ink-900 mb-2">Consent Form Submitted</h2>
           <p className="text-ink-600 mb-6">
-            Thank you for completing the consent form. Your submission has been received.
+            Thank you for completing the consent form.{photoIdUploaded && ' Your photo ID has been uploaded.'} Your submission has been received.
           </p>
           <p className="text-sm text-ink-500 mb-4">
             You can view your submitted form using this link:
