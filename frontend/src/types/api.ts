@@ -411,6 +411,9 @@ export interface BookingRequest {
   estimated_hours: number | null;
   quote_notes: string | null;
   quoted_at: string | null;
+  deposit_requested_at: string | null;
+  deposit_request_expires_at: string | null;
+  deposit_paid_at: string | null;
   preferred_dates: string | null;
   scheduled_date: string | null;
   scheduled_duration_hours: number | null;
@@ -438,4 +441,31 @@ export interface BookingRequestUpdate {
   scheduled_date?: string | null;
   scheduled_duration_hours?: number | null;
   internal_notes?: string | null;
+}
+
+// Deposit request types
+export interface SendDepositRequestInput {
+  deposit_amount: number; // In cents
+  expires_in_days?: number; // Default 7
+  message?: string | null;
+}
+
+export interface SendDepositRequestResponse {
+  message: string;
+  deposit_amount: number;
+  expires_at: string;
+  payment_url: string;
+}
+
+export interface DepositPaymentInfo {
+  request_id: string;
+  client_name: string;
+  studio_name: string;
+  artist_name: string | null;
+  design_summary: string;
+  quoted_price: number | null;
+  deposit_amount: number;
+  expires_at: string;
+  is_expired: boolean;
+  quote_notes: string | null;
 }

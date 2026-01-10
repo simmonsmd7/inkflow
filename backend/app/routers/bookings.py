@@ -1,9 +1,8 @@
 """Booking requests router."""
 
-import os
-import shutil
+import secrets
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from math import ceil
 from pathlib import Path
 
@@ -12,6 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.config import get_settings
 from app.database import get_db
 from app.models import (
     BookingReferenceImage,
@@ -29,11 +29,17 @@ from app.schemas.booking import (
     BookingRequestSummary,
     BookingRequestUpdate,
     BookingSubmissionResponse,
+    DepositPaymentInfo,
     ReferenceImageResponse,
+    SendDepositRequestInput,
+    SendDepositRequestResponse,
 )
 from app.schemas.booking import BookingRequestStatus as SchemaStatus
 from app.schemas.booking import TattooSize as SchemaSize
 from app.services.auth import get_current_user, require_role
+from app.services.email import email_service
+
+settings = get_settings()
 
 router = APIRouter(prefix="/bookings", tags=["bookings"])
 
@@ -385,6 +391,9 @@ async def get_booking_request(
         estimated_hours=booking.estimated_hours,
         quote_notes=booking.quote_notes,
         quoted_at=booking.quoted_at,
+        deposit_requested_at=booking.deposit_requested_at,
+        deposit_request_expires_at=booking.deposit_request_expires_at,
+        deposit_paid_at=booking.deposit_paid_at,
         preferred_dates=booking.preferred_dates,
         scheduled_date=booking.scheduled_date,
         scheduled_duration_hours=booking.scheduled_duration_hours,
@@ -477,3 +486,167 @@ async def delete_booking_request(
 
     booking.deleted_at = datetime.utcnow()
     await db.commit()
+
+
+@router.post(
+    "/requests/{request_id}/send-deposit-request",
+    response_model=SendDepositRequestResponse,
+)
+async def send_deposit_request(
+    request_id: uuid.UUID,
+    data: SendDepositRequestInput,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> SendDepositRequestResponse:
+    """Send a deposit request email to the client."""
+    # Get booking request with studio info
+    result = await db.execute(
+        select(BookingRequest)
+        .where(BookingRequest.id == request_id, BookingRequest.deleted_at.is_(None))
+        .options(
+            selectinload(BookingRequest.studio),
+            selectinload(BookingRequest.assigned_artist),
+            selectinload(BookingRequest.preferred_artist),
+        )
+    )
+    booking = result.scalar_one_or_none()
+
+    if not booking:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Booking request not found",
+        )
+
+    # Artists can only send deposit requests for their assigned bookings
+    if current_user.role == UserRole.ARTIST:
+        if booking.assigned_artist_id != current_user.id and booking.preferred_artist_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have access to this booking request",
+            )
+
+    # Must have a quoted price first
+    if not booking.quoted_price:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Must set a quoted price before requesting a deposit",
+        )
+
+    # Can only send deposit request for quoted or reviewing status
+    if booking.status not in [BookingRequestStatus.REVIEWING, BookingRequestStatus.QUOTED]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot send deposit request for booking with status '{booking.status.value}'",
+        )
+
+    # Generate unique payment token
+    payment_token = secrets.token_urlsafe(32)
+
+    # Calculate expiry
+    expires_at = datetime.utcnow() + timedelta(days=data.expires_in_days)
+
+    # Update booking
+    booking.deposit_amount = data.deposit_amount
+    booking.deposit_payment_token = payment_token
+    booking.deposit_requested_at = datetime.utcnow()
+    booking.deposit_request_expires_at = expires_at
+    booking.status = BookingRequestStatus.DEPOSIT_REQUESTED
+
+    await db.commit()
+    await db.refresh(booking)
+
+    # Generate payment URL
+    payment_url = f"{settings.frontend_url}/pay-deposit/{payment_token}"
+
+    # Get artist name
+    artist = booking.assigned_artist or booking.preferred_artist
+    artist_name = artist.full_name if artist else None
+
+    # Send email
+    await email_service.send_deposit_request_email(
+        to_email=booking.client_email,
+        client_name=booking.client_name,
+        studio_name=booking.studio.name,
+        artist_name=artist_name,
+        design_summary=booking.design_idea,
+        quoted_price=booking.quoted_price,
+        deposit_amount=data.deposit_amount,
+        expires_at=expires_at.strftime("%B %d, %Y"),
+        payment_url=payment_url,
+        custom_message=data.message,
+    )
+
+    return SendDepositRequestResponse(
+        message="Deposit request sent successfully",
+        deposit_amount=data.deposit_amount,
+        expires_at=expires_at,
+        payment_url=payment_url,
+    )
+
+
+# ============================================================================
+# PUBLIC DEPOSIT ENDPOINTS (For clients to view and pay deposits)
+# ============================================================================
+
+
+@router.get("/deposit/{token}", response_model=DepositPaymentInfo)
+async def get_deposit_info(
+    token: str,
+    db: AsyncSession = Depends(get_db),
+) -> DepositPaymentInfo:
+    """Get deposit payment information by token (public)."""
+    result = await db.execute(
+        select(BookingRequest)
+        .where(
+            BookingRequest.deposit_payment_token == token,
+            BookingRequest.deleted_at.is_(None),
+        )
+        .options(
+            selectinload(BookingRequest.studio),
+            selectinload(BookingRequest.assigned_artist),
+            selectinload(BookingRequest.preferred_artist),
+        )
+    )
+    booking = result.scalar_one_or_none()
+
+    if not booking:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Deposit request not found or has expired",
+        )
+
+    # Check if already paid
+    if booking.status == BookingRequestStatus.DEPOSIT_PAID:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This deposit has already been paid",
+        )
+
+    # Check if cancelled or rejected
+    if booking.status in [BookingRequestStatus.CANCELLED, BookingRequestStatus.REJECTED]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This booking request has been cancelled",
+        )
+
+    # Check expiry
+    is_expired = False
+    if booking.deposit_request_expires_at:
+        is_expired = datetime.now(timezone.utc) > booking.deposit_request_expires_at
+
+    # Get artist name
+    artist = booking.assigned_artist or booking.preferred_artist
+    artist_name = artist.full_name if artist else None
+
+    return DepositPaymentInfo(
+        request_id=booking.id,
+        client_name=booking.client_name,
+        studio_name=booking.studio.name,
+        artist_name=artist_name,
+        design_summary=booking.design_idea[:200] + "..." if len(booking.design_idea) > 200 else booking.design_idea,
+        quoted_price=booking.quoted_price,
+        deposit_amount=booking.deposit_amount or 0,
+        expires_at=booking.deposit_request_expires_at or datetime.now(timezone.utc),
+        is_expired=is_expired,
+        quote_notes=booking.quote_notes,
+    )

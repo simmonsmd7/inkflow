@@ -11,7 +11,10 @@ import type {
   BookingRequestStatus,
   BookingRequestUpdate,
   BookingSubmissionResponse,
+  DepositPaymentInfo,
   ReferenceImage,
+  SendDepositRequestInput,
+  SendDepositRequestResponse,
 } from '../types/api';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -116,4 +119,28 @@ export async function updateBookingRequest(
  */
 export async function deleteBookingRequest(requestId: string): Promise<void> {
   return api.delete(`/api/v1/bookings/requests/${requestId}`);
+}
+
+// ============================================================================
+// DEPOSIT ENDPOINTS
+// ============================================================================
+
+/**
+ * Send a deposit request to the client.
+ */
+export async function sendDepositRequest(
+  requestId: string,
+  data: SendDepositRequestInput
+): Promise<SendDepositRequestResponse> {
+  return api.post<SendDepositRequestResponse>(
+    `/api/v1/bookings/requests/${requestId}/send-deposit-request`,
+    data
+  );
+}
+
+/**
+ * Get deposit payment information by token (public).
+ */
+export async function getDepositInfo(token: string): Promise<DepositPaymentInfo> {
+  return api.get<DepositPaymentInfo>(`/api/v1/bookings/deposit/${token}`);
 }

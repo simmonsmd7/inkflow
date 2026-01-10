@@ -123,6 +123,11 @@ class BookingRequestResponse(BaseModel):
     quote_notes: str | None = None
     quoted_at: datetime | None = None
 
+    # Deposit tracking
+    deposit_requested_at: datetime | None = None
+    deposit_request_expires_at: datetime | None = None
+    deposit_paid_at: datetime | None = None
+
     # Scheduling
     preferred_dates: str | None = None
     scheduled_date: datetime | None = None
@@ -185,3 +190,35 @@ class ArtistOptionResponse(BaseModel):
     id: UUID
     name: str
     specialties: list[str] = Field(default_factory=list)
+
+
+class SendDepositRequestInput(BaseModel):
+    """Input for sending a deposit request to a client."""
+
+    deposit_amount: int = Field(..., ge=100, description="Deposit amount in cents (min $1)")
+    expires_in_days: int = Field(default=7, ge=1, le=30, description="Days until deposit expires")
+    message: str | None = Field(None, max_length=1000, description="Custom message to client")
+
+
+class SendDepositRequestResponse(BaseModel):
+    """Response after sending a deposit request."""
+
+    message: str
+    deposit_amount: int
+    expires_at: datetime
+    payment_url: str
+
+
+class DepositPaymentInfo(BaseModel):
+    """Public deposit payment information (for clients)."""
+
+    request_id: UUID
+    client_name: str
+    studio_name: str
+    artist_name: str | None = None
+    design_summary: str
+    quoted_price: int | None = None
+    deposit_amount: int
+    expires_at: datetime
+    is_expired: bool
+    quote_notes: str | None = None

@@ -240,5 +240,134 @@ The InkFlow Team
         )
 
 
+    async def send_deposit_request_email(
+        self,
+        to_email: str,
+        client_name: str,
+        studio_name: str,
+        artist_name: str | None,
+        design_summary: str,
+        quoted_price: int | None,
+        deposit_amount: int,
+        expires_at: str,
+        payment_url: str,
+        custom_message: str | None = None,
+    ) -> bool:
+        """Send deposit request email to client."""
+        # Format prices
+        deposit_formatted = f"${deposit_amount / 100:.2f}"
+        quoted_formatted = f"${quoted_price / 100:.2f}" if quoted_price else "TBD"
+
+        message_section = ""
+        message_html = ""
+        if custom_message:
+            message_section = f"\nMessage from your artist:\n{custom_message}\n"
+            message_html = f"""
+            <div style="background-color: #f5f5f5; padding: 15px; border-radius: 6px; margin: 20px 0;">
+                <p style="margin: 0; font-style: italic;">"{custom_message}"</p>
+            </div>
+            """
+
+        body_text = f"""Hi {client_name},
+
+Great news! We've reviewed your tattoo request and prepared a quote for you.
+
+TATTOO DETAILS
+--------------
+Design: {design_summary[:100]}...
+Studio: {studio_name}
+{f"Artist: {artist_name}" if artist_name else ""}
+
+QUOTE
+-----
+Estimated Total: {quoted_formatted}
+Required Deposit: {deposit_formatted}
+{message_section}
+To secure your appointment, please pay the deposit by {expires_at}.
+
+PAY YOUR DEPOSIT
+{payment_url}
+
+This deposit will be applied to your final tattoo cost. If you need to cancel, please do so at least 48 hours before your appointment for a refund.
+
+Questions? Reply to this email or contact the studio directly.
+
+Best,
+{studio_name}
+Powered by InkFlow
+"""
+
+        body_html = f"""
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+    <div style="background-color: #1a1a1a; padding: 20px; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Your Quote is Ready!</h1>
+    </div>
+
+    <div style="padding: 30px;">
+        <p>Hi {client_name},</p>
+        <p>Great news! We've reviewed your tattoo request and prepared a quote for you.</p>
+
+        <div style="background-color: #f8f8f8; padding: 20px; border-radius: 8px; margin: 25px 0;">
+            <h3 style="margin: 0 0 15px 0; color: #1a1a1a;">Tattoo Details</h3>
+            <p style="margin: 5px 0;"><strong>Design:</strong> {design_summary[:100]}...</p>
+            <p style="margin: 5px 0;"><strong>Studio:</strong> {studio_name}</p>
+            {"<p style='margin: 5px 0;'><strong>Artist:</strong> " + artist_name + "</p>" if artist_name else ""}
+        </div>
+
+        <div style="background-color: #1a1a1a; color: #ffffff; padding: 20px; border-radius: 8px; margin: 25px 0;">
+            <h3 style="margin: 0 0 15px 0;">Quote</h3>
+            <p style="margin: 5px 0; font-size: 18px;">Estimated Total: <strong>{quoted_formatted}</strong></p>
+            <p style="margin: 5px 0; font-size: 24px; color: #e11d48;">Deposit Required: <strong>{deposit_formatted}</strong></p>
+        </div>
+
+        {message_html}
+
+        <p style="text-align: center;">
+            <strong>Pay your deposit by {expires_at}</strong>
+        </p>
+
+        <p style="text-align: center; margin: 30px 0;">
+            <a href="{payment_url}"
+               style="background-color: #e11d48; color: white; padding: 16px 32px;
+                      text-decoration: none; border-radius: 6px; font-weight: bold;
+                      font-size: 18px; display: inline-block;">
+                Pay Deposit Now
+            </a>
+        </p>
+
+        <p style="color: #666; font-size: 14px; text-align: center;">
+            Or copy this link: <a href="{payment_url}">{payment_url}</a>
+        </p>
+
+        <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+
+        <p style="color: #666; font-size: 13px;">
+            This deposit will be applied to your final tattoo cost. If you need to cancel,
+            please do so at least 48 hours before your appointment for a refund.
+        </p>
+
+        <p style="color: #666; font-size: 13px;">
+            Questions? Reply to this email or contact the studio directly.
+        </p>
+    </div>
+
+    <div style="background-color: #f5f5f5; padding: 15px; text-align: center;">
+        <p style="color: #999; font-size: 12px; margin: 0;">
+            {studio_name} • Powered by <a href="https://inkflow.io" style="color: #e11d48;">InkFlow</a>
+        </p>
+    </div>
+</div>
+"""
+
+        return await self.send(
+            EmailMessage(
+                to_email=to_email,
+                subject=f"Your tattoo quote from {studio_name} - Deposit required",
+                body_text=body_text,
+                body_html=body_html,
+            )
+        )
+
+
 # Singleton instance
 email_service = EmailService()

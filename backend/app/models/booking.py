@@ -108,6 +108,23 @@ class BookingRequest(BaseModel, SoftDeleteMixin):
         DateTime(timezone=True), nullable=True
     )
 
+    # Deposit tracking
+    deposit_payment_token: Mapped[Optional[str]] = mapped_column(
+        String(64), nullable=True, unique=True, index=True
+    )
+    deposit_requested_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    deposit_request_expires_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    deposit_paid_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    deposit_stripe_payment_intent_id: Mapped[Optional[str]] = mapped_column(
+        String(255), nullable=True
+    )
+
     # Scheduling
     preferred_dates: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     scheduled_date: Mapped[Optional[datetime]] = mapped_column(

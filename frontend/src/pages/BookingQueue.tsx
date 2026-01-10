@@ -8,12 +8,14 @@ import {
   listBookingRequests,
   getBookingRequest,
   updateBookingRequest,
+  sendDepositRequest,
 } from '../services/bookings';
 import type {
   BookingRequest,
   BookingRequestStatus,
   BookingRequestSummary,
   BookingRequestUpdate,
+  SendDepositRequestResponse,
 } from '../types/api';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -84,6 +86,16 @@ export function BookingQueue() {
     internal_notes: '',
   });
   const [saving, setSaving] = useState(false);
+
+  // Deposit request state
+  const [showDepositModal, setShowDepositModal] = useState(false);
+  const [depositData, setDepositData] = useState({
+    deposit_amount: '',
+    expires_in_days: '7',
+    message: '',
+  });
+  const [sendingDeposit, setSendingDeposit] = useState(false);
+  const [depositSuccess, setDepositSuccess] = useState<SendDepositRequestResponse | null>(null);
 
   // Check if user has access
   const hasAccess = user && (user.role === 'artist' || user.role === 'owner');
@@ -159,6 +171,50 @@ export function BookingQueue() {
       quote_notes: '',
       internal_notes: '',
     });
+    setShowDepositModal(false);
+    setDepositData({
+      deposit_amount: '',
+      expires_in_days: '7',
+      message: '',
+    });
+    setDepositSuccess(null);
+  }
+
+  function openDepositModal() {
+    if (!selectedRequest) return;
+    // Pre-fill with deposit amount from quote form or existing amount
+    const amount = quoteData.deposit_amount || selectedRequest.deposit_amount?.toString() || '';
+    setDepositData({
+      deposit_amount: amount,
+      expires_in_days: '7',
+      message: quoteData.quote_notes || '',
+    });
+    setShowDepositModal(true);
+    setDepositSuccess(null);
+  }
+
+  async function handleSendDepositRequest() {
+    if (!selectedRequest || !depositData.deposit_amount) return;
+    setSendingDeposit(true);
+    setModalError(null);
+    try {
+      // Convert dollars to cents
+      const amountInCents = Math.round(parseFloat(depositData.deposit_amount) * 100);
+      const response = await sendDepositRequest(selectedRequest.id, {
+        deposit_amount: amountInCents,
+        expires_in_days: parseInt(depositData.expires_in_days, 10),
+        message: depositData.message || null,
+      });
+      setDepositSuccess(response);
+      // Refresh the selected request
+      const updated = await getBookingRequest(selectedRequest.id);
+      setSelectedRequest(updated);
+      loadRequests();
+    } catch (err) {
+      setModalError(err instanceof Error ? err.message : 'Failed to send deposit request');
+    } finally {
+      setSendingDeposit(false);
+    }
   }
 
   async function handleStatusChange(newStatus: BookingRequestStatus) {
@@ -607,8 +663,47 @@ export function BookingQueue() {
                         >
                           {saving ? 'Saving...' : 'Save Quote'}
                         </button>
+
+                        {/* Send Deposit Request button - only show when quote exists and status allows */}
+                        {selectedRequest.quoted_price &&
+                          (selectedRequest.status === 'reviewing' ||
+                            selectedRequest.status === 'quoted') && (
+                            <button
+                              onClick={openDepositModal}
+                              className="w-full py-2 mt-2 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-lg transition-colors"
+                            >
+                              Send Deposit Request
+                            </button>
+                          )}
                       </div>
                     </div>
+
+                    {/* Deposit Status */}
+                    {selectedRequest.deposit_requested_at && (
+                      <div className="p-4 bg-orange-500/10 border border-orange-500/30 rounded-lg">
+                        <h4 className="text-sm font-medium text-orange-400 mb-2">
+                          Deposit Requested
+                        </h4>
+                        <p className="text-ink-300 text-sm">
+                          Sent on {formatDate(selectedRequest.deposit_requested_at)}
+                        </p>
+                        {selectedRequest.deposit_amount && (
+                          <p className="text-orange-400 text-lg font-semibold mt-1">
+                            ${(selectedRequest.deposit_amount / 100).toFixed(2)}
+                          </p>
+                        )}
+                        {selectedRequest.deposit_request_expires_at && (
+                          <p className="text-ink-400 text-sm mt-1">
+                            Expires: {formatDate(selectedRequest.deposit_request_expires_at)}
+                          </p>
+                        )}
+                        {selectedRequest.deposit_paid_at && (
+                          <p className="text-green-400 text-sm mt-1">
+                            ✓ Paid on {formatDate(selectedRequest.deposit_paid_at)}
+                          </p>
+                        )}
+                      </div>
+                    )}
 
                     {/* Existing quote info */}
                     {selectedRequest.quoted_at && (
@@ -634,6 +729,157 @@ export function BookingQueue() {
                 </div>
               </>
             ) : null}
+          </div>
+        </div>
+      )}
+
+      {/* Deposit Request Modal */}
+      {showDepositModal && selectedRequest && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-ink-900 rounded-lg w-full max-w-md">
+            <div className="border-b border-ink-700 p-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-ink-100">Send Deposit Request</h2>
+              <button
+                onClick={() => setShowDepositModal(false)}
+                className="p-2 hover:bg-ink-800 rounded-lg transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-4">
+              {depositSuccess ? (
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg
+                      className="w-8 h-8 text-green-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-semibold text-ink-100 mb-2">
+                    Deposit Request Sent!
+                  </h3>
+                  <p className="text-ink-400 mb-4">
+                    An email has been sent to {selectedRequest.client_email} with a payment link.
+                  </p>
+                  <div className="bg-ink-800 rounded-lg p-3 text-left">
+                    <p className="text-sm text-ink-400">Amount:</p>
+                    <p className="text-lg font-semibold text-orange-400">
+                      ${(depositSuccess.deposit_amount / 100).toFixed(2)}
+                    </p>
+                    <p className="text-sm text-ink-400 mt-2">Expires:</p>
+                    <p className="text-ink-200">{formatDate(depositSuccess.expires_at)}</p>
+                  </div>
+                  <button
+                    onClick={() => setShowDepositModal(false)}
+                    className="mt-4 w-full py-2 bg-ink-700 hover:bg-ink-600 text-ink-200 font-medium rounded-lg transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <p className="text-ink-400 text-sm">
+                    Send a deposit request email to{' '}
+                    <span className="text-ink-200">{selectedRequest.client_name}</span> at{' '}
+                    <span className="text-ink-200">{selectedRequest.client_email}</span>.
+                  </p>
+
+                  <div>
+                    <label className="block text-sm font-medium text-ink-300 mb-1">
+                      Deposit Amount ($) *
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="1"
+                      value={depositData.deposit_amount}
+                      onChange={(e) =>
+                        setDepositData((d) => ({ ...d, deposit_amount: e.target.value }))
+                      }
+                      className="w-full px-3 py-2 bg-ink-800 border border-ink-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
+                      placeholder="50.00"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-ink-300 mb-1">
+                      Expires In (days)
+                    </label>
+                    <select
+                      value={depositData.expires_in_days}
+                      onChange={(e) =>
+                        setDepositData((d) => ({ ...d, expires_in_days: e.target.value }))
+                      }
+                      className="w-full px-3 py-2 bg-ink-800 border border-ink-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
+                    >
+                      <option value="3">3 days</option>
+                      <option value="7">7 days</option>
+                      <option value="14">14 days</option>
+                      <option value="30">30 days</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-ink-300 mb-1">
+                      Message to Client (optional)
+                    </label>
+                    <textarea
+                      value={depositData.message}
+                      onChange={(e) =>
+                        setDepositData((d) => ({ ...d, message: e.target.value }))
+                      }
+                      rows={3}
+                      className="w-full px-3 py-2 bg-ink-800 border border-ink-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent resize-none"
+                      placeholder="Add a personal message to the client..."
+                    />
+                  </div>
+
+                  {selectedRequest.quoted_price && (
+                    <div className="bg-ink-800 rounded-lg p-3">
+                      <p className="text-sm text-ink-400">
+                        Quoted Price:{' '}
+                        <span className="text-green-400 font-medium">
+                          ${selectedRequest.quoted_price}
+                        </span>
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      onClick={() => setShowDepositModal(false)}
+                      className="flex-1 py-2 bg-ink-700 hover:bg-ink-600 text-ink-200 font-medium rounded-lg transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleSendDepositRequest}
+                      disabled={sendingDeposit || !depositData.deposit_amount}
+                      className="flex-1 py-2 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {sendingDeposit ? 'Sending...' : 'Send Request'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
