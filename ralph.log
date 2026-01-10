@@ -1887,3 +1887,17 @@ Bug Fixes:
 - Verified: Revenue Reports page renders with all UI elements
 Status: COMPLETE
 Next: P8.4 - Booking conversion tracking
+
+=== ITERATION 42 ===
+Date: 2026-01-10
+Task: P8.4 - Client retention metrics
+Changes:
+- backend/app/schemas/analytics.py: Added ClientSegment, ClientLifetimeValue, ClientAcquisitionByMonth, ClientByArtist, TopClient, ClientRetentionReportResponse schemas
+- backend/app/routers/analytics.py: Added /reports/retention endpoint with detailed client segmentation and lifetime value calculations
+- frontend/src/services/analytics.ts: Added ClientRetentionReport types and getClientRetentionReport API function, getSegmentColor/getSegmentTextColor helpers
+- frontend/src/pages/ClientRetention.tsx: Created comprehensive retention dashboard with key metrics, segment visualization, LTV display, acquisition trends, artist retention breakdown, top clients
+- frontend/src/pages/index.ts: Export ClientRetention page
+- frontend/src/App.tsx: Added /client-retention route
+- frontend/src/components/layout/Sidebar.tsx: Added Client Retention nav item (owner-only)
+Status: COMPLETE
+Next: P8.5 - No-show rate tracking

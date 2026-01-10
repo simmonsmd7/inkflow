@@ -511,3 +511,105 @@ class ClientRetentionReportResponse(BaseModel):
     # Comparison to previous period
     retention_rate_change: Optional[float] = None
     new_clients_change: Optional[float] = None
+
+
+# ========== No-Show Report Schemas ==========
+
+
+class NoShowByArtist(BaseModel):
+    """No-show breakdown by artist."""
+
+    artist_id: str
+    artist_name: str
+    total_appointments: int
+    no_shows: int
+    no_show_rate: float = Field(description="No-show rate as percentage")
+    deposits_forfeited: int = Field(description="Deposits forfeited in cents")
+    revenue_lost: int = Field(description="Estimated revenue lost in cents")
+
+
+class NoShowByDayOfWeek(BaseModel):
+    """No-show patterns by day of week."""
+
+    day_of_week: int = Field(description="0=Monday, 6=Sunday")
+    day_name: str
+    total_appointments: int
+    no_shows: int
+    no_show_rate: float = Field(description="No-show rate as percentage")
+
+
+class NoShowByTimeSlot(BaseModel):
+    """No-show patterns by time slot."""
+
+    hour: int = Field(description="Hour of day (0-23)")
+    time_label: str = Field(description="e.g., '9:00 AM - 10:00 AM'")
+    total_appointments: int
+    no_shows: int
+    no_show_rate: float = Field(description="No-show rate as percentage")
+
+
+class NoShowClient(BaseModel):
+    """Client with no-show history."""
+
+    client_email: str
+    client_name: str
+    client_phone: Optional[str] = None
+    total_bookings: int
+    no_show_count: int
+    no_show_rate: float
+    last_no_show: Optional[date] = None
+    deposits_forfeited: int = Field(description="Total deposits forfeited in cents")
+    is_blocked: bool = Field(default=False, description="Whether client is blocked")
+
+
+class NoShowTrend(BaseModel):
+    """No-show trend data point."""
+
+    period: str = Field(description="Period label (e.g., 'Week 1', 'January')")
+    period_start: date
+    total_appointments: int
+    no_shows: int
+    no_show_rate: float
+    deposits_forfeited: int = Field(description="Deposits forfeited in cents")
+
+
+class NoShowReportResponse(BaseModel):
+    """Comprehensive no-show tracking report response."""
+
+    period_start: date
+    period_end: date
+
+    # Summary metrics
+    total_appointments: int
+    total_no_shows: int
+    no_show_rate: float = Field(description="Overall no-show rate as percentage")
+    total_deposits_forfeited: int = Field(description="Total deposits forfeited in cents")
+    estimated_revenue_lost: int = Field(description="Estimated revenue lost in cents")
+
+    # Comparison to previous period
+    no_show_rate_change: Optional[float] = Field(
+        None, description="Change in no-show rate from previous period"
+    )
+    no_shows_change: Optional[int] = Field(
+        None, description="Change in no-show count from previous period"
+    )
+
+    # Breakdown by artist
+    by_artist: list[NoShowByArtist]
+
+    # Patterns
+    by_day_of_week: list[NoShowByDayOfWeek]
+    by_time_slot: list[NoShowByTimeSlot]
+
+    # Trends over time
+    trends: list[NoShowTrend]
+
+    # Repeat offenders
+    repeat_no_show_clients: list[NoShowClient]
+
+    # Risk metrics
+    clients_with_no_shows: int = Field(description="Unique clients with at least one no-show")
+    repeat_offender_count: int = Field(description="Clients with 2+ no-shows")
+    high_risk_upcoming: int = Field(
+        description="Upcoming appointments with high no-show risk clients"
+    )

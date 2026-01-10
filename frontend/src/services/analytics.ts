@@ -838,3 +838,117 @@ export function getSegmentTextColor(segment: string): string {
       return 'text-ink-400';
   }
 }
+
+// ============ No-Show Report Types ============
+
+export interface NoShowByArtist {
+  artist_id: string;
+  artist_name: string;
+  total_appointments: number;
+  no_shows: number;
+  no_show_rate: number;
+  deposits_forfeited: number;
+  revenue_lost: number;
+}
+
+export interface NoShowByDayOfWeek {
+  day_of_week: number;
+  day_name: string;
+  total_appointments: number;
+  no_shows: number;
+  no_show_rate: number;
+}
+
+export interface NoShowByTimeSlot {
+  hour: number;
+  time_label: string;
+  total_appointments: number;
+  no_shows: number;
+  no_show_rate: number;
+}
+
+export interface NoShowClient {
+  client_email: string;
+  client_name: string;
+  client_phone: string | null;
+  total_bookings: number;
+  no_show_count: number;
+  no_show_rate: number;
+  last_no_show: string | null;
+  deposits_forfeited: number;
+  is_blocked: boolean;
+}
+
+export interface NoShowTrend {
+  period: string;
+  period_start: string;
+  total_appointments: number;
+  no_shows: number;
+  no_show_rate: number;
+  deposits_forfeited: number;
+}
+
+export interface NoShowReport {
+  period_start: string;
+  period_end: string;
+  total_appointments: number;
+  total_no_shows: number;
+  no_show_rate: number;
+  total_deposits_forfeited: number;
+  estimated_revenue_lost: number;
+  no_show_rate_change: number | null;
+  no_shows_change: number | null;
+  by_artist: NoShowByArtist[];
+  by_day_of_week: NoShowByDayOfWeek[];
+  by_time_slot: NoShowByTimeSlot[];
+  trends: NoShowTrend[];
+  repeat_no_show_clients: NoShowClient[];
+  clients_with_no_shows: number;
+  repeat_offender_count: number;
+  high_risk_upcoming: number;
+}
+
+// ============ No-Show Report API Functions ============
+
+/**
+ * Get comprehensive no-show report for a date range.
+ */
+export async function getNoShowReport(
+  startDate: string,
+  endDate: string
+): Promise<NoShowReport> {
+  const params = new URLSearchParams({
+    start_date: startDate,
+    end_date: endDate,
+  });
+  return api.get<NoShowReport>(`/api/v1/analytics/reports/no-shows?${params}`);
+}
+
+/**
+ * Get no-show rate severity level.
+ */
+export function getNoShowRateSeverity(rate: number): {
+  level: 'low' | 'medium' | 'high' | 'critical';
+  color: string;
+  bgColor: string;
+} {
+  if (rate <= 5) {
+    return { level: 'low', color: 'text-green-400', bgColor: 'bg-green-500/20' };
+  } else if (rate <= 10) {
+    return { level: 'medium', color: 'text-yellow-400', bgColor: 'bg-yellow-500/20' };
+  } else if (rate <= 20) {
+    return { level: 'high', color: 'text-orange-400', bgColor: 'bg-orange-500/20' };
+  } else {
+    return { level: 'critical', color: 'text-red-400', bgColor: 'bg-red-500/20' };
+  }
+}
+
+/**
+ * Get bar color for no-show rate visualization.
+ */
+export function getNoShowBarColor(rate: number): string {
+  if (rate <= 5) return 'bg-green-500';
+  if (rate <= 10) return 'bg-yellow-500';
+  if (rate <= 20) return 'bg-orange-500';
+  return 'bg-red-500';
+}

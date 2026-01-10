@@ -18,6 +18,7 @@ export { DepositPayment } from './DepositPayment';
 export { ForgotPassword } from './ForgotPassword';
 export { Inbox } from './Inbox';
 export { Login } from './Login';
+export { default as NoShowTracking } from './NoShowTracking';
 export { PaymentSuccess } from './PaymentSuccess';
 export { Register } from './Register';
 export { ResetPassword } from './ResetPassword';

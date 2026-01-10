@@ -42,7 +42,13 @@ from app.schemas.analytics import (
     DashboardStats,
     MonthlyPerformance,
     MonthlyRevenueReportResponse,
+    NoShowByArtist,
+    NoShowByDayOfWeek,
+    NoShowByTimeSlot,
+    NoShowClient,
     NoShowMetrics,
+    NoShowReportResponse,
+    NoShowTrend,
     OccupancyMetrics,
     PopularTimeSlot,
     RecentActivity,
@@ -2452,4 +2458,459 @@ async def get_client_retention_report(
         top_clients=top_clients,
         retention_rate_change=round(retention_change, 1) if retention_change is not None else None,
         new_clients_change=round(new_clients_change, 1) if new_clients_change is not None else None,
+    )
+
+
+@router.get("/reports/no-shows", response_model=NoShowReportResponse)
+async def get_no_show_report(
+    start_date: date = Query(..., description="Start date for report"),
+    end_date: date = Query(..., description="End date for report"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get comprehensive no-show tracking report."""
+    studio = await _get_studio_for_user(db, current_user)
+    studio_id = studio.id if studio else None
+
+    start_dt = datetime.combine(start_date, datetime.min.time())
+    end_dt = datetime.combine(end_date, datetime.max.time())
+
+    # Base filter for this period
+    base_filter = [
+        BookingRequest.scheduled_date >= start_dt,
+        BookingRequest.scheduled_date <= end_dt,
+        BookingRequest.scheduled_date.isnot(None),
+    ]
+    if studio_id:
+        base_filter.append(BookingRequest.studio_id == studio_id)
+
+    # === SUMMARY METRICS ===
+    # Total appointments (confirmed, completed, no_show)
+    total_result = await db.execute(
+        select(func.count(BookingRequest.id)).where(
+            and_(
+                *base_filter,
+                BookingRequest.status.in_([
+                    BookingRequestStatus.CONFIRMED,
+                    BookingRequestStatus.COMPLETED,
+                    BookingRequestStatus.NO_SHOW,
+                ]),
+            )
+        )
+    )
+    total_appointments = total_result.scalar() or 0
+
+    # Total no-shows
+    no_show_result = await db.execute(
+        select(func.count(BookingRequest.id)).where(
+            and_(
+                *base_filter,
+                BookingRequest.status == BookingRequestStatus.NO_SHOW,
+            )
+        )
+    )
+    total_no_shows = no_show_result.scalar() or 0
+
+    # No-show rate
+    no_show_rate = (total_no_shows / total_appointments * 100) if total_appointments > 0 else 0
+
+    # Deposits forfeited
+    forfeited_result = await db.execute(
+        select(func.coalesce(func.sum(BookingRequest.deposit_amount), 0)).where(
+            and_(
+                *base_filter,
+                BookingRequest.status == BookingRequestStatus.NO_SHOW,
+                BookingRequest.deposit_forfeited == True,
+            )
+        )
+    )
+    total_deposits_forfeited = forfeited_result.scalar() or 0
+
+    # Estimated revenue lost (quoted price of no-shows)
+    revenue_lost_result = await db.execute(
+        select(func.coalesce(func.sum(BookingRequest.quoted_price), 0)).where(
+            and_(
+                *base_filter,
+                BookingRequest.status == BookingRequestStatus.NO_SHOW,
+            )
+        )
+    )
+    estimated_revenue_lost = revenue_lost_result.scalar() or 0
+
+    # === PREVIOUS PERIOD COMPARISON ===
+    period_days = (end_date - start_date).days
+    prev_start = start_date - timedelta(days=period_days + 1)
+    prev_end = start_date - timedelta(days=1)
+    prev_start_dt = datetime.combine(prev_start, datetime.min.time())
+    prev_end_dt = datetime.combine(prev_end, datetime.max.time())
+
+    prev_filter = [
+        BookingRequest.scheduled_date >= prev_start_dt,
+        BookingRequest.scheduled_date <= prev_end_dt,
+        BookingRequest.scheduled_date.isnot(None),
+    ]
+    if studio_id:
+        prev_filter.append(BookingRequest.studio_id == studio_id)
+
+    prev_total_result = await db.execute(
+        select(func.count(BookingRequest.id)).where(
+            and_(
+                *prev_filter,
+                BookingRequest.status.in_([
+                    BookingRequestStatus.CONFIRMED,
+                    BookingRequestStatus.COMPLETED,
+                    BookingRequestStatus.NO_SHOW,
+                ]),
+            )
+        )
+    )
+    prev_total = prev_total_result.scalar() or 0
+
+    prev_no_show_result = await db.execute(
+        select(func.count(BookingRequest.id)).where(
+            and_(
+                *prev_filter,
+                BookingRequest.status == BookingRequestStatus.NO_SHOW,
+            )
+        )
+    )
+    prev_no_shows = prev_no_show_result.scalar() or 0
+
+    prev_no_show_rate = (prev_no_shows / prev_total * 100) if prev_total > 0 else 0
+    no_show_rate_change = no_show_rate - prev_no_show_rate if prev_total > 0 else None
+    no_shows_change = total_no_shows - prev_no_shows if prev_total > 0 else None
+
+    # === BY ARTIST ===
+    artist_result = await db.execute(
+        select(
+            User.id.label("artist_id"),
+            User.full_name.label("artist_name"),
+            func.count(BookingRequest.id).filter(
+                BookingRequest.status.in_([
+                    BookingRequestStatus.CONFIRMED,
+                    BookingRequestStatus.COMPLETED,
+                    BookingRequestStatus.NO_SHOW,
+                ])
+            ).label("total_appointments"),
+            func.count(BookingRequest.id).filter(
+                BookingRequest.status == BookingRequestStatus.NO_SHOW
+            ).label("no_shows"),
+            func.coalesce(
+                func.sum(BookingRequest.deposit_amount).filter(
+                    and_(
+                        BookingRequest.status == BookingRequestStatus.NO_SHOW,
+                        BookingRequest.deposit_forfeited == True,
+                    )
+                ), 0
+            ).label("deposits_forfeited"),
+            func.coalesce(
+                func.sum(BookingRequest.quoted_price).filter(
+                    BookingRequest.status == BookingRequestStatus.NO_SHOW
+                ), 0
+            ).label("revenue_lost"),
+        )
+        .join(User, BookingRequest.artist_id == User.id)
+        .where(
+            and_(
+                *base_filter,
+                BookingRequest.artist_id.isnot(None),
+            )
+        )
+        .group_by(User.id, User.full_name)
+        .order_by(func.count(BookingRequest.id).filter(
+            BookingRequest.status == BookingRequestStatus.NO_SHOW
+        ).desc())
+    )
+
+    by_artist = []
+    for row in artist_result.all():
+        artist_no_show_rate = (
+            row.no_shows / row.total_appointments * 100
+        ) if row.total_appointments > 0 else 0
+        by_artist.append(
+            NoShowByArtist(
+                artist_id=str(row.artist_id),
+                artist_name=row.artist_name,
+                total_appointments=row.total_appointments,
+                no_shows=row.no_shows,
+                no_show_rate=round(artist_no_show_rate, 1),
+                deposits_forfeited=row.deposits_forfeited,
+                revenue_lost=row.revenue_lost,
+            )
+        )
+
+    # === BY DAY OF WEEK ===
+    day_names = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+
+    day_result = await db.execute(
+        select(
+            func.extract("dow", BookingRequest.scheduled_date).label("day"),
+            func.count(BookingRequest.id).filter(
+                BookingRequest.status.in_([
+                    BookingRequestStatus.CONFIRMED,
+                    BookingRequestStatus.COMPLETED,
+                    BookingRequestStatus.NO_SHOW,
+                ])
+            ).label("total_appointments"),
+            func.count(BookingRequest.id).filter(
+                BookingRequest.status == BookingRequestStatus.NO_SHOW
+            ).label("no_shows"),
+        )
+        .where(and_(*base_filter))
+        .group_by(func.extract("dow", BookingRequest.scheduled_date))
+        .order_by(func.extract("dow", BookingRequest.scheduled_date))
+    )
+
+    by_day_of_week = []
+    for row in day_result.all():
+        if row.day is not None:
+            day_no_show_rate = (
+                row.no_shows / row.total_appointments * 100
+            ) if row.total_appointments > 0 else 0
+            by_day_of_week.append(
+                NoShowByDayOfWeek(
+                    day_of_week=int(row.day),
+                    day_name=day_names[int(row.day)],
+                    total_appointments=row.total_appointments,
+                    no_shows=row.no_shows,
+                    no_show_rate=round(day_no_show_rate, 1),
+                )
+            )
+
+    # === BY TIME SLOT ===
+    time_result = await db.execute(
+        select(
+            func.extract("hour", BookingRequest.scheduled_date).label("hour"),
+            func.count(BookingRequest.id).filter(
+                BookingRequest.status.in_([
+                    BookingRequestStatus.CONFIRMED,
+                    BookingRequestStatus.COMPLETED,
+                    BookingRequestStatus.NO_SHOW,
+                ])
+            ).label("total_appointments"),
+            func.count(BookingRequest.id).filter(
+                BookingRequest.status == BookingRequestStatus.NO_SHOW
+            ).label("no_shows"),
+        )
+        .where(and_(*base_filter))
+        .group_by(func.extract("hour", BookingRequest.scheduled_date))
+        .order_by(func.extract("hour", BookingRequest.scheduled_date))
+    )
+
+    by_time_slot = []
+    for row in time_result.all():
+        if row.hour is not None:
+            hour = int(row.hour)
+            time_no_show_rate = (
+                row.no_shows / row.total_appointments * 100
+            ) if row.total_appointments > 0 else 0
+            # Format time label (e.g., "9:00 AM - 10:00 AM")
+            start_hour = hour
+            end_hour = hour + 1
+            start_period = "AM" if start_hour < 12 else "PM"
+            end_period = "AM" if end_hour < 12 else "PM"
+            start_display = start_hour if start_hour <= 12 else start_hour - 12
+            end_display = end_hour if end_hour <= 12 else end_hour - 12
+            if start_display == 0:
+                start_display = 12
+            if end_display == 0:
+                end_display = 12
+            time_label = f"{start_display}:00 {start_period} - {end_display}:00 {end_period}"
+
+            by_time_slot.append(
+                NoShowByTimeSlot(
+                    hour=hour,
+                    time_label=time_label,
+                    total_appointments=row.total_appointments,
+                    no_shows=row.no_shows,
+                    no_show_rate=round(time_no_show_rate, 1),
+                )
+            )
+
+    # === TRENDS (Weekly) ===
+    trends = []
+    current_start = start_date
+    week_num = 1
+    while current_start <= end_date:
+        week_end = min(current_start + timedelta(days=6), end_date)
+        week_start_dt = datetime.combine(current_start, datetime.min.time())
+        week_end_dt = datetime.combine(week_end, datetime.max.time())
+
+        week_filter = [
+            BookingRequest.scheduled_date >= week_start_dt,
+            BookingRequest.scheduled_date <= week_end_dt,
+            BookingRequest.scheduled_date.isnot(None),
+        ]
+        if studio_id:
+            week_filter.append(BookingRequest.studio_id == studio_id)
+
+        week_total_result = await db.execute(
+            select(func.count(BookingRequest.id)).where(
+                and_(
+                    *week_filter,
+                    BookingRequest.status.in_([
+                        BookingRequestStatus.CONFIRMED,
+                        BookingRequestStatus.COMPLETED,
+                        BookingRequestStatus.NO_SHOW,
+                    ]),
+                )
+            )
+        )
+        week_total = week_total_result.scalar() or 0
+
+        week_no_show_result = await db.execute(
+            select(func.count(BookingRequest.id)).where(
+                and_(
+                    *week_filter,
+                    BookingRequest.status == BookingRequestStatus.NO_SHOW,
+                )
+            )
+        )
+        week_no_shows = week_no_show_result.scalar() or 0
+
+        week_forfeited_result = await db.execute(
+            select(func.coalesce(func.sum(BookingRequest.deposit_amount), 0)).where(
+                and_(
+                    *week_filter,
+                    BookingRequest.status == BookingRequestStatus.NO_SHOW,
+                    BookingRequest.deposit_forfeited == True,
+                )
+            )
+        )
+        week_forfeited = week_forfeited_result.scalar() or 0
+
+        week_rate = (week_no_shows / week_total * 100) if week_total > 0 else 0
+
+        trends.append(
+            NoShowTrend(
+                period=f"Week {week_num}",
+                period_start=current_start,
+                total_appointments=week_total,
+                no_shows=week_no_shows,
+                no_show_rate=round(week_rate, 1),
+                deposits_forfeited=week_forfeited,
+            )
+        )
+
+        current_start = week_end + timedelta(days=1)
+        week_num += 1
+
+    # === REPEAT OFFENDERS ===
+    # Get clients with multiple no-shows
+    repeat_result = await db.execute(
+        select(
+            BookingRequest.client_email,
+            BookingRequest.client_name,
+            BookingRequest.client_phone,
+            func.count(BookingRequest.id).label("total_bookings"),
+            func.count(BookingRequest.id).filter(
+                BookingRequest.status == BookingRequestStatus.NO_SHOW
+            ).label("no_show_count"),
+            func.max(BookingRequest.scheduled_date).filter(
+                BookingRequest.status == BookingRequestStatus.NO_SHOW
+            ).label("last_no_show"),
+            func.coalesce(
+                func.sum(BookingRequest.deposit_amount).filter(
+                    and_(
+                        BookingRequest.status == BookingRequestStatus.NO_SHOW,
+                        BookingRequest.deposit_forfeited == True,
+                    )
+                ), 0
+            ).label("deposits_forfeited"),
+        )
+        .where(
+            and_(
+                BookingRequest.studio_id == studio_id if studio_id else True,
+            )
+        )
+        .group_by(
+            BookingRequest.client_email,
+            BookingRequest.client_name,
+            BookingRequest.client_phone,
+        )
+        .having(
+            func.count(BookingRequest.id).filter(
+                BookingRequest.status == BookingRequestStatus.NO_SHOW
+            ) >= 2
+        )
+        .order_by(
+            func.count(BookingRequest.id).filter(
+                BookingRequest.status == BookingRequestStatus.NO_SHOW
+            ).desc()
+        )
+        .limit(20)
+    )
+
+    repeat_no_show_clients = []
+    for row in repeat_result.all():
+        client_no_show_rate = (
+            row.no_show_count / row.total_bookings * 100
+        ) if row.total_bookings > 0 else 0
+        repeat_no_show_clients.append(
+            NoShowClient(
+                client_email=row.client_email,
+                client_name=row.client_name,
+                client_phone=row.client_phone,
+                total_bookings=row.total_bookings,
+                no_show_count=row.no_show_count,
+                no_show_rate=round(client_no_show_rate, 1),
+                last_no_show=row.last_no_show.date() if row.last_no_show else None,
+                deposits_forfeited=row.deposits_forfeited,
+                is_blocked=False,  # Would check against blocked list
+            )
+        )
+
+    # === RISK METRICS ===
+    # Unique clients with no-shows
+    clients_with_no_shows_result = await db.execute(
+        select(func.count(func.distinct(BookingRequest.client_email))).where(
+            and_(
+                BookingRequest.status == BookingRequestStatus.NO_SHOW,
+                BookingRequest.studio_id == studio_id if studio_id else True,
+            )
+        )
+    )
+    clients_with_no_shows = clients_with_no_shows_result.scalar() or 0
+
+    # Repeat offender count (2+ no-shows)
+    repeat_offender_count = len(repeat_no_show_clients)
+
+    # High risk upcoming appointments
+    # Get clients with previous no-shows who have upcoming appointments
+    now = datetime.utcnow()
+    high_risk_result = await db.execute(
+        select(func.count(BookingRequest.id)).where(
+            and_(
+                BookingRequest.scheduled_date > now,
+                BookingRequest.status == BookingRequestStatus.CONFIRMED,
+                BookingRequest.studio_id == studio_id if studio_id else True,
+                BookingRequest.client_email.in_(
+                    select(BookingRequest.client_email)
+                    .where(BookingRequest.status == BookingRequestStatus.NO_SHOW)
+                    .group_by(BookingRequest.client_email)
+                    .having(func.count(BookingRequest.id) >= 1)
+                ),
+            )
+        )
+    )
+    high_risk_upcoming = high_risk_result.scalar() or 0
+
+    return NoShowReportResponse(
+        period_start=start_date,
+        period_end=end_date,
+        total_appointments=total_appointments,
+        total_no_shows=total_no_shows,
+        no_show_rate=round(no_show_rate, 1),
+        total_deposits_forfeited=total_deposits_forfeited,
+        estimated_revenue_lost=estimated_revenue_lost,
+        no_show_rate_change=round(no_show_rate_change, 1) if no_show_rate_change is not None else None,
+        no_shows_change=no_shows_change,
+        by_artist=by_artist,
+        by_day_of_week=by_day_of_week,
+        by_time_slot=by_time_slot,
+        trends=trends,
+        repeat_no_show_clients=repeat_no_show_clients,
+        clients_with_no_shows=clients_with_no_shows,
+        repeat_offender_count=repeat_offender_count,
+        high_risk_upcoming=high_risk_upcoming,
     )

@@ -17,6 +17,7 @@ import {
   ForgotPassword,
   Inbox,
   Login,
+  NoShowTracking,
   PaymentSuccess,
   Register,
   ResetPassword,
@@ -62,6 +63,7 @@ function App() {
               <Route path="/artist-performance" element={<ArtistPerformance />} />
               <Route path="/client-retention" element={<ClientRetention />} />
               <Route path="/revenue-reports" element={<RevenueReports />} />
+              <Route path="/no-show-tracking" element={<NoShowTracking />} />
               <Route path="/consent" element={<ConsentForms />} />
               <Route path="/aftercare" element={<Aftercare />} />
               <Route path="/settings" element={<StudioSettings />} />
