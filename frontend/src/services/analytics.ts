@@ -320,7 +320,7 @@ export async function getArtistPerformanceList(
   const params = new URLSearchParams({ range_type: rangeType });
   if (startDate) params.append('start_date', startDate);
   if (endDate) params.append('end_date', endDate);
-  return api.get<ArtistPerformanceListResponse>(`/analytics/artists?${params}`);
+  return api.get<ArtistPerformanceListResponse>(`/api/v1/analytics/artists?${params}`);
 }
 
 /**
@@ -335,7 +335,7 @@ export async function getArtistDetailedPerformance(
   const params = new URLSearchParams({ range_type: rangeType });
   if (startDate) params.append('start_date', startDate);
   if (endDate) params.append('end_date', endDate);
-  return api.get<ArtistDetailedPerformance>(`/analytics/artists/${artistId}?${params}`);
+  return api.get<ArtistDetailedPerformance>(`/api/v1/analytics/artists/${artistId}?${params}`);
 }
 
 // Helper functions
