@@ -1,0 +1,74 @@
+"""FastAPI application entry point."""
+
+from contextlib import asynccontextmanager
+from datetime import datetime
+from typing import Any
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.config import get_settings
+from app.database import close_db, init_db
+
+settings = get_settings()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan manager for startup/shutdown events."""
+    # Startup
+    await init_db()
+    yield
+    # Shutdown
+    await close_db()
+
+
+app = FastAPI(
+    title=settings.app_name,
+    description="All-in-one SaaS platform for tattoo artists and studios",
+    version="0.1.0",
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json",
+    lifespan=lifespan,
+)
+
+# CORS configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[settings.frontend_url],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.get("/", tags=["Root"])
+async def root() -> dict[str, str]:
+    """Root endpoint."""
+    return {
+        "message": f"Welcome to {settings.app_name} API",
+        "docs": "/api/docs",
+    }
+
+
+@app.get("/health", tags=["Health"])
+async def health_check() -> dict[str, Any]:
+    """Health check endpoint."""
+    return {
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat(),
+        "app": settings.app_name,
+        "version": "0.1.0",
+        "environment": settings.app_env,
+    }
+
+
+@app.get("/api/v1/health", tags=["Health"])
+async def api_health_check() -> dict[str, Any]:
+    """API v1 health check endpoint."""
+    return {
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat(),
+        "api_version": "v1",
+    }
