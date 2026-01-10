@@ -176,6 +176,41 @@ Frontend:
 Status: COMPLETE
 Next: P2.5 - Studio profile setup (name, logo, address, hours)
 
+=== ITERATION 10 ===
+Date: 2026-01-10
+Task: P2.5 - Studio profile setup (name, logo, address, hours)
+Changes:
+Backend:
+- backend/app/models/studio.py: NEW - Studio model with name, slug, description, logo_url, contact info, address, business hours (JSON), timezone, owner relationship
+- backend/app/schemas/studio.py: NEW - BusinessHours/BusinessHoursDay schemas, StudioCreate, StudioUpdate, StudioResponse, StudioListResponse
+- backend/app/routers/studios.py: NEW - CRUD endpoints for studios (owner only for writes), logo upload/delete with file validation (5MB, JPG/PNG/GIF/WebP)
+- backend/app/models/user.py: Added owned_studios relationship
+- backend/app/models/__init__.py: Export Studio model
+- backend/app/schemas/__init__.py: Export studio schemas
+- backend/app/routers/__init__.py: Export studios_router
+- backend/app/main.py: Include studios_router, add static file serving for /uploads
+
+Frontend:
+- frontend/src/pages/StudioSettings.tsx: NEW - Full studio settings form with:
+  - Logo upload with preview and delete
+  - Basic info (name, description)
+  - Contact info (email, phone, website)
+  - Address form (line1, line2, city, state, postal, country)
+  - Business hours editor with per-day open/close times and closed toggle
+  - Timezone selector
+  - RBAC enforcement (owner only)
+- frontend/src/services/studios.ts: NEW - API service for studio CRUD and logo upload
+- frontend/src/types/api.ts: Added Studio, BusinessHours, StudioCreate, StudioUpdate types
+- frontend/src/pages/index.ts: Export StudioSettings
+- frontend/src/App.tsx: Added /settings route
+
+- Verified: Frontend build passes with no TypeScript errors
+- Verified: API endpoints work correctly (tested via curl)
+- Verified: Studio Settings page renders with proper RBAC (Access Denied for non-owners)
+- Verified: Settings link visible in sidebar navigation
+Status: COMPLETE
+Next: P2.6 - Artist profiles (bio, portfolio gallery, specialties)
+
 ---
 PROJECT: InkFlow - Tattoo Studio Management Platform
 TARGET: Solo artists and 2-5 artist studios at $29-69/month
