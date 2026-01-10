@@ -33,6 +33,13 @@ class PayPeriodStatus(str, Enum):
     PAID = "paid"
 
 
+class TipPaymentMethod(str, Enum):
+    """How tips were paid (for tax reporting)."""
+
+    CARD = "card"
+    CASH = "cash"
+
+
 # ============ Commission Tier Schemas ============
 
 
@@ -243,7 +250,10 @@ class EarnedCommissionBase(BaseModel):
     service_total: int = Field(ge=0, description="Total service amount in cents")
     studio_commission: int = Field(ge=0, description="Studio's commission in cents")
     artist_payout: int = Field(ge=0, description="Artist's payout in cents")
-    tips_amount: int = Field(default=0, ge=0, description="Tips amount in cents (100% to artist)")
+    tips_amount: int = Field(default=0, ge=0, description="Total tips amount in cents")
+    tip_payment_method: Optional[TipPaymentMethod] = Field(None, description="How tips were paid")
+    tip_artist_share: int = Field(default=0, ge=0, description="Artist's share of tips in cents")
+    tip_studio_share: int = Field(default=0, ge=0, description="Studio's share of tips in cents")
     calculation_details: str = Field(description="Human-readable calculation breakdown")
 
 
@@ -298,6 +308,9 @@ class CompleteBookingWithCommissionInput(BaseModel):
     """Input for completing a booking and calculating commission."""
 
     tips_amount: int = Field(default=0, ge=0, description="Tips amount in cents")
+    tip_payment_method: Optional[TipPaymentMethod] = Field(
+        None, description="How tips were paid (card or cash)"
+    )
     final_price: Optional[int] = Field(
         None,
         ge=0,
@@ -373,6 +386,10 @@ class PayPeriodSummary(BaseModel):
     total_studio_commission: int = Field(description="Studio commission in cents")
     total_artist_payout: int = Field(description="Artist payouts in cents")
     total_tips: int = Field(description="Tips in cents")
+    total_tips_card: int = Field(default=0, description="Card tips in cents")
+    total_tips_cash: int = Field(default=0, description="Cash tips in cents")
+    total_tip_artist_share: int = Field(default=0, description="Artist share of tips in cents")
+    total_tip_studio_share: int = Field(default=0, description="Studio share of tips in cents")
     commission_count: int = Field(description="Number of commissions")
     closed_at: Optional[datetime] = None
     paid_at: Optional[datetime] = None
@@ -512,5 +529,66 @@ class ArtistPayoutReportResponse(BaseModel):
 
     artists: list[ArtistPayoutSummary]
     summary: PayoutReportSummary
+    start_date: Optional[datetime]
+    end_date: Optional[datetime]
+
+
+# ============ Tip Distribution Schemas ============
+
+
+class TipSettingsBase(BaseModel):
+    """Base schema for studio tip settings."""
+
+    tip_artist_percentage: int = Field(
+        default=100,
+        ge=0,
+        le=100,
+        description="Percentage of tips that goes to the artist (0-100)",
+    )
+
+
+class TipSettingsUpdate(TipSettingsBase):
+    """Schema for updating studio tip settings."""
+
+    pass
+
+
+class TipSettingsResponse(TipSettingsBase):
+    """Response schema for studio tip settings."""
+
+    pass
+
+
+class ArtistTipSummary(BaseModel):
+    """Summary of tips for a single artist."""
+
+    artist_id: UUID
+    artist_name: str
+    email: str
+    total_tips: int = Field(description="Total tips in cents")
+    total_tips_card: int = Field(description="Card tips in cents")
+    total_tips_cash: int = Field(description="Cash tips in cents")
+    tip_artist_share: int = Field(description="Artist share of tips in cents")
+    tip_studio_share: int = Field(description="Studio share of tips in cents")
+    booking_count: int = Field(description="Number of bookings with tips")
+
+
+class TipReportSummary(BaseModel):
+    """Overall summary for a tip report."""
+
+    total_tips: int = Field(description="Total tips in cents")
+    total_tips_card: int = Field(description="Card tips in cents")
+    total_tips_cash: int = Field(description="Cash tips in cents")
+    total_artist_share: int = Field(description="Total artist share of tips in cents")
+    total_studio_share: int = Field(description="Total studio share of tips in cents")
+    total_bookings_with_tips: int = Field(description="Number of bookings with tips")
+    artists_with_tips: int = Field(description="Number of artists with tips")
+
+
+class TipReportResponse(BaseModel):
+    """Response for tip distribution report."""
+
+    artists: list[ArtistTipSummary]
+    summary: TipReportSummary
     start_date: Optional[datetime]
     end_date: Optional[datetime]

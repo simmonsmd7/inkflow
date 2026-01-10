@@ -30,6 +30,9 @@ import type {
   PayPeriodStatus,
   PayPeriodsListResponse,
   PayPeriodWithCommissions,
+  TipReportResponse,
+  TipSettings,
+  TipSettingsUpdate,
 } from '../types/api';
 
 /**
@@ -330,4 +333,37 @@ export async function getArtistPayoutsReport(options?: {
     params.append('paid_only', options.paidOnly.toString());
   }
   return api.get<ArtistPayoutReportResponse>(`/commissions/reports/artist-payouts?${params.toString()}`);
+}
+
+// ============ Tip Distribution ============
+
+/**
+ * Get tip distribution settings for the studio.
+ */
+export async function getTipSettings(): Promise<TipSettings> {
+  return api.get<TipSettings>('/commissions/tips/settings');
+}
+
+/**
+ * Update tip distribution settings for the studio.
+ */
+export async function updateTipSettings(data: TipSettingsUpdate): Promise<TipSettings> {
+  return api.put<TipSettings>('/commissions/tips/settings', data);
+}
+
+/**
+ * Get tip distribution report showing tips by artist with card/cash breakdown.
+ */
+export async function getTipReport(options?: {
+  startDate?: string;
+  endDate?: string;
+}): Promise<TipReportResponse> {
+  const params = new URLSearchParams();
+  if (options?.startDate) {
+    params.append('start_date', options.startDate);
+  }
+  if (options?.endDate) {
+    params.append('end_date', options.endDate);
+  }
+  return api.get<TipReportResponse>(`/commissions/tips/report?${params.toString()}`);
 }

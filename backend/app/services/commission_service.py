@@ -14,6 +14,7 @@ from app.models.commission import (
     CommissionTier,
     CommissionType,
     EarnedCommission,
+    TipPaymentMethod,
 )
 from app.models.studio import Studio
 from app.models.user import User, UserRole
@@ -116,6 +117,7 @@ async def calculate_and_record_commission(
     db: AsyncSession,
     booking: BookingRequest,
     tips_amount: int = 0,
+    tip_payment_method: Optional[TipPaymentMethod] = None,
     final_price: Optional[int] = None,
 ) -> Optional[EarnedCommission]:
     """
@@ -124,7 +126,8 @@ async def calculate_and_record_commission(
     Args:
         db: Database session
         booking: The booking request being completed
-        tips_amount: Tips amount in cents (100% goes to artist)
+        tips_amount: Tips amount in cents
+        tip_payment_method: How tips were paid (card or cash)
         final_price: Final service price in cents (overrides quoted_price if provided)
 
     Returns:
@@ -157,12 +160,26 @@ async def calculate_and_record_commission(
         # No commission rule found, can't calculate
         return None
 
+    # Get studio for tip distribution settings
+    studio_query = select(Studio).where(Studio.id == booking.studio_id)
+    studio_result = await db.execute(studio_query)
+    studio = studio_result.scalar_one_or_none()
+
+    # Calculate tip distribution
+    tip_artist_percentage = studio.tip_artist_percentage if studio else 100
+    tip_artist_share = int(tips_amount * (tip_artist_percentage / 100))
+    tip_studio_share = tips_amount - tip_artist_share
+
     # Calculate the commission
     studio_commission, calculation_details = calculate_commission_from_rule(
         rule, service_total
     )
 
-    # Artist payout is service total minus studio commission, plus tips
+    # Add tip distribution to calculation details if tips exist
+    if tips_amount > 0:
+        calculation_details += f" | Tips: ${tips_amount / 100:.2f} ({tip_artist_percentage}% to artist = ${tip_artist_share / 100:.2f})"
+
+    # Artist payout is service total minus studio commission
     artist_payout = service_total - studio_commission
 
     # Create the earned commission record
@@ -177,6 +194,9 @@ async def calculate_and_record_commission(
         studio_commission=studio_commission,
         artist_payout=artist_payout,
         tips_amount=tips_amount,
+        tip_payment_method=tip_payment_method,
+        tip_artist_share=tip_artist_share,
+        tip_studio_share=tip_studio_share,
         calculation_details=calculation_details,
         completed_at=datetime.now(timezone.utc),
     )

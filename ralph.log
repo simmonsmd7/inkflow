@@ -1081,3 +1081,63 @@ Changes:
   - Artist payouts table with totals
 Status: COMPLETE
 Next: P5.6 - Tips tracking and distribution
+
+=== ITERATION 36 ===
+Date: 2026-01-10
+Task: P5.6 - Tips tracking and distribution
+Changes:
+Backend Models:
+- backend/app/models/commission.py: Added TipPaymentMethod enum (card/cash)
+- backend/app/models/commission.py: Added tip distribution fields to EarnedCommission:
+  - tip_payment_method, tip_artist_share, tip_studio_share
+- backend/app/models/commission.py: Added tip tracking fields to PayPeriod:
+  - total_tips_card, total_tips_cash, total_tip_artist_share, total_tip_studio_share
+- backend/app/models/studio.py: Added tip_artist_percentage field (default 100%)
+- backend/app/models/__init__.py: Exported TipPaymentMethod
+
+Backend Schemas:
+- backend/app/schemas/commission.py: Added TipPaymentMethod enum
+- backend/app/schemas/commission.py: Updated EarnedCommissionBase with tip distribution fields
+- backend/app/schemas/commission.py: Updated CompleteBookingWithCommissionInput with tip_payment_method
+- backend/app/schemas/commission.py: Updated PayPeriodSummary with tip tracking fields
+- backend/app/schemas/commission.py: Added TipSettingsBase, TipSettingsUpdate, TipSettingsResponse
+- backend/app/schemas/commission.py: Added ArtistTipSummary, TipReportSummary, TipReportResponse
+- backend/app/schemas/__init__.py: Exported new tip schemas
+
+Backend Services:
+- backend/app/services/commission_service.py: Updated calculate_and_record_commission()
+  - Added tip_payment_method parameter
+  - Calculates tip distribution based on studio's tip_artist_percentage
+  - Records tip_artist_share and tip_studio_share on EarnedCommission
+
+Backend Router:
+- backend/app/routers/bookings.py: Updated complete_booking to pass tip_payment_method
+- backend/app/routers/commissions.py: Updated recalculate_pay_period_totals() for card/cash tracking
+- backend/app/routers/commissions.py: Added tip distribution endpoints:
+  - GET /tips/settings - Get studio tip settings
+  - PUT /tips/settings - Update tip artist percentage
+  - GET /tips/report - Get tip distribution report by artist with card/cash breakdown
+
+Frontend Types:
+- frontend/src/types/api.ts: Added TipPaymentMethod type
+- frontend/src/types/api.ts: Updated PayPeriodSummary with tip tracking fields
+- frontend/src/types/api.ts: Updated EarnedCommission with tip distribution fields
+- frontend/src/types/api.ts: Added TipSettings, TipSettingsUpdate interfaces
+- frontend/src/types/api.ts: Added ArtistTipSummary, TipReportSummary, TipReportResponse interfaces
+
+Frontend Service:
+- frontend/src/services/commissions.ts: Added getTipSettings, updateTipSettings, getTipReport functions
+
+Frontend UI:
+- frontend/src/pages/Commissions.tsx: Added Tips tab with:
+  - Tip distribution settings panel (artist percentage configuration)
+  - Date range filtering for tip report
+  - Summary cards (total tips, card tips, cash tips, bookings with tips)
+  - Artist/Studio share distribution display
+  - Artist tips table with card/cash breakdown, artist share, studio share
+  - RBAC enforcement (owner only access)
+
+- Verified: Frontend build passes with no TypeScript errors
+- Verified: Backend commission routes load correctly
+Status: COMPLETE
+Next: P6.1 - Dashboard analytics for studio

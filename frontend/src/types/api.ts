@@ -857,6 +857,8 @@ export interface PayPeriodCreate {
   end_date: string;
 }
 
+export type TipPaymentMethod = 'card' | 'cash';
+
 export interface PayPeriodSummary {
   id: string;
   start_date: string;
@@ -866,6 +868,10 @@ export interface PayPeriodSummary {
   total_studio_commission: number;
   total_artist_payout: number;
   total_tips: number;
+  total_tips_card: number;
+  total_tips_cash: number;
+  total_tip_artist_share: number;
+  total_tip_studio_share: number;
   commission_count: number;
   closed_at: string | null;
   paid_at: string | null;
@@ -891,6 +897,9 @@ export interface EarnedCommission {
   studio_commission: number;
   artist_payout: number;
   tips_amount: number;
+  tip_payment_method: TipPaymentMethod | null;
+  tip_artist_share: number;
+  tip_studio_share: number;
   calculation_details: string;
   completed_at: string;
   created_at: string;
@@ -1005,6 +1014,45 @@ export interface PayoutHistoryResponse {
 export interface ArtistPayoutReportResponse {
   artists: ArtistPayoutSummary[];
   summary: PayoutReportSummary;
+  start_date: string | null;
+  end_date: string | null;
+}
+
+// ============ Tip Distribution Types ============
+
+export interface TipSettings {
+  tip_artist_percentage: number;
+}
+
+export interface TipSettingsUpdate {
+  tip_artist_percentage: number;
+}
+
+export interface ArtistTipSummary {
+  artist_id: string;
+  artist_name: string;
+  email: string;
+  total_tips: number;
+  total_tips_card: number;
+  total_tips_cash: number;
+  tip_artist_share: number;
+  tip_studio_share: number;
+  booking_count: number;
+}
+
+export interface TipReportSummary {
+  total_tips: number;
+  total_tips_card: number;
+  total_tips_cash: number;
+  total_artist_share: number;
+  total_studio_share: number;
+  total_bookings_with_tips: number;
+  artists_with_tips: number;
+}
+
+export interface TipReportResponse {
+  artists: ArtistTipSummary[];
+  summary: TipReportSummary;
   start_date: string | null;
   end_date: string | null;
 }

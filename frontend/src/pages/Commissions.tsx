@@ -27,6 +27,9 @@ import {
   updatePayPeriodSettings,
   getPayoutHistory,
   getArtistPayoutsReport,
+  getTipSettings,
+  updateTipSettings,
+  getTipReport,
 } from '../services/commissions';
 import type {
   CommissionRuleSummary,
@@ -45,6 +48,8 @@ import type {
   EarnedCommission,
   PayoutHistoryResponse,
   ArtistPayoutReportResponse,
+  TipSettings,
+  TipReportResponse,
 } from '../types/api';
 
 // ============ Commission Rule Modal ============
@@ -519,7 +524,7 @@ function TypeBadge({ type }: { type: CommissionType }) {
 
 // ============ Main Commissions Page ============
 
-type TabType = 'rules' | 'assignments' | 'pay_periods' | 'reports';
+type TabType = 'rules' | 'assignments' | 'pay_periods' | 'reports' | 'tips';
 
 const SCHEDULE_LABELS: Record<PayPeriodSchedule, string> = {
   weekly: 'Weekly',
@@ -561,6 +566,15 @@ export function Commissions() {
   const [reportEndDate, setReportEndDate] = useState('');
   const [reportView, setReportView] = useState<'history' | 'artists'>('history');
   const [expandedPayPeriod, setExpandedPayPeriod] = useState<string | null>(null);
+
+  // Tips state
+  const [tipSettings, setTipSettings] = useState<TipSettings | null>(null);
+  const [tipReport, setTipReport] = useState<TipReportResponse | null>(null);
+  const [loadingTips, setLoadingTips] = useState(true);
+  const [tipStartDate, setTipStartDate] = useState('');
+  const [tipEndDate, setTipEndDate] = useState('');
+  const [savingTipSettings, setSavingTipSettings] = useState(false);
+  const [editingTipPercentage, setEditingTipPercentage] = useState<number | null>(null);
 
   // Modal state
   const [ruleModalOpen, setRuleModalOpen] = useState(false);
@@ -661,6 +675,51 @@ export function Commissions() {
       loadReports();
     }
   }, [activeTab, reportStartDate, reportEndDate]);
+
+  const loadTips = async () => {
+    setLoadingTips(true);
+    try {
+      const options = {
+        startDate: tipStartDate || undefined,
+        endDate: tipEndDate || undefined,
+      };
+      const [settings, report] = await Promise.all([
+        getTipSettings(),
+        getTipReport(options),
+      ]);
+      setTipSettings(settings);
+      setTipReport(report);
+      if (editingTipPercentage === null) {
+        setEditingTipPercentage(settings.tip_artist_percentage);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load tip data');
+    } finally {
+      setLoadingTips(false);
+    }
+  };
+
+  // Load tips when switching to tips tab or when date filters change
+  useEffect(() => {
+    if (activeTab === 'tips') {
+      loadTips();
+    }
+  }, [activeTab, tipStartDate, tipEndDate]);
+
+  const handleSaveTipSettings = async () => {
+    if (editingTipPercentage === null) return;
+    setSavingTipSettings(true);
+    try {
+      await updateTipSettings({ tip_artist_percentage: editingTipPercentage });
+      setTipSettings({ tip_artist_percentage: editingTipPercentage });
+      setSuccessMessage('Tip settings updated successfully');
+      setTimeout(() => setSuccessMessage(''), 5000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update tip settings');
+    } finally {
+      setSavingTipSettings(false);
+    }
+  };
 
   const handleCreatePayPeriod = async (startDate: string, endDate: string) => {
     try {
@@ -932,6 +991,16 @@ export function Commissions() {
             }`}
           >
             Payout Reports
+          </button>
+          <button
+            onClick={() => setActiveTab('tips')}
+            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'tips'
+                ? 'border-accent-primary text-accent-primary'
+                : 'border-transparent text-ink-400 hover:text-ink-200'
+            }`}
+          >
+            Tips
           </button>
         </nav>
       </div>
@@ -1594,6 +1663,209 @@ export function Commissions() {
                 )}
               </div>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* Tips Tab */}
+      {activeTab === 'tips' && (
+        <div className="space-y-6">
+          {/* Tip Settings Card */}
+          <div className="bg-ink-800 rounded-xl border border-ink-700 p-6">
+            <h3 className="text-lg font-semibold text-ink-100 mb-4">Tip Distribution Settings</h3>
+            <p className="text-ink-400 text-sm mb-4">
+              Configure how tips are split between artists and the studio. This affects all future bookings.
+            </p>
+            <div className="flex items-end gap-4">
+              <div className="flex-1 max-w-xs">
+                <label className="block text-sm font-medium text-ink-300 mb-1">
+                  Artist Tip Percentage
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={editingTipPercentage ?? 100}
+                    onChange={(e) => setEditingTipPercentage(parseInt(e.target.value) || 0)}
+                    className="w-24 px-3 py-2 bg-ink-900 border border-ink-700 rounded-lg text-ink-100 focus:outline-none focus:border-accent-primary"
+                  />
+                  <span className="text-ink-300">%</span>
+                </div>
+                <p className="text-xs text-ink-500 mt-1">
+                  Studio receives {100 - (editingTipPercentage ?? 100)}% of tips
+                </p>
+              </div>
+              <button
+                onClick={handleSaveTipSettings}
+                disabled={savingTipSettings || editingTipPercentage === tipSettings?.tip_artist_percentage}
+                className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {savingTipSettings ? 'Saving...' : 'Save Settings'}
+              </button>
+            </div>
+          </div>
+
+          {/* Date Filters */}
+          <div className="bg-ink-800 rounded-xl border border-ink-700 p-4">
+            <div className="flex flex-wrap items-end gap-4">
+              <div className="flex-1 min-w-[200px]">
+                <label className="block text-sm font-medium text-ink-300 mb-1">Start Date</label>
+                <input
+                  type="date"
+                  value={tipStartDate}
+                  onChange={(e) => setTipStartDate(e.target.value)}
+                  className="w-full px-3 py-2 bg-ink-900 border border-ink-700 rounded-lg text-ink-100 focus:outline-none focus:border-accent-primary"
+                />
+              </div>
+              <div className="flex-1 min-w-[200px]">
+                <label className="block text-sm font-medium text-ink-300 mb-1">End Date</label>
+                <input
+                  type="date"
+                  value={tipEndDate}
+                  onChange={(e) => setTipEndDate(e.target.value)}
+                  className="w-full px-3 py-2 bg-ink-900 border border-ink-700 rounded-lg text-ink-100 focus:outline-none focus:border-accent-primary"
+                />
+              </div>
+              <button
+                onClick={() => {
+                  setTipStartDate('');
+                  setTipEndDate('');
+                }}
+                className="px-4 py-2 text-ink-400 hover:text-ink-200 transition-colors"
+              >
+                Clear Filters
+              </button>
+            </div>
+          </div>
+
+          {loadingTips ? (
+            <div className="p-8 text-center">
+              <div className="animate-spin w-8 h-8 border-2 border-accent-primary border-t-transparent rounded-full mx-auto"></div>
+              <p className="text-ink-400 mt-2">Loading tip data...</p>
+            </div>
+          ) : (
+            <>
+              {/* Summary Cards */}
+              {tipReport && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-ink-800 rounded-xl border border-ink-700 p-4">
+                    <p className="text-ink-400 text-sm">Total Tips</p>
+                    <p className="text-2xl font-bold text-green-400">{formatCentsToDollars(tipReport.summary.total_tips)}</p>
+                  </div>
+                  <div className="bg-ink-800 rounded-xl border border-ink-700 p-4">
+                    <p className="text-ink-400 text-sm">Card Tips</p>
+                    <p className="text-2xl font-bold text-ink-100">{formatCentsToDollars(tipReport.summary.total_tips_card)}</p>
+                  </div>
+                  <div className="bg-ink-800 rounded-xl border border-ink-700 p-4">
+                    <p className="text-ink-400 text-sm">Cash Tips</p>
+                    <p className="text-2xl font-bold text-ink-100">{formatCentsToDollars(tipReport.summary.total_tips_cash)}</p>
+                  </div>
+                  <div className="bg-ink-800 rounded-xl border border-ink-700 p-4">
+                    <p className="text-ink-400 text-sm">Bookings with Tips</p>
+                    <p className="text-2xl font-bold text-ink-100">{tipReport.summary.total_bookings_with_tips}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Distribution Summary */}
+              {tipReport && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-ink-800 rounded-xl border border-ink-700 p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <svg className="w-5 h-5 text-accent-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      <p className="text-ink-400 text-sm">Artist Share</p>
+                    </div>
+                    <p className="text-2xl font-bold text-ink-100">{formatCentsToDollars(tipReport.summary.total_artist_share)}</p>
+                    <p className="text-xs text-ink-500 mt-1">
+                      {tipReport.summary.total_tips > 0
+                        ? `${Math.round((tipReport.summary.total_artist_share / tipReport.summary.total_tips) * 100)}% of total tips`
+                        : 'No tips recorded'}
+                    </p>
+                  </div>
+                  <div className="bg-ink-800 rounded-xl border border-ink-700 p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <svg className="w-5 h-5 text-accent-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                      </svg>
+                      <p className="text-ink-400 text-sm">Studio Share</p>
+                    </div>
+                    <p className="text-2xl font-bold text-ink-100">{formatCentsToDollars(tipReport.summary.total_studio_share)}</p>
+                    <p className="text-xs text-ink-500 mt-1">
+                      {tipReport.summary.total_tips > 0
+                        ? `${Math.round((tipReport.summary.total_studio_share / tipReport.summary.total_tips) * 100)}% of total tips`
+                        : 'No tips recorded'}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Artist Tips Table */}
+              <div className="bg-ink-800 rounded-xl border border-ink-700 overflow-hidden">
+                {!tipReport || tipReport.artists.length === 0 ? (
+                  <div className="p-8 text-center">
+                    <svg className="w-12 h-12 text-ink-500 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <h3 className="text-lg font-medium text-ink-200">No tips recorded yet</h3>
+                    <p className="text-ink-400 mt-1">Tips will appear here as bookings are completed.</p>
+                  </div>
+                ) : (
+                  <table className="w-full">
+                    <thead className="bg-ink-700/50 border-b border-ink-700">
+                      <tr>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-ink-300">Artist</th>
+                        <th className="text-right py-3 px-4 text-sm font-medium text-ink-300">Bookings</th>
+                        <th className="text-right py-3 px-4 text-sm font-medium text-ink-300">Total Tips</th>
+                        <th className="text-right py-3 px-4 text-sm font-medium text-ink-300">Card</th>
+                        <th className="text-right py-3 px-4 text-sm font-medium text-ink-300">Cash</th>
+                        <th className="text-right py-3 px-4 text-sm font-medium text-ink-300">Artist Share</th>
+                        <th className="text-right py-3 px-4 text-sm font-medium text-ink-300">Studio Share</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-ink-700">
+                      {tipReport.artists.map((artist) => (
+                        <tr key={artist.artist_id} className="hover:bg-ink-700/30 transition-colors">
+                          <td className="py-3 px-4">
+                            <p className="font-medium text-ink-100">{artist.artist_name}</p>
+                            <p className="text-xs text-ink-400">{artist.email}</p>
+                          </td>
+                          <td className="py-3 px-4 text-sm text-ink-200 text-right">{artist.booking_count}</td>
+                          <td className="py-3 px-4 text-sm font-medium text-green-400 text-right">
+                            {formatCentsToDollars(artist.total_tips)}
+                          </td>
+                          <td className="py-3 px-4 text-sm text-ink-200 text-right">
+                            {formatCentsToDollars(artist.total_tips_card)}
+                          </td>
+                          <td className="py-3 px-4 text-sm text-ink-200 text-right">
+                            {formatCentsToDollars(artist.total_tips_cash)}
+                          </td>
+                          <td className="py-3 px-4 text-sm text-ink-100 text-right">
+                            {formatCentsToDollars(artist.tip_artist_share)}
+                          </td>
+                          <td className="py-3 px-4 text-sm text-ink-300 text-right">
+                            {formatCentsToDollars(artist.tip_studio_share)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-ink-700/30 border-t border-ink-700">
+                      <tr className="font-medium">
+                        <td className="py-3 px-4 text-ink-100">Total ({tipReport.summary.artists_with_tips} artists)</td>
+                        <td className="py-3 px-4 text-ink-100 text-right">{tipReport.summary.total_bookings_with_tips}</td>
+                        <td className="py-3 px-4 text-green-400 text-right">{formatCentsToDollars(tipReport.summary.total_tips)}</td>
+                        <td className="py-3 px-4 text-ink-100 text-right">{formatCentsToDollars(tipReport.summary.total_tips_card)}</td>
+                        <td className="py-3 px-4 text-ink-100 text-right">{formatCentsToDollars(tipReport.summary.total_tips_cash)}</td>
+                        <td className="py-3 px-4 text-ink-100 text-right">{formatCentsToDollars(tipReport.summary.total_artist_share)}</td>
+                        <td className="py-3 px-4 text-ink-100 text-right">{formatCentsToDollars(tipReport.summary.total_studio_share)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                )}
+              </div>
+            </>
           )}
         </div>
       )}

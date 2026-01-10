@@ -1038,6 +1038,7 @@ async def complete_booking(
         db=db,
         booking=booking,
         tips_amount=data.tips_amount,
+        tip_payment_method=data.tip_payment_method,
         final_price=data.final_price,
     )
 
@@ -1065,6 +1066,9 @@ async def complete_booking(
             studio_commission=earned_commission.studio_commission,
             artist_payout=earned_commission.artist_payout,
             tips_amount=earned_commission.tips_amount,
+            tip_payment_method=earned_commission.tip_payment_method,
+            tip_artist_share=earned_commission.tip_artist_share,
+            tip_studio_share=earned_commission.tip_studio_share,
             calculation_details=earned_commission.calculation_details,
             completed_at=earned_commission.completed_at,
             created_at=earned_commission.created_at,

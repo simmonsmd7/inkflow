@@ -60,6 +60,10 @@ class Studio(BaseModel, SoftDeleteMixin):
     # For monthly/semimonthly: 1-28 (day of month)
     pay_period_start_day: Mapped[int] = mapped_column(Integer, default=1)
 
+    # Tip distribution settings
+    # Percentage of tips that goes to the artist (0-100, default 100 = artist keeps all tips)
+    tip_artist_percentage: Mapped[int] = mapped_column(Integer, default=100)
+
     # Owner reference (the user who created/owns the studio)
     owner_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),

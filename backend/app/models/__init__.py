@@ -17,6 +17,7 @@ from app.models.commission import (
     PayPeriod,
     PayPeriodSchedule,
     PayPeriodStatus,
+    TipPaymentMethod,
 )
 from app.models.message import (
     Conversation,
@@ -54,6 +55,7 @@ __all__ = [
     "SoftDeleteMixin",
     "Studio",
     "TattooSize",
+    "TipPaymentMethod",
     "User",
     "UserRole",
 ]

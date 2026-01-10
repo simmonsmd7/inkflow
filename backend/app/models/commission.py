@@ -49,6 +49,13 @@ class PayPeriodStatus(str, enum.Enum):
     PAID = "paid"  # Marked as paid
 
 
+class TipPaymentMethod(str, enum.Enum):
+    """How tips were paid (for tax reporting)."""
+
+    CARD = "card"  # Credit/debit card tips
+    CASH = "cash"  # Cash tips
+
+
 class CommissionRule(BaseModel, SoftDeleteMixin):
     """Commission rule for calculating artist payouts."""
 
@@ -185,7 +192,15 @@ class EarnedCommission(BaseModel):
     service_total: Mapped[int] = mapped_column(Integer, nullable=False)  # Total service cost
     studio_commission: Mapped[int] = mapped_column(Integer, nullable=False)  # Studio's share
     artist_payout: Mapped[int] = mapped_column(Integer, nullable=False)  # Artist's share
-    tips_amount: Mapped[int] = mapped_column(Integer, default=0)  # Tips (100% to artist)
+    tips_amount: Mapped[int] = mapped_column(Integer, default=0)  # Total tips received
+
+    # Tip distribution (if studio takes a cut)
+    tip_payment_method: Mapped[Optional[TipPaymentMethod]] = mapped_column(
+        Enum(TipPaymentMethod, name="tip_payment_method"),
+        nullable=True,  # NULL for legacy records or no tips
+    )
+    tip_artist_share: Mapped[int] = mapped_column(Integer, default=0)  # Artist's share of tips
+    tip_studio_share: Mapped[int] = mapped_column(Integer, default=0)  # Studio's share of tips
 
     # Calculation details for audit
     calculation_details: Mapped[str] = mapped_column(Text, nullable=False)
@@ -268,6 +283,10 @@ class PayPeriod(BaseModel):
     total_studio_commission: Mapped[int] = mapped_column(Integer, default=0)  # Studio commission in cents
     total_artist_payout: Mapped[int] = mapped_column(Integer, default=0)  # Artist payouts in cents
     total_tips: Mapped[int] = mapped_column(Integer, default=0)  # Tips in cents
+    total_tips_card: Mapped[int] = mapped_column(Integer, default=0)  # Card tips in cents
+    total_tips_cash: Mapped[int] = mapped_column(Integer, default=0)  # Cash tips in cents
+    total_tip_artist_share: Mapped[int] = mapped_column(Integer, default=0)  # Artist share of tips in cents
+    total_tip_studio_share: Mapped[int] = mapped_column(Integer, default=0)  # Studio share of tips in cents
     commission_count: Mapped[int] = mapped_column(Integer, default=0)  # Number of commissions
 
     # Payment tracking

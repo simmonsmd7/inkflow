@@ -20,11 +20,13 @@ from app.models.commission import (
 )
 from app.models.studio import Studio
 from app.models.user import User, UserRole
+from app.models.commission import TipPaymentMethod
 from app.schemas.commission import (
     ArtistCommissionInfo,
     ArtistPayoutReportResponse,
     ArtistPayoutSummary,
     ArtistsWithCommissionResponse,
+    ArtistTipSummary,
     AssignCommissionRuleInput,
     AssignToPayPeriodInput,
     AssignToPayPeriodResponse,
@@ -54,6 +56,10 @@ from app.schemas.commission import (
     PayPeriodSummary,
     PayPeriodsListResponse,
     PayPeriodWithCommissions,
+    TipReportResponse,
+    TipReportSummary,
+    TipSettingsResponse,
+    TipSettingsUpdate,
 )
 from app.schemas.user import MessageResponse
 from app.services.auth import get_current_user, require_owner
@@ -882,6 +888,8 @@ async def recalculate_pay_period_totals(db: AsyncSession, pay_period: PayPeriod)
         func.coalesce(func.sum(EarnedCommission.studio_commission), 0).label("total_studio_commission"),
         func.coalesce(func.sum(EarnedCommission.artist_payout), 0).label("total_artist_payout"),
         func.coalesce(func.sum(EarnedCommission.tips_amount), 0).label("total_tips"),
+        func.coalesce(func.sum(EarnedCommission.tip_artist_share), 0).label("total_tip_artist_share"),
+        func.coalesce(func.sum(EarnedCommission.tip_studio_share), 0).label("total_tip_studio_share"),
         func.count(EarnedCommission.id).label("count"),
     ).where(EarnedCommission.pay_period_id == pay_period.id)
 
@@ -892,7 +900,35 @@ async def recalculate_pay_period_totals(db: AsyncSession, pay_period: PayPeriod)
     pay_period.total_studio_commission = totals.total_studio_commission if totals else 0
     pay_period.total_artist_payout = totals.total_artist_payout if totals else 0
     pay_period.total_tips = totals.total_tips if totals else 0
+    pay_period.total_tip_artist_share = totals.total_tip_artist_share if totals else 0
+    pay_period.total_tip_studio_share = totals.total_tip_studio_share if totals else 0
     pay_period.commission_count = totals.count if totals else 0
+
+    # Calculate card vs cash tips
+    tips_by_method_query = select(
+        EarnedCommission.tip_payment_method,
+        func.coalesce(func.sum(EarnedCommission.tips_amount), 0).label("tips"),
+    ).where(
+        EarnedCommission.pay_period_id == pay_period.id,
+        EarnedCommission.tips_amount > 0,
+    ).group_by(EarnedCommission.tip_payment_method)
+
+    tips_result = await db.execute(tips_by_method_query)
+    tips_by_method = tips_result.all()
+
+    total_tips_card = 0
+    total_tips_cash = 0
+    for row in tips_by_method:
+        if row.tip_payment_method == TipPaymentMethod.CARD:
+            total_tips_card = row.tips
+        elif row.tip_payment_method == TipPaymentMethod.CASH:
+            total_tips_cash = row.tips
+        else:
+            # Unknown/null - count as card
+            total_tips_card += row.tips
+
+    pay_period.total_tips_card = total_tips_card
+    pay_period.total_tips_cash = total_tips_cash
 
 
 @router.get("/pay-periods", response_model=PayPeriodsListResponse)
@@ -1613,6 +1649,166 @@ async def get_artist_payouts_report(
             total_bookings=overall_totals["total_bookings"],
             total_pay_periods=len(overall_totals["pay_periods"]),
             artists_paid=len(artists),
+        ),
+        start_date=start_dt,
+        end_date=end_dt,
+    )
+
+
+# ============================================================================
+# TIP DISTRIBUTION SETTINGS AND REPORTS
+# ============================================================================
+
+
+@router.get("/tips/settings", response_model=TipSettingsResponse)
+async def get_tip_settings(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_owner),
+) -> TipSettingsResponse:
+    """Get studio tip distribution settings (owner only)."""
+    studio = await get_user_studio(db, current_user)
+    return TipSettingsResponse(
+        tip_artist_percentage=studio.tip_artist_percentage,
+    )
+
+
+@router.put("/tips/settings", response_model=TipSettingsResponse)
+async def update_tip_settings(
+    data: TipSettingsUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_owner),
+) -> TipSettingsResponse:
+    """Update studio tip distribution settings (owner only)."""
+    studio = await get_user_studio(db, current_user)
+    studio.tip_artist_percentage = data.tip_artist_percentage
+    await db.commit()
+    await db.refresh(studio)
+    return TipSettingsResponse(
+        tip_artist_percentage=studio.tip_artist_percentage,
+    )
+
+
+@router.get("/tips/report", response_model=TipReportResponse)
+async def get_tip_report(
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_owner),
+) -> TipReportResponse:
+    """
+    Get tip distribution report for the studio.
+    Shows breakdown of tips by artist, payment method (card vs cash), and distribution.
+    """
+    studio = await get_user_studio(db, current_user)
+
+    # Parse dates
+    start_dt = None
+    end_dt = None
+    if start_date:
+        start_dt = datetime.fromisoformat(start_date).replace(tzinfo=timezone.utc)
+    if end_date:
+        end_dt = datetime.fromisoformat(end_date).replace(
+            hour=23, minute=59, second=59, tzinfo=timezone.utc
+        )
+
+    # Build query for commissions with tips
+    query = select(EarnedCommission).where(
+        EarnedCommission.studio_id == studio.id,
+        EarnedCommission.tips_amount > 0,
+    )
+
+    if start_dt:
+        query = query.where(EarnedCommission.completed_at >= start_dt)
+    if end_dt:
+        query = query.where(EarnedCommission.completed_at <= end_dt)
+
+    result = await db.execute(
+        query.options(selectinload(EarnedCommission.artist))
+    )
+    commissions = result.scalars().all()
+
+    # Aggregate by artist
+    artist_data: dict = {}
+    overall_totals = {
+        "total_tips": 0,
+        "total_tips_card": 0,
+        "total_tips_cash": 0,
+        "total_artist_share": 0,
+        "total_studio_share": 0,
+        "total_bookings_with_tips": 0,
+    }
+
+    for comm in commissions:
+        artist_id = comm.artist_id
+        if artist_id not in artist_data:
+            artist_name = "Unknown"
+            artist_email = ""
+            if comm.artist:
+                artist_name = f"{comm.artist.first_name} {comm.artist.last_name}"
+                artist_email = comm.artist.email
+            artist_data[artist_id] = {
+                "artist_id": artist_id,
+                "artist_name": artist_name,
+                "email": artist_email,
+                "total_tips": 0,
+                "total_tips_card": 0,
+                "total_tips_cash": 0,
+                "tip_artist_share": 0,
+                "tip_studio_share": 0,
+                "booking_count": 0,
+            }
+
+        # Track tips by payment method
+        if comm.tip_payment_method == TipPaymentMethod.CARD:
+            artist_data[artist_id]["total_tips_card"] += comm.tips_amount
+            overall_totals["total_tips_card"] += comm.tips_amount
+        elif comm.tip_payment_method == TipPaymentMethod.CASH:
+            artist_data[artist_id]["total_tips_cash"] += comm.tips_amount
+            overall_totals["total_tips_cash"] += comm.tips_amount
+        else:
+            # Unknown/null payment method - count as card (most common)
+            artist_data[artist_id]["total_tips_card"] += comm.tips_amount
+            overall_totals["total_tips_card"] += comm.tips_amount
+
+        artist_data[artist_id]["total_tips"] += comm.tips_amount
+        artist_data[artist_id]["tip_artist_share"] += comm.tip_artist_share
+        artist_data[artist_id]["tip_studio_share"] += comm.tip_studio_share
+        artist_data[artist_id]["booking_count"] += 1
+
+        overall_totals["total_tips"] += comm.tips_amount
+        overall_totals["total_artist_share"] += comm.tip_artist_share
+        overall_totals["total_studio_share"] += comm.tip_studio_share
+        overall_totals["total_bookings_with_tips"] += 1
+
+    # Build response
+    artists = [
+        ArtistTipSummary(
+            artist_id=data["artist_id"],
+            artist_name=data["artist_name"],
+            email=data["email"],
+            total_tips=data["total_tips"],
+            total_tips_card=data["total_tips_card"],
+            total_tips_cash=data["total_tips_cash"],
+            tip_artist_share=data["tip_artist_share"],
+            tip_studio_share=data["tip_studio_share"],
+            booking_count=data["booking_count"],
+        )
+        for data in artist_data.values()
+    ]
+
+    # Sort by total tips descending
+    artists.sort(key=lambda a: a.total_tips, reverse=True)
+
+    return TipReportResponse(
+        artists=artists,
+        summary=TipReportSummary(
+            total_tips=overall_totals["total_tips"],
+            total_tips_card=overall_totals["total_tips_card"],
+            total_tips_cash=overall_totals["total_tips_cash"],
+            total_artist_share=overall_totals["total_artist_share"],
+            total_studio_share=overall_totals["total_studio_share"],
+            total_bookings_with_tips=overall_totals["total_bookings_with_tips"],
+            artists_with_tips=len(artists),
         ),
         start_date=start_dt,
         end_date=end_dt,
