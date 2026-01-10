@@ -696,3 +696,39 @@ Database:
 - Verified: Webhook endpoints registered at /api/v1/webhooks/inbound-email
 Status: COMPLETE
 Next: P4.3 - SMS integration (Twilio)
+
+=== ITERATION 23 ===
+Date: 2026-01-10
+Task: P4.3 - SMS integration (Twilio)
+Changes:
+Backend:
+- backend/app/services/sms.py: Extended with send_conversation_message method
+  - Builds message with sender prefix and studio name
+  - Truncates message to SMS-safe length (1500 chars max)
+  - Returns (success, message_sid) tuple
+  - Added _send_twilio_with_sid method for returning Twilio SID
+- backend/app/routers/messages.py: Added SMS channel handling in send_message
+  - Validates conversation has client_phone before sending SMS
+  - Calls sms_service.send_conversation_message for SMS channel
+  - Sets external_id to Twilio message SID
+  - Updates delivered_at/failed_at based on send result
+- backend/app/routers/webhooks.py: Added Twilio inbound SMS webhook
+  - POST /webhooks/inbound-sms - Receive and route inbound SMS
+  - POST /webhooks/inbound-sms/test - Health check endpoint
+  - Normalizes phone numbers for matching (+1, leading 1, etc.)
+  - Matches sender phone to existing conversations
+  - Creates inbound Message record with MessageSid as external_id
+  - Updates conversation status (unread if resolved)
+
+Frontend:
+- frontend/src/pages/Inbox.tsx: Extended delivery status display
+  - Shows delivery status (Sent/Failed/Sending) for SMS messages
+  - SMS channel already had button support from previous iteration
+
+- Verified: Frontend build passes with no TypeScript errors
+- Verified: Backend health check passes
+- Verified: Outbound SMS stubbed correctly to console
+- Verified: Inbound SMS webhook receives and routes messages
+- Verified: Messages correctly tracked with channel and direction
+Status: COMPLETE
+Next: P4.4 - Conversation threading and assignment to artists
