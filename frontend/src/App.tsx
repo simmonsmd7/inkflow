@@ -1,5 +1,7 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './components/layout';
+import { ProtectedRoute } from './components/ProtectedRoute';
+import { ClientProtectedRoute } from './components/ClientProtectedRoute';
 import {
   Aftercare,
   ArtistPerformance,
@@ -55,41 +57,48 @@ function App() {
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
 
-      {/* Client Portal routes - no layout */}
+      {/* Client Portal routes - public (login/register) */}
       <Route path="/client/login" element={<ClientLogin />} />
       <Route path="/client/register" element={<ClientRegister />} />
-      <Route path="/client" element={<ClientPortal />} />
-      <Route path="/client/bookings" element={<ClientBookingHistory />} />
-      <Route path="/client/appointments" element={<ClientUpcomingAppointments />} />
-      <Route path="/client/consent" element={<ClientConsentForms />} />
-      <Route path="/client/aftercare" element={<ClientAftercareInstructions />} />
-      <Route path="/client/aftercare/:aftercareId" element={<ClientAftercareInstructions />} />
-      <Route path="/client/rebook/:bookingId" element={<ClientRebooking />} />
 
-      {/* App routes - with layout */}
+      {/* Client Portal routes - protected */}
+      <Route path="/client" element={<ClientProtectedRoute><ClientPortal /></ClientProtectedRoute>} />
+      <Route path="/client/bookings" element={<ClientProtectedRoute><ClientBookingHistory /></ClientProtectedRoute>} />
+      <Route path="/client/appointments" element={<ClientProtectedRoute><ClientUpcomingAppointments /></ClientProtectedRoute>} />
+      <Route path="/client/consent" element={<ClientProtectedRoute><ClientConsentForms /></ClientProtectedRoute>} />
+      <Route path="/client/aftercare" element={<ClientProtectedRoute><ClientAftercareInstructions /></ClientProtectedRoute>} />
+      <Route path="/client/aftercare/:aftercareId" element={<ClientProtectedRoute><ClientAftercareInstructions /></ClientProtectedRoute>} />
+      <Route path="/client/rebook/:bookingId" element={<ClientProtectedRoute><ClientRebooking /></ClientProtectedRoute>} />
+
+      {/* Redirect /client/history to /client/bookings */}
+      <Route path="/client/history" element={<Navigate to="/client/bookings" replace />} />
+
+      {/* App routes - with layout, requires staff authentication */}
       <Route
         path="/*"
         element={
-          <Layout>
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/inbox" element={<Inbox />} />
-              <Route path="/bookings" element={<BookingQueue />} />
-              <Route path="/profile" element={<ArtistProfile />} />
-              <Route path="/availability" element={<Availability />} />
-              <Route path="/team" element={<Team />} />
-              <Route path="/commissions" element={<Commissions />} />
-              <Route path="/artist-performance" element={<ArtistPerformance />} />
-              <Route path="/client-retention" element={<ClientRetention />} />
-              <Route path="/revenue-reports" element={<RevenueReports />} />
-              <Route path="/no-show-tracking" element={<NoShowTracking />} />
-              <Route path="/popular-time-slots" element={<PopularTimeSlots />} />
-              <Route path="/consent" element={<ConsentForms />} />
-              <Route path="/aftercare" element={<Aftercare />} />
-              <Route path="/settings" element={<StudioSettings />} />
-            </Routes>
-          </Layout>
+          <ProtectedRoute>
+            <Layout>
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/inbox" element={<Inbox />} />
+                <Route path="/bookings" element={<BookingQueue />} />
+                <Route path="/profile" element={<ArtistProfile />} />
+                <Route path="/availability" element={<Availability />} />
+                <Route path="/team" element={<Team />} />
+                <Route path="/commissions" element={<Commissions />} />
+                <Route path="/artist-performance" element={<ArtistPerformance />} />
+                <Route path="/client-retention" element={<ClientRetention />} />
+                <Route path="/revenue-reports" element={<RevenueReports />} />
+                <Route path="/no-show-tracking" element={<NoShowTracking />} />
+                <Route path="/popular-time-slots" element={<PopularTimeSlots />} />
+                <Route path="/consent" element={<ConsentForms />} />
+                <Route path="/aftercare" element={<Aftercare />} />
+                <Route path="/settings" element={<StudioSettings />} />
+              </Routes>
+            </Layout>
+          </ProtectedRoute>
         }
       />
     </Routes>

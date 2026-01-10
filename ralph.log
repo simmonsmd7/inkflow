@@ -3774,3 +3774,150 @@ Purpose: Visit ALL pages as each user type (Owner, Artist, Receptionist, Client)
 - Fix all issues found and re-audit
 Next: P12.1 - Audit as OWNER
 
+
+================================================================================
+PHASE 12: ROLE-BASED ACCESS AUDIT - COMPLETE
+================================================================================
+Date: $(date '+%Y-%m-%d %H:%M:%S')
+
+TEST USERS:
+- Owner: owner@inkflow-main.com / TestPass123!
+- Artist: artist1@inkflow-main.com / TestPass123!
+- Receptionist: reception@inkflow-main.com / TestPass123!
+- Client: client1@example.com / TestPass123!
+
+================================================================================
+P12.1 OWNER AUDIT RESULTS
+================================================================================
+All staff pages accessible:
+✓ /dashboard - Working (shows stats, recent bookings)
+✓ /inbox - Working (messaging interface)
+✓ /bookings - Working (booking queue)
+✓ /profile - Working (artist profile)
+✓ /availability - Working (calendar)
+✓ /team - Working (team management)
+✓ /commissions - Working (commission tracking)
+✓ /artist-performance - Working (performance metrics)
+✓ /client-retention - Working (retention dashboard)
+✓ /revenue-reports - Working (revenue analytics)
+✓ /no-show-tracking - Working (no-show stats)
+✓ /popular-time-slots - Working (time slot analytics)
+✓ /consent - Working (consent form management)
+✓ /aftercare - Working (aftercare instructions)
+✓ /settings - Working (studio settings)
+
+================================================================================
+P12.2 ARTIST AUDIT RESULTS
+================================================================================
+Pages accessible:
+✓ /dashboard - Working
+✓ /inbox - Working
+✓ /bookings - Working
+✓ /profile - Working
+✓ /availability - Working
+✓ /consent - Working
+✓ /aftercare - Working
+
+Pages with appropriate restrictions:
+✓ /team - Shows "not authorized" (correct - artist can't manage team)
+✓ /commissions - Shows data (artist can view own commissions)
+✓ /settings - Shows "not authorized" (correct - artist can't change settings)
+
+================================================================================
+P12.3 RECEPTIONIST AUDIT RESULTS
+================================================================================
+Pages accessible:
+✓ /dashboard - Working
+✓ /inbox - Working
+✓ /bookings - Working (can manage queue)
+✓ /consent - Working
+✓ /aftercare - Working
+
+Pages with appropriate restrictions:
+✓ /team - Shows "not authorized"
+✓ /settings - Shows "not authorized"
+✓ /commissions - Limited view
+
+================================================================================
+P12.4 CLIENT AUDIT RESULTS
+================================================================================
+Client portal pages:
+✓ /client - Working (portal dashboard)
+✓ /client/appointments - Working (upcoming appointments)
+✓ /client/bookings - Working (booking history)
+✓ /client/consent - Working (consent forms)
+✓ /client/aftercare - Working (aftercare instructions)
+
+================================================================================
+P12.5 PUBLIC PAGES AUDIT RESULTS
+================================================================================
+Public pages (no auth required):
+✓ /login - Working (staff login form)
+✓ /register - Working (staff registration)
+✓ /client/login - Working (client portal login)
+✓ /client/register - Working (client registration)
+✓ /book/:studioSlug - Working (public booking form)
+✓ /pay-deposit/:token - Working (deposit payment)
+✓ /sign/:studioSlug/:templateId - Working (consent signing)
+
+================================================================================
+BUGS FOUND AND FIXED
+================================================================================
+
+BUG #1: CRITICAL - No Frontend Auth Protection on Staff Routes
+Severity: CRITICAL
+Description: Staff routes (/, /dashboard, /bookings, etc.) had no frontend
+             authentication check. Unauthenticated users could see the staff
+             dashboard UI (though API calls would fail).
+Impact: UI/Information leak - exposed staff interface to public
+Fix: Created ProtectedRoute component that checks staff authentication
+     and redirects to /login if not authenticated.
+File: frontend/src/components/ProtectedRoute.tsx (NEW)
+      frontend/src/App.tsx (MODIFIED - wrapped staff routes)
+
+BUG #2: CRITICAL - Clients Could Access Staff Dashboard
+Severity: CRITICAL
+Description: A logged-in client could navigate to /dashboard and see the
+             staff dashboard UI. The staff and client tokens use different
+             localStorage keys but there was no frontend check.
+Impact: Cross-portal access - clients could view staff UI
+Fix: ProtectedRoute uses useAuth hook which checks for staff token
+     (inkflow_token), not client token (inkflow_client_token).
+File: Same as Bug #1
+
+BUG #3: MEDIUM - /client/history Route Not Found
+Severity: MEDIUM
+Description: Navigation to /client/history showed the staff dashboard
+             instead of redirecting to client booking history. This was
+             because the route wasn't defined and fell through to the
+             catch-all staff route.
+Impact: Confusing UX - clients hitting history link saw wrong page
+Fix: Added explicit redirect from /client/history to /client/bookings
+File: frontend/src/App.tsx (MODIFIED)
+
+================================================================================
+VERIFICATION RESULTS (POST-FIX)
+================================================================================
+
+Test 1: Unauthenticated user accessing /dashboard
+Result: ✓ PASS - Redirected to /login
+
+Test 2: /client/history with logged-in client
+Result: ✓ PASS - Redirected to /client/bookings
+
+Test 3: Client accessing /dashboard
+Result: ✓ PASS - Redirected to /login (staff login, not client login)
+
+================================================================================
+FILES MODIFIED
+================================================================================
+NEW:
+- frontend/src/components/ProtectedRoute.tsx
+- frontend/src/components/ClientProtectedRoute.tsx
+
+MODIFIED:
+- frontend/src/App.tsx (added route protection and redirect)
+
+================================================================================
+PHASE 12 STATUS: COMPLETE
+================================================================================
