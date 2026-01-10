@@ -14,6 +14,44 @@ Changes:
 Status: BASELINE COMPLETE
 Next: P1.1 - Initialize frontend with Vite + React + TypeScript + Tailwind
 
+=== ITERATION 1 ===
+Date: 2026-01-10
+Task: P1.1 - Initialize frontend with Vite + React + TypeScript + Tailwind
+Changes:
+- frontend/src/App.css: DELETED (using Tailwind instead)
+- frontend/src/App.tsx: Updated with InkFlow welcome screen using Tailwind
+- frontend/postcss.config.js: Removed tailwindcss plugin (conflicts with @tailwindcss/vite)
+- frontend/index.html: Updated title to "InkFlow - Tattoo Studio Management"
+- Verified: Dark theme working, custom ink color palette active, accent colors rendering
+Status: COMPLETE
+Next: P1.2 - Initialize backend with FastAPI + SQLAlchemy + PostgreSQL
+
+=== ITERATION 2 ===
+Date: 2026-01-10
+Task: P1.2 - Initialize backend with FastAPI + SQLAlchemy + PostgreSQL
+Changes:
+- backend/app/config.py: Pydantic Settings for environment configuration
+- backend/app/database.py: Async SQLAlchemy engine and session management
+- backend/app/main.py: FastAPI application with CORS, health endpoints, lifespan
+- backend/app/models/base.py: Base model with UUID, created_at, updated_at, soft delete mixin
+- backend/app/models/__init__.py: Export base models
+- backend/requirements.txt: Updated asyncpg to 0.31.0 for Python 3.13 compatibility
+- Verified: API docs at /api/docs, health endpoints working
+Status: COMPLETE
+Next: P1.3 - Set up CORS and frontend-backend communication
+
+=== ITERATION 3 ===
+Date: 2026-01-10
+Task: P1.3 - Set up CORS and frontend-backend communication
+Changes:
+- frontend/src/services/api.ts: API client with typed request methods (get, post, put, patch, delete)
+- frontend/src/types/api.ts: TypeScript types for API responses (HealthResponse, ApiHealthResponse, etc.)
+- frontend/src/hooks/useApiHealth.ts: React hook for API health status with loading/error states
+- frontend/src/App.tsx: Updated with API connection status indicator (green/red/yellow)
+- Verified: Frontend successfully connects to backend, shows "API Connected" with version/environment info
+Status: COMPLETE
+Next: P1.4 - Create base UI layout (sidebar nav, header, main content area)
+
 ---
 PROJECT: InkFlow - Tattoo Studio Management Platform
 TARGET: Solo artists and 2-5 artist studios at $29-69/month
