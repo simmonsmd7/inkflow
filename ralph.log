@@ -148,6 +148,34 @@ Frontend:
 Status: COMPLETE
 Next: P2.4 - User roles: Owner, Artist, Receptionist
 
+=== ITERATION 9 ===
+Date: 2026-01-10
+Task: P2.4 - User roles: Owner, Artist, Receptionist
+Changes:
+Backend:
+- backend/app/services/auth.py: Added role-based access control (require_role, require_owner, etc.)
+- backend/app/services/auth.py: Added list_users helper function with pagination
+- backend/app/routers/users.py: NEW - Users CRUD endpoints for team management (owner only)
+- backend/app/schemas/user.py: Added UserUpdate, UserInvite, UsersListResponse schemas
+- backend/app/services/email.py: Added send_invite_email method
+- backend/app/routers/__init__.py: Export users_router
+- backend/app/main.py: Include users_router
+
+Frontend:
+- frontend/src/pages/Team.tsx: NEW - Team management page with invite/edit modals
+- frontend/src/services/users.ts: NEW - API service for user management
+- frontend/src/types/api.ts: Added UserUpdate, UserInvite, UsersListResponse types
+- frontend/src/components/layout/Sidebar.tsx: Role-based navigation, actual routing with Link
+- frontend/src/pages/index.ts: Export Team page
+- frontend/src/App.tsx: Added /team route
+
+- Verified: Users endpoint returns paginated user list (owner only)
+- Verified: Invite endpoint creates new user and sends email stub
+- Verified: RBAC working - artists get 403 Forbidden on /users endpoints
+- Verified: Frontend build passes with no TypeScript errors
+Status: COMPLETE
+Next: P2.5 - Studio profile setup (name, logo, address, hours)
+
 ---
 PROJECT: InkFlow - Tattoo Studio Management Platform
 TARGET: Solo artists and 2-5 artist studios at $29-69/month
