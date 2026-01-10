@@ -422,3 +422,92 @@ class CustomRevenueReportResponse(BaseModel):
     by_artist: list[RevenueByArtist]
     by_size: list[RevenueByCategory]
     by_placement: list[RevenueByCategory]
+
+
+# ========== Client Retention Report Schemas ==========
+
+
+class ClientSegment(BaseModel):
+    """Client segment breakdown."""
+
+    segment: str = Field(description="Segment name (new, returning, loyal, lapsed)")
+    count: int = Field(description="Number of clients in segment")
+    percentage: float = Field(description="Percentage of total clients")
+    revenue: int = Field(description="Revenue from this segment in cents")
+
+
+class ClientLifetimeValue(BaseModel):
+    """Client lifetime value metrics."""
+
+    average_lifetime_value: int = Field(description="Average lifetime value in cents")
+    average_bookings: float = Field(description="Average bookings per client")
+    average_time_between_visits: float = Field(description="Average days between visits")
+    highest_value_client_revenue: int = Field(description="Revenue from highest value client")
+
+
+class ClientAcquisitionByMonth(BaseModel):
+    """Monthly client acquisition data."""
+
+    month: str = Field(description="Month in YYYY-MM format")
+    month_name: str = Field(description="Month name (e.g., January 2026)")
+    new_clients: int = Field(description="Number of new clients acquired")
+    returning_clients: int = Field(description="Number of returning clients")
+    total_bookings: int = Field(description="Total bookings from these clients")
+
+
+class ClientByArtist(BaseModel):
+    """Client breakdown by artist."""
+
+    artist_id: str
+    artist_name: str
+    total_clients: int
+    returning_clients: int
+    retention_rate: float
+    average_bookings_per_client: float
+
+
+class TopClient(BaseModel):
+    """Top client data."""
+
+    client_email: str
+    client_name: str
+    total_bookings: int
+    total_spent: int = Field(description="Total spent in cents")
+    first_visit: date
+    last_visit: date
+    favorite_artist: Optional[str] = None
+
+
+class ClientRetentionReportResponse(BaseModel):
+    """Detailed client retention report response."""
+
+    period_start: date
+    period_end: date
+
+    # Summary metrics
+    total_clients: int
+    new_clients: int
+    returning_clients: int
+    loyal_clients: int = Field(description="Clients with 3+ bookings")
+    lapsed_clients: int = Field(description="Clients with no booking in 90+ days")
+    retention_rate: float
+    churn_rate: float
+
+    # Segmentation
+    segments: list[ClientSegment]
+
+    # Lifetime value
+    lifetime_value: ClientLifetimeValue
+
+    # Trends
+    acquisition_by_month: list[ClientAcquisitionByMonth]
+
+    # By artist breakdown
+    by_artist: list[ClientByArtist]
+
+    # Top clients
+    top_clients: list[TopClient]
+
+    # Comparison to previous period
+    retention_rate_change: Optional[float] = None
+    new_clients_change: Optional[float] = None

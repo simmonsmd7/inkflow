@@ -7,6 +7,7 @@ import {
   Availability,
   BookingForm,
   BookingQueue,
+  ClientRetention,
   Commissions,
   ConsentForms,
   ConsentSigning,
@@ -59,6 +60,7 @@ function App() {
               <Route path="/team" element={<Team />} />
               <Route path="/commissions" element={<Commissions />} />
               <Route path="/artist-performance" element={<ArtistPerformance />} />
+              <Route path="/client-retention" element={<ClientRetention />} />
               <Route path="/revenue-reports" element={<RevenueReports />} />
               <Route path="/consent" element={<ConsentForms />} />
               <Route path="/aftercare" element={<Aftercare />} />

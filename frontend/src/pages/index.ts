@@ -5,6 +5,7 @@
 export { Aftercare } from './Aftercare';
 export { ArtistPerformance } from './ArtistPerformance';
 export { ArtistProfile } from './ArtistProfile';
+export { default as ClientRetention } from './ClientRetention';
 export { Availability } from './Availability';
 export { BookingForm } from './BookingForm';
 export { BookingQueue } from './BookingQueue';

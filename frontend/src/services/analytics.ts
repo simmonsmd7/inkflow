@@ -538,6 +538,68 @@ export type RevenueReport =
   | MonthlyRevenueReport
   | CustomRevenueReport;
 
+// ============ Client Retention Report Types ============
+
+export interface ClientSegment {
+  segment: string;
+  count: number;
+  percentage: number;
+  revenue: number;
+}
+
+export interface ClientLifetimeValue {
+  average_lifetime_value: number;
+  average_bookings: number;
+  average_time_between_visits: number;
+  highest_value_client_revenue: number;
+}
+
+export interface ClientAcquisitionByMonth {
+  month: string;
+  month_name: string;
+  new_clients: number;
+  returning_clients: number;
+  total_bookings: number;
+}
+
+export interface ClientByArtist {
+  artist_id: string;
+  artist_name: string;
+  total_clients: number;
+  returning_clients: number;
+  retention_rate: number;
+  average_bookings_per_client: number;
+}
+
+export interface TopClient {
+  client_email: string;
+  client_name: string;
+  total_bookings: number;
+  total_spent: number;
+  first_visit: string;
+  last_visit: string;
+  favorite_artist: string | null;
+}
+
+export interface ClientRetentionReport {
+  period_start: string;
+  period_end: string;
+  total_clients: number;
+  new_clients: number;
+  returning_clients: number;
+  loyal_clients: number;
+  lapsed_clients: number;
+  retention_rate: number;
+  churn_rate: number;
+  segments: ClientSegment[];
+  lifetime_value: ClientLifetimeValue;
+  acquisition_by_month: ClientAcquisitionByMonth[];
+  by_artist: ClientByArtist[];
+  top_clients: TopClient[];
+  retention_rate_change: number | null;
+  new_clients_change: number | null;
+}
+
 // ============ Revenue Report API Functions ============
 
 /**
@@ -723,4 +785,56 @@ export function getPresetDateRanges(): {
       endDate: formatDate(today),
     },
   ];
+}
+
+// ============ Client Retention Report API Functions ============
+
+/**
+ * Get detailed client retention report for a date range.
+ */
+export async function getClientRetentionReport(
+  startDate: string,
+  endDate: string
+): Promise<ClientRetentionReport> {
+  const params = new URLSearchParams({
+    start_date: startDate,
+    end_date: endDate,
+  });
+  return api.get<ClientRetentionReport>(`/api/v1/analytics/reports/retention?${params}`);
+}
+
+/**
+ * Get segment color for visualization.
+ */
+export function getSegmentColor(segment: string): string {
+  switch (segment.toLowerCase()) {
+    case 'new':
+      return 'bg-blue-500';
+    case 'returning':
+      return 'bg-green-500';
+    case 'loyal':
+      return 'bg-purple-500';
+    case 'lapsed':
+      return 'bg-red-500';
+    default:
+      return 'bg-ink-500';
+  }
+}
+
+/**
+ * Get segment text color for visualization.
+ */
+export function getSegmentTextColor(segment: string): string {
+  switch (segment.toLowerCase()) {
+    case 'new':
+      return 'text-blue-400';
+    case 'returning':
+      return 'text-green-400';
+    case 'loyal':
+      return 'text-purple-400';
+    case 'lapsed':
+      return 'text-red-400';
+    default:
+      return 'text-ink-400';
+  }
 }
