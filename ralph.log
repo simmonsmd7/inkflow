@@ -103,6 +103,29 @@ Frontend:
 Status: COMPLETE
 Next: P2.2 - Login/logout with JWT tokens
 
+=== ITERATION 7 ===
+Date: 2026-01-10
+Task: P2.2 - Login/logout with JWT tokens
+Changes:
+Backend:
+- backend/app/routers/auth.py: Fixed login to use JSON body (UserLogin), added /me and /logout endpoints
+- backend/app/services/auth.py: Added get_current_user dependency with JWT validation, HTTPBearer security
+
+Frontend:
+- frontend/src/pages/Login.tsx: Full login form with validation, error handling, loading states
+- frontend/src/hooks/useAuth.tsx: AuthProvider context for global auth state management
+- frontend/src/main.tsx: Wrapped app in AuthProvider
+- frontend/src/components/layout/Header.tsx: Added user display (name/role) and logout button
+- frontend/src/services/auth.ts: Updated login to use JSON body, added getMe method
+- frontend/src/types/api.ts: Added UserDetailResponse type
+
+- Verified: Full login flow works (form → API → dashboard redirect)
+- Verified: User info displays in header after login
+- Verified: Logout clears token and redirects to login page
+- Verified: /me endpoint returns authenticated user profile
+Status: COMPLETE
+Next: P2.3 - Password reset flow (stub email to console)
+
 ---
 PROJECT: InkFlow - Tattoo Studio Management Platform
 TARGET: Solo artists and 2-5 artist studios at $29-69/month
