@@ -2251,9 +2251,9 @@ async def get_client_retention_report(
     # Average time between visits (for returning clients)
     avg_time_between = 45.0  # Default placeholder - complex query needed
 
-    # Highest value client
-    highest_value_result = await db.execute(
-        select(func.max(func.sum(BookingRequest.quoted_price)))
+    # Highest value client - use subquery to avoid nested aggregates
+    client_totals_subquery = (
+        select(func.sum(BookingRequest.quoted_price).label("client_total"))
         .where(
             and_(
                 BookingRequest.status == BookingRequestStatus.COMPLETED,
@@ -2261,6 +2261,10 @@ async def get_client_retention_report(
             )
         )
         .group_by(BookingRequest.client_email)
+        .subquery()
+    )
+    highest_value_result = await db.execute(
+        select(func.max(client_totals_subquery.c.client_total))
     )
     highest_value = highest_value_result.scalar() or 0
 
@@ -2277,9 +2281,10 @@ async def get_client_retention_report(
         "July", "August", "September", "October", "November", "December"
     ]
 
+    month_expr = func.to_char(BookingRequest.created_at, 'YYYY-MM')
     acquisition_result = await db.execute(
         select(
-            func.to_char(BookingRequest.created_at, 'YYYY-MM').label("month"),
+            month_expr.label("month"),
             func.count(func.distinct(BookingRequest.client_email)).label("clients"),
             func.count(BookingRequest.id).label("bookings"),
         )
@@ -2290,8 +2295,8 @@ async def get_client_retention_report(
                 *base_filter,
             )
         )
-        .group_by(func.to_char(BookingRequest.created_at, 'YYYY-MM'))
-        .order_by(func.to_char(BookingRequest.created_at, 'YYYY-MM'))
+        .group_by(month_expr)
+        .order_by(month_expr)
     )
 
     acquisition_by_month = []
