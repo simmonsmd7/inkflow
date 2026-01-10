@@ -126,6 +126,28 @@ Frontend:
 Status: COMPLETE
 Next: P2.3 - Password reset flow (stub email to console)
 
+=== ITERATION 8 ===
+Date: 2026-01-10
+Task: P2.3 - Password reset flow with email stub
+Changes:
+Backend:
+- backend/app/routers/auth.py: Added forgot-password and reset-password endpoints
+- backend/app/services/auth.py: Added reset_user_password function
+
+Frontend:
+- frontend/src/pages/ForgotPassword.tsx: Request password reset form with success state
+- frontend/src/pages/ResetPassword.tsx: Reset password form with token validation and error handling
+- frontend/src/pages/index.ts: Export new pages
+- frontend/src/services/auth.ts: Added forgotPassword and resetPassword methods
+- frontend/src/App.tsx: Added routes for /forgot-password and /reset-password
+
+- Verified: Forgot password form submits and shows success message
+- Verified: Reset password page displays correctly with token
+- Verified: Error state shows when token is missing
+- Verified: API endpoints work correctly (tested via curl)
+Status: COMPLETE
+Next: P2.4 - User roles: Owner, Artist, Receptionist
+
 ---
 PROJECT: InkFlow - Tattoo Studio Management Platform
 TARGET: Solo artists and 2-5 artist studios at $29-69/month
