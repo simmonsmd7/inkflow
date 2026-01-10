@@ -176,6 +176,26 @@ This ensures the full application flow works without real credentials.
 
 Each iteration MUST follow this sequence:
 
+### 0. Check for Uncommitted Changes (Recovery)
+```bash
+git status
+git diff --stat
+```
+If there are uncommitted changes from a previous crashed/interrupted iteration:
+
+**Option A: Changes look complete and working**
+- Run build check (`cd frontend && npm run build`)
+- If build passes, commit the changes and continue
+- Log what you recovered in ralph.log
+
+**Option B: Changes are broken or incomplete**
+- Reset to remote: `git reset --hard origin/main`
+- Log the reset in ralph.log: "Reset due to broken uncommitted changes"
+- Start fresh on the task
+
+**Option C: No uncommitted changes**
+- Proceed normally to step 1
+
 ### 1. Read Progress Log
 ```bash
 cat ralph.log
@@ -208,12 +228,15 @@ cd backend && python -m pytest (if tests exist)
 ```
 Fix any errors before proceeding.
 
-### 7. Commit Changes
+### 7. Commit and Push Changes
 ```bash
 git add -A
 git commit -m "feat(scope): description"
+git push origin main
 ```
 Use conventional commits: feat, fix, refactor, style, docs, test
+
+**IMPORTANT**: Always push after committing. This ensures the next iteration can reset to a known good state if needed.
 
 ### 8. Log Progress
 Append to ralph.log:
@@ -335,6 +358,8 @@ If you encounter issues:
 - **Server won't start**: Check if port is in use, kill process if needed
 - **Database errors**: Run migrations, check connection string
 - **Stuck on task**: Log the blocker in ralph.log, move to next task, return later
+- **Previous iteration crashed**: Check `git status` for uncommitted changes (see Step 0)
+- **Context ran out mid-task**: Next iteration will detect uncommitted changes and recover or reset
 
 ---
 
