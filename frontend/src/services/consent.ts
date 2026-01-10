@@ -13,6 +13,8 @@ import type {
   ConsentSubmissionsListResponse,
   CreateFromPrebuiltInput,
   PrebuiltTemplatesListResponse,
+  SubmitSigningInput,
+  SubmitSigningResponse,
   VerifyPhotoIdInput,
   VerifyPhotoIdResponse,
   VoidConsentInput,
@@ -128,6 +130,33 @@ export async function getTemplateForSigning(
   templateId: string
 ): Promise<ConsentFormTemplate> {
   return api.get<ConsentFormTemplate>(`/consent/sign/${studioSlug}/${templateId}`);
+}
+
+export async function submitSignedConsent(
+  studioSlug: string,
+  data: SubmitSigningInput
+): Promise<SubmitSigningResponse> {
+  return api.post<SubmitSigningResponse>(`/consent/sign/${studioSlug}`, data);
+}
+
+export async function uploadPhotoIdForSubmission(
+  submissionId: string,
+  file: File
+): Promise<{ photo_id_url: string; message: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/v1/consent/submissions/${submissionId}/photo-id`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.detail || 'Failed to upload photo ID');
+  }
+
+  return response.json();
 }
 
 // === Helper Functions ===

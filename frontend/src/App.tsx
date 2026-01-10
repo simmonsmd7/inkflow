@@ -7,6 +7,8 @@ import {
   BookingQueue,
   Commissions,
   ConsentForms,
+  ConsentSigning,
+  ConsentView,
   Dashboard,
   DepositPayment,
   ForgotPassword,
@@ -28,6 +30,8 @@ function App() {
       <Route path="/pay-deposit/:token" element={<DepositPayment />} />
       <Route path="/pay-deposit/:token/stub-checkout" element={<StubCheckout />} />
       <Route path="/pay-deposit/:token/success" element={<PaymentSuccess />} />
+      <Route path="/sign/:studioSlug/:templateId" element={<ConsentSigning />} />
+      <Route path="/consent/view/:accessToken" element={<ConsentView />} />
 
       {/* Auth routes - no layout */}
       <Route path="/login" element={<Login />} />
