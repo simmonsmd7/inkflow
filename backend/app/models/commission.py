@@ -120,3 +120,93 @@ class CommissionTier(BaseModel):
     commission_rule: Mapped["CommissionRule"] = relationship(
         "CommissionRule", back_populates="tiers"
     )
+
+
+class EarnedCommission(BaseModel):
+    """Earned commission record from a completed booking."""
+
+    __tablename__ = "earned_commissions"
+
+    # Link to the booking
+    booking_request_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("booking_requests.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,  # One commission per booking
+        index=True,
+    )
+
+    # The artist who earned the commission
+    artist_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    # The studio
+    studio_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("studios.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    # The commission rule used (snapshot, may be deleted later)
+    commission_rule_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("commission_rules.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    commission_rule_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    commission_type: Mapped[CommissionType] = mapped_column(
+        Enum(CommissionType, name="commission_type", create_type=False),
+        nullable=False,
+    )
+
+    # Amounts (all in cents)
+    service_total: Mapped[int] = mapped_column(Integer, nullable=False)  # Total service cost
+    studio_commission: Mapped[int] = mapped_column(Integer, nullable=False)  # Studio's share
+    artist_payout: Mapped[int] = mapped_column(Integer, nullable=False)  # Artist's share
+    tips_amount: Mapped[int] = mapped_column(Integer, default=0)  # Tips (100% to artist)
+
+    # Calculation details for audit
+    calculation_details: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # Completion date (when the booking was completed)
+    completed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+    # Pay period tracking (for P5.4)
+    pay_period_start: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    pay_period_end: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    paid_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    payout_reference: Mapped[Optional[str]] = mapped_column(
+        String(255), nullable=True
+    )  # External reference (check #, transfer ID, etc.)
+
+    # Relationships
+    booking_request: Mapped["BookingRequest"] = relationship(
+        "BookingRequest", back_populates="earned_commission"
+    )
+    artist: Mapped[Optional["User"]] = relationship(
+        "User", back_populates="earned_commissions"
+    )
+    studio: Mapped["Studio"] = relationship(
+        "Studio", back_populates="earned_commissions"
+    )
+    commission_rule: Mapped[Optional["CommissionRule"]] = relationship(
+        "CommissionRule", foreign_keys=[commission_rule_id]
+    )
+
+
+# Import at end to avoid circular imports
+if TYPE_CHECKING:
+    from app.models.booking import BookingRequest

@@ -11,7 +11,7 @@ from app.models.base import BaseModel, SoftDeleteMixin
 
 if TYPE_CHECKING:
     from app.models.booking import BookingRequest
-    from app.models.commission import CommissionRule
+    from app.models.commission import CommissionRule, EarnedCommission
     from app.models.message import Conversation
     from app.models.user import User
 
@@ -74,6 +74,11 @@ class Studio(BaseModel, SoftDeleteMixin):
         back_populates="studio",
         lazy="selectin",
         cascade="all, delete-orphan",
+    )
+    earned_commissions: Mapped[list["EarnedCommission"]] = relationship(
+        "EarnedCommission",
+        back_populates="studio",
+        lazy="selectin",
     )
 
     @property

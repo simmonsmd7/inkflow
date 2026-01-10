@@ -215,3 +215,86 @@ class CommissionCalculationResult(BaseModel):
     rule_name: str = Field(description="Name of the commission rule used")
     commission_type: CommissionType
     calculation_details: str = Field(description="Human-readable calculation breakdown")
+
+
+# ============ Earned Commission (Records) ============
+
+
+class EarnedCommissionBase(BaseModel):
+    """Base schema for earned commission record."""
+
+    service_total: int = Field(ge=0, description="Total service amount in cents")
+    studio_commission: int = Field(ge=0, description="Studio's commission in cents")
+    artist_payout: int = Field(ge=0, description="Artist's payout in cents")
+    tips_amount: int = Field(default=0, ge=0, description="Tips amount in cents (100% to artist)")
+    calculation_details: str = Field(description="Human-readable calculation breakdown")
+
+
+class EarnedCommissionResponse(EarnedCommissionBase):
+    """Response schema for an earned commission record."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    booking_request_id: UUID
+    artist_id: Optional[UUID]
+    studio_id: UUID
+    commission_rule_id: Optional[UUID]
+    commission_rule_name: str
+    commission_type: CommissionType
+    completed_at: datetime
+    created_at: datetime
+
+    # Pay period info (may be null if not yet assigned)
+    pay_period_start: Optional[datetime] = None
+    pay_period_end: Optional[datetime] = None
+    paid_at: Optional[datetime] = None
+    payout_reference: Optional[str] = None
+
+
+class EarnedCommissionWithDetails(EarnedCommissionResponse):
+    """Earned commission with booking and artist details."""
+
+    # Booking info
+    client_name: str
+    design_idea: Optional[str] = None
+
+    # Artist info (if available)
+    artist_name: Optional[str] = None
+
+
+class EarnedCommissionsListResponse(BaseModel):
+    """Response for listing earned commissions."""
+
+    commissions: list[EarnedCommissionWithDetails]
+    total: int
+    page: int
+    page_size: int
+    # Summary totals
+    total_service: int = Field(description="Sum of all service totals in cents")
+    total_studio_commission: int = Field(description="Sum of all studio commissions in cents")
+    total_artist_payout: int = Field(description="Sum of all artist payouts in cents")
+    total_tips: int = Field(description="Sum of all tips in cents")
+
+
+class CompleteBookingWithCommissionInput(BaseModel):
+    """Input for completing a booking and calculating commission."""
+
+    tips_amount: int = Field(default=0, ge=0, description="Tips amount in cents")
+    final_price: Optional[int] = Field(
+        None,
+        ge=0,
+        description="Final price in cents (overrides quoted price if provided)",
+    )
+    completion_notes: Optional[str] = Field(
+        None, description="Notes about the completed session"
+    )
+
+
+class CompleteBookingWithCommissionResponse(BaseModel):
+    """Response when completing a booking with commission calculated."""
+
+    message: str
+    booking_id: UUID
+    status: str
+    commission: EarnedCommissionResponse

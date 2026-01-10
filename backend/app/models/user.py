@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from app.models.artist import ArtistProfile
     from app.models.availability import ArtistAvailability, ArtistTimeOff
     from app.models.booking import BookingRequest
-    from app.models.commission import CommissionRule
+    from app.models.commission import CommissionRule, EarnedCommission
     from app.models.message import Conversation, Message
     from app.models.studio import Studio
 
@@ -122,6 +122,12 @@ class User(BaseModel, SoftDeleteMixin):
         "CommissionRule",
         back_populates="assigned_artists",
         foreign_keys=[commission_rule_id],
+        lazy="selectin",
+    )
+    earned_commissions: Mapped[list["EarnedCommission"]] = relationship(
+        "EarnedCommission",
+        back_populates="artist",
+        foreign_keys="EarnedCommission.artist_id",
         lazy="selectin",
     )
 

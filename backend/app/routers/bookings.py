@@ -46,10 +46,16 @@ from app.schemas.booking import (
     SendDepositRequestResponse,
     StubPaymentConfirmation,
 )
+from app.schemas.commission import (
+    CompleteBookingWithCommissionInput,
+    CompleteBookingWithCommissionResponse,
+    EarnedCommissionResponse,
+)
 from app.schemas.booking import BookingRequestStatus as SchemaStatus
 from app.schemas.booking import TattooSize as SchemaSize
 from app.services.auth import get_current_user, require_role
 from app.services.calendar import calendar_service
+from app.services.commission_service import calculate_and_record_commission
 from app.services.email import email_service
 from app.services.stripe_service import stripe_service
 
@@ -937,6 +943,132 @@ async def cancel_booking(
         deposit_forfeited=booking.deposit_forfeited,
         deposit_amount=booking.deposit_amount,
         notification_sent=notification_sent,
+    )
+
+
+@router.post(
+    "/requests/{request_id}/complete",
+    response_model=CompleteBookingWithCommissionResponse,
+)
+async def complete_booking(
+    request_id: uuid.UUID,
+    data: CompleteBookingWithCommissionInput,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> CompleteBookingWithCommissionResponse:
+    """
+    Complete a booking appointment and automatically calculate commission.
+
+    This endpoint:
+    1. Marks the booking as completed
+    2. Calculates the artist's commission based on their assigned commission rule
+    3. Records the earned commission for payroll tracking
+    """
+    # Get booking request with relationships
+    result = await db.execute(
+        select(BookingRequest)
+        .where(BookingRequest.id == request_id, BookingRequest.deleted_at.is_(None))
+        .options(
+            selectinload(BookingRequest.studio),
+            selectinload(BookingRequest.assigned_artist),
+            selectinload(BookingRequest.preferred_artist),
+        )
+    )
+    booking = result.scalar_one_or_none()
+
+    if not booking:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Booking request not found",
+        )
+
+    # Artists can only complete their assigned bookings
+    if current_user.role == UserRole.ARTIST:
+        if booking.assigned_artist_id != current_user.id and booking.preferred_artist_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have access to this booking request",
+            )
+
+    # Can only complete confirmed bookings
+    if booking.status != BookingRequestStatus.CONFIRMED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot complete booking with status '{booking.status.value}'. Must be confirmed.",
+        )
+
+    # Must have a quoted price (or final price provided)
+    service_total = data.final_price if data.final_price is not None else booking.quoted_price
+    if not service_total or service_total <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Booking must have a quoted price or you must provide a final price",
+        )
+
+    # Must have an assigned artist for commission calculation
+    if not booking.assigned_artist_id and not booking.preferred_artist_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Booking must have an assigned artist for commission calculation",
+        )
+
+    # Ensure there's an assigned artist (prefer assigned over preferred)
+    if not booking.assigned_artist_id and booking.preferred_artist_id:
+        booking.assigned_artist_id = booking.preferred_artist_id
+
+    # Update final price if provided
+    if data.final_price is not None:
+        booking.quoted_price = data.final_price
+
+    # Add completion notes if provided
+    if data.completion_notes:
+        if booking.internal_notes:
+            booking.internal_notes += f"\n\n[Completion Notes]: {data.completion_notes}"
+        else:
+            booking.internal_notes = f"[Completion Notes]: {data.completion_notes}"
+
+    # Mark as completed
+    booking.status = BookingRequestStatus.COMPLETED
+
+    await db.commit()
+    await db.refresh(booking, ["assigned_artist"])
+
+    # Calculate and record commission
+    earned_commission = await calculate_and_record_commission(
+        db=db,
+        booking=booking,
+        tips_amount=data.tips_amount,
+        final_price=data.final_price,
+    )
+
+    if not earned_commission:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Could not calculate commission. Ensure the artist has a commission rule assigned or the studio has a default rule.",
+        )
+
+    await db.commit()
+
+    return CompleteBookingWithCommissionResponse(
+        message="Booking completed and commission calculated",
+        booking_id=booking.id,
+        status="completed",
+        commission=EarnedCommissionResponse(
+            id=earned_commission.id,
+            booking_request_id=earned_commission.booking_request_id,
+            artist_id=earned_commission.artist_id,
+            studio_id=earned_commission.studio_id,
+            commission_rule_id=earned_commission.commission_rule_id,
+            commission_rule_name=earned_commission.commission_rule_name,
+            commission_type=earned_commission.commission_type,
+            service_total=earned_commission.service_total,
+            studio_commission=earned_commission.studio_commission,
+            artist_payout=earned_commission.artist_payout,
+            tips_amount=earned_commission.tips_amount,
+            calculation_details=earned_commission.calculation_details,
+            completed_at=earned_commission.completed_at,
+            created_at=earned_commission.created_at,
+        ),
     )
 
 

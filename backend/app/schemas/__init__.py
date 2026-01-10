@@ -64,6 +64,11 @@ from app.schemas.commission import (
     CommissionTierResponse,
     CommissionTierUpdate,
     CommissionType,
+    CompleteBookingWithCommissionInput,
+    CompleteBookingWithCommissionResponse,
+    EarnedCommissionResponse,
+    EarnedCommissionsListResponse,
+    EarnedCommissionWithDetails,
 )
 from app.schemas.message import (
     AssignConversationResponse,
@@ -148,6 +153,11 @@ __all__ = [
     "CommissionTierResponse",
     "CommissionTierUpdate",
     "CommissionType",
+    "CompleteBookingWithCommissionInput",
+    "CompleteBookingWithCommissionResponse",
+    "EarnedCommissionResponse",
+    "EarnedCommissionsListResponse",
+    "EarnedCommissionWithDetails",
     # Message schemas
     "AssignConversationResponse",
     "ConversationCreate",

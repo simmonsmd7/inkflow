@@ -24,6 +24,8 @@ from app.schemas.commission import (
     CommissionRuleSummary,
     CommissionRuleUpdate,
     CommissionTierCreate,
+    EarnedCommissionsListResponse,
+    EarnedCommissionWithDetails,
 )
 from app.schemas.user import MessageResponse
 from app.services.auth import get_current_user, require_owner
@@ -563,4 +565,203 @@ async def calculate_artist_commission(
         rule_name=rule.name,
         commission_type=rule.commission_type,
         calculation_details=details,
+    )
+
+
+# ============ Earned Commissions (Records) ============
+
+
+@router.get("/earned", response_model=EarnedCommissionsListResponse)
+async def list_earned_commissions(
+    current_user: User = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    artist_id: Optional[uuid.UUID] = None,
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    unpaid_only: bool = Query(False, description="Only show unpaid commissions"),
+) -> EarnedCommissionsListResponse:
+    """
+    List earned commissions for the studio.
+    Owner only. Can filter by artist, date range, and payment status.
+    """
+    from datetime import datetime as dt
+    from app.services.commission_service import get_earned_commissions
+
+    studio = await get_user_studio(db, current_user)
+
+    # Parse dates
+    start_dt = None
+    end_dt = None
+    if start_date:
+        start_dt = dt.fromisoformat(start_date + "T00:00:00+00:00")
+    if end_date:
+        end_dt = dt.fromisoformat(end_date + "T23:59:59+00:00")
+
+    # Get commissions
+    commissions, total, summary = await get_earned_commissions(
+        db=db,
+        studio_id=studio.id,
+        artist_id=artist_id,
+        start_date=start_dt,
+        end_date=end_dt,
+        unpaid_only=unpaid_only,
+        page=page,
+        page_size=page_size,
+    )
+
+    # Build response with details
+    items = []
+    for comm in commissions:
+        booking = comm.booking_request
+        artist = comm.artist
+        items.append(
+            EarnedCommissionWithDetails(
+                id=comm.id,
+                booking_request_id=comm.booking_request_id,
+                artist_id=comm.artist_id,
+                studio_id=comm.studio_id,
+                commission_rule_id=comm.commission_rule_id,
+                commission_rule_name=comm.commission_rule_name,
+                commission_type=comm.commission_type,
+                service_total=comm.service_total,
+                studio_commission=comm.studio_commission,
+                artist_payout=comm.artist_payout,
+                tips_amount=comm.tips_amount,
+                calculation_details=comm.calculation_details,
+                completed_at=comm.completed_at,
+                created_at=comm.created_at,
+                pay_period_start=comm.pay_period_start,
+                pay_period_end=comm.pay_period_end,
+                paid_at=comm.paid_at,
+                payout_reference=comm.payout_reference,
+                client_name=booking.client_name if booking else "Unknown",
+                design_idea=booking.design_idea[:100] if booking else None,
+                artist_name=artist.full_name if artist else None,
+            )
+        )
+
+    return EarnedCommissionsListResponse(
+        commissions=items,
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_service=summary["total_service"],
+        total_studio_commission=summary["total_studio_commission"],
+        total_artist_payout=summary["total_artist_payout"],
+        total_tips=summary["total_tips"],
+    )
+
+
+@router.get("/earned/me", response_model=EarnedCommissionsListResponse)
+async def list_my_earned_commissions(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    unpaid_only: bool = Query(False, description="Only show unpaid commissions"),
+) -> EarnedCommissionsListResponse:
+    """
+    List earned commissions for the current artist.
+    Artists can only see their own commissions.
+    """
+    from datetime import datetime as dt
+    from app.models.commission import EarnedCommission
+
+    # Must be an artist or owner
+    if current_user.role not in [UserRole.ARTIST, UserRole.OWNER]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only artists and owners can view earned commissions",
+        )
+
+    # Parse dates
+    start_dt = None
+    end_dt = None
+    if start_date:
+        start_dt = dt.fromisoformat(start_date + "T00:00:00+00:00")
+    if end_date:
+        end_dt = dt.fromisoformat(end_date + "T23:59:59+00:00")
+
+    # Build query for this artist's commissions
+    query = select(EarnedCommission).where(
+        EarnedCommission.artist_id == current_user.id,
+    )
+
+    if start_dt:
+        query = query.where(EarnedCommission.completed_at >= start_dt)
+    if end_dt:
+        query = query.where(EarnedCommission.completed_at <= end_dt)
+    if unpaid_only:
+        query = query.where(EarnedCommission.paid_at.is_(None))
+
+    # Get total count
+    count_query = select(func.count()).select_from(query.subquery())
+    count_result = await db.execute(count_query)
+    total = count_result.scalar() or 0
+
+    # Get summary totals
+    sum_query = select(
+        func.coalesce(func.sum(EarnedCommission.service_total), 0).label("total_service"),
+        func.coalesce(func.sum(EarnedCommission.studio_commission), 0).label("total_studio_commission"),
+        func.coalesce(func.sum(EarnedCommission.artist_payout), 0).label("total_artist_payout"),
+        func.coalesce(func.sum(EarnedCommission.tips_amount), 0).label("total_tips"),
+    ).select_from(query.subquery())
+    sum_result = await db.execute(sum_query)
+    sums = sum_result.first()
+
+    # Get paginated results
+    paginated_query = (
+        query
+        .options(selectinload(EarnedCommission.booking_request))
+        .order_by(EarnedCommission.completed_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+
+    result = await db.execute(paginated_query)
+    commissions = list(result.scalars().all())
+
+    # Build response
+    items = []
+    for comm in commissions:
+        booking = comm.booking_request
+        items.append(
+            EarnedCommissionWithDetails(
+                id=comm.id,
+                booking_request_id=comm.booking_request_id,
+                artist_id=comm.artist_id,
+                studio_id=comm.studio_id,
+                commission_rule_id=comm.commission_rule_id,
+                commission_rule_name=comm.commission_rule_name,
+                commission_type=comm.commission_type,
+                service_total=comm.service_total,
+                studio_commission=comm.studio_commission,
+                artist_payout=comm.artist_payout,
+                tips_amount=comm.tips_amount,
+                calculation_details=comm.calculation_details,
+                completed_at=comm.completed_at,
+                created_at=comm.created_at,
+                pay_period_start=comm.pay_period_start,
+                pay_period_end=comm.pay_period_end,
+                paid_at=comm.paid_at,
+                payout_reference=comm.payout_reference,
+                client_name=booking.client_name if booking else "Unknown",
+                design_idea=booking.design_idea[:100] if booking else None,
+                artist_name=current_user.full_name,
+            )
+        )
+
+    return EarnedCommissionsListResponse(
+        commissions=items,
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_service=sums.total_service if sums else 0,
+        total_studio_commission=sums.total_studio_commission if sums else 0,
+        total_artist_payout=sums.total_artist_payout if sums else 0,
+        total_tips=sums.total_tips if sums else 0,
     )

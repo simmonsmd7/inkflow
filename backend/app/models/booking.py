@@ -19,6 +19,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import BaseModel, SoftDeleteMixin
 
 if TYPE_CHECKING:
+    from app.models.commission import EarnedCommission
     from app.models.message import Conversation
     from app.models.user import User
 
@@ -196,6 +197,11 @@ class BookingRequest(BaseModel, SoftDeleteMixin):
     )
     conversation: Mapped[Optional["Conversation"]] = relationship(
         "Conversation",
+        back_populates="booking_request",
+        uselist=False,
+    )
+    earned_commission: Mapped[Optional["EarnedCommission"]] = relationship(
+        "EarnedCommission",
         back_populates="booking_request",
         uselist=False,
     )
