@@ -2130,3 +2130,17 @@ Frontend Exports (pages/index.ts):
 - Verified: Navigation from portal to appointments works
 Status: COMPLETE
 Next: P9.4 - Consent form signing
+
+=== ITERATION 48 ===
+Date: 2026-01-10
+Task: P9.4 - Consent form signing in client portal
+Changes:
+- backend/app/routers/client_portal.py: Added consent endpoints (pending, signed, template, sign)
+- frontend/src/pages/ClientConsentForms.tsx: New page with pending/signed tabs, form signing with signature
+- frontend/src/services/clientPortal.ts: Added consent service functions
+- frontend/src/types/api.ts: Added client consent types
+- frontend/src/pages/ClientPortal.tsx: Linked consent forms card
+- frontend/src/pages/index.ts: Export new component
+- frontend/src/App.tsx: Added /client/consent route
+Status: COMPLETE
+Next: P9.5 - Aftercare instructions access
