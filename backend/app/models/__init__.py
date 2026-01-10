@@ -16,6 +16,7 @@ from app.models.aftercare import (
 from app.models.artist import ArtistProfile, PortfolioImage
 from app.models.availability import ArtistAvailability, ArtistTimeOff
 from app.models.base import BaseModel, SoftDeleteMixin
+from app.models.client import Client
 from app.models.booking import (
     BookingReferenceImage,
     BookingRequest,
@@ -62,6 +63,7 @@ __all__ = [
     "BookingReferenceImage",
     "BookingRequest",
     "BookingRequestStatus",
+    "Client",
     "CommissionRule",
     "CommissionTier",
     "CommissionType",

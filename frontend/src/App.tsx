@@ -7,6 +7,9 @@ import {
   Availability,
   BookingForm,
   BookingQueue,
+  ClientLogin,
+  ClientPortal,
+  ClientRegister,
   ClientRetention,
   Commissions,
   ConsentForms,
@@ -46,6 +49,11 @@ function App() {
       <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+
+      {/* Client Portal routes - no layout */}
+      <Route path="/client/login" element={<ClientLogin />} />
+      <Route path="/client/register" element={<ClientRegister />} />
+      <Route path="/client" element={<ClientPortal />} />
 
       {/* App routes - with layout */}
       <Route

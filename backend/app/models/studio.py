@@ -13,6 +13,7 @@ from app.models.commission import PayPeriodSchedule
 if TYPE_CHECKING:
     from app.models.aftercare import AftercareSent, AftercareTemplate, HealingIssueReport
     from app.models.booking import BookingRequest
+    from app.models.client import Client
     from app.models.commission import CommissionRule, EarnedCommission, PayPeriod
     from app.models.consent import ConsentFormSubmission, ConsentFormTemplate
     from app.models.message import Conversation
@@ -128,6 +129,11 @@ class Studio(BaseModel, SoftDeleteMixin):
     healing_reports: Mapped[list["HealingIssueReport"]] = relationship(
         "HealingIssueReport",
         back_populates="studio",
+        lazy="selectin",
+    )
+    clients: Mapped[list["Client"]] = relationship(
+        "Client",
+        back_populates="primary_studio",
         lazy="selectin",
     )
 

@@ -1812,3 +1812,57 @@ export type RevenueReportResponse =
   | WeeklyRevenueReportResponse
   | MonthlyRevenueReportResponse
   | CustomRevenueReportResponse;
+
+// ============ Client Portal Types ============
+
+export interface Client {
+  id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  phone: string | null;
+  is_active: boolean;
+  is_verified: boolean;
+  created_at: string;
+}
+
+export interface ClientDetailResponse extends Client {
+  last_login_at: string | null;
+  date_of_birth: string | null;
+  address: string | null;
+  emergency_contact_name: string | null;
+  emergency_contact_phone: string | null;
+  medical_notes: string | null;
+  primary_studio_id: string | null;
+  updated_at: string;
+}
+
+export interface ClientRegisterRequest {
+  email: string;
+  password: string;
+  first_name: string;
+  last_name: string;
+  phone?: string;
+}
+
+export interface ClientLoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface ClientAuthResponse {
+  access_token: string;
+  token_type: string;
+  client: Client;
+}
+
+export interface ClientUpdate {
+  first_name?: string;
+  last_name?: string;
+  phone?: string | null;
+  date_of_birth?: string | null;
+  address?: string | null;
+  emergency_contact_name?: string | null;
+  emergency_contact_phone?: string | null;
+  medical_notes?: string | null;
+}

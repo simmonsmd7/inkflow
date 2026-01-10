@@ -6,6 +6,7 @@ from app.routers.artists import router as artists_router
 from app.routers.auth import router as auth_router
 from app.routers.availability import router as availability_router
 from app.routers.bookings import router as bookings_router
+from app.routers.client_auth import router as client_auth_router
 from app.routers.commissions import router as commissions_router
 from app.routers.consent import router as consent_router
 from app.routers.messages import router as messages_router
@@ -21,6 +22,7 @@ __all__ = [
     "auth_router",
     "availability_router",
     "bookings_router",
+    "client_auth_router",
     "commissions_router",
     "consent_router",
     "messages_router",

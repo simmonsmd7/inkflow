@@ -214,6 +214,19 @@ from app.schemas.analytics import (
     TimeSlotAnalyticsResponse,
     UpcomingAppointment,
 )
+from app.schemas.client import (
+    ClientAuthResponse,
+    ClientCreate,
+    ClientDetailResponse,
+    ClientEmailVerification,
+    ClientLogin,
+    ClientMessageResponse,
+    ClientPasswordChange,
+    ClientPasswordReset,
+    ClientPasswordResetRequest,
+    ClientResponse,
+    ClientUpdate,
+)
 
 __all__ = [
     # Aftercare schemas
@@ -415,4 +428,16 @@ __all__ = [
     "RevenueMetrics",
     "TimeSlotAnalyticsResponse",
     "UpcomingAppointment",
+    # Client schemas
+    "ClientAuthResponse",
+    "ClientCreate",
+    "ClientDetailResponse",
+    "ClientEmailVerification",
+    "ClientLogin",
+    "ClientMessageResponse",
+    "ClientPasswordChange",
+    "ClientPasswordReset",
+    "ClientPasswordResetRequest",
+    "ClientResponse",
+    "ClientUpdate",
 ]
