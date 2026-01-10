@@ -20,6 +20,7 @@ from app.routers import (
     reminders_router,
     studios_router,
     users_router,
+    webhooks_router,
 )
 
 settings = get_settings()
@@ -63,6 +64,7 @@ app.include_router(messages_router, prefix="/api/v1")
 app.include_router(reminders_router, prefix="/api/v1")
 app.include_router(studios_router, prefix="/api/v1")
 app.include_router(users_router, prefix="/api/v1")
+app.include_router(webhooks_router, prefix="/api/v1")
 
 # Static files for uploads (logos, portfolio, references, etc.)
 uploads_dir = Path("uploads")

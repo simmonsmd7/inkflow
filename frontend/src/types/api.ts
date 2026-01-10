@@ -583,6 +583,10 @@ export interface InboxMessage {
   delivered_at: string | null;
   failed_at: string | null;
   failure_reason: string | null;
+  // Email threading fields
+  email_message_id: string | null;
+  email_in_reply_to: string | null;
+  email_subject: string | null;
   created_at: string;
 }
 

@@ -28,6 +28,11 @@ class EmailMessage:
     body_text: str
     body_html: str | None = None
     attachments: list[EmailAttachment] = field(default_factory=list)
+    # Optional email threading headers
+    reply_to: str | None = None
+    message_id: str | None = None
+    in_reply_to: str | None = None
+    references: str | None = None
 
 
 class EmailService:
@@ -62,10 +67,19 @@ class EmailService:
             )
             attachment_info = f"\n  Attachments: {attachment_list}"
 
+        headers_info = ""
+        if message.reply_to:
+            headers_info += f"\n  Reply-To: {message.reply_to}"
+        if message.message_id:
+            headers_info += f"\n  Message-ID: {message.message_id}"
+        if message.in_reply_to:
+            headers_info += f"\n  In-Reply-To: {message.in_reply_to}"
+
         logger.info(
             f"\n[EMAIL STUB] "
             f"\n  To: {message.to_email}"
             f"\n  Subject: {message.subject}"
+            f"{headers_info}"
             f"\n  Body: {message.body_text}"
             f"{attachment_info}"
             f"\n"
@@ -81,11 +95,24 @@ class EmailService:
                     preview = att.content.decode("utf-8")[:500]
                     attachment_console += f"    Preview:\n{preview}...\n"
 
+        headers_console = ""
+        if message.reply_to or message.message_id or message.in_reply_to:
+            headers_console = "\nHeaders:\n"
+            if message.reply_to:
+                headers_console += f"  Reply-To: {message.reply_to}\n"
+            if message.message_id:
+                headers_console += f"  Message-ID: {message.message_id}\n"
+            if message.in_reply_to:
+                headers_console += f"  In-Reply-To: {message.in_reply_to}\n"
+            if message.references:
+                headers_console += f"  References: {message.references}\n"
+
         print(
             f"\n{'='*60}\n"
             f"[EMAIL STUB]\n"
             f"To: {message.to_email}\n"
             f"Subject: {message.subject}\n"
+            f"{headers_console}"
             f"Body:\n{message.body_text}\n"
             f"{attachment_console}"
             f"{'='*60}\n"
@@ -103,7 +130,9 @@ class EmailService:
                 FileContent,
                 FileName,
                 FileType,
+                Header,
                 Mail,
+                ReplyTo,
                 To,
             )
 
@@ -114,6 +143,18 @@ class EmailService:
 
             if message.body_html:
                 mail.add_content(Content("text/html", message.body_html))
+
+            # Add Reply-To header if specified
+            if message.reply_to:
+                mail.reply_to = ReplyTo(message.reply_to)
+
+            # Add email threading headers
+            if message.message_id:
+                mail.add_header(Header("Message-ID", message.message_id))
+            if message.in_reply_to:
+                mail.add_header(Header("In-Reply-To", message.in_reply_to))
+            if message.references:
+                mail.add_header(Header("References", message.references))
 
             # Add attachments
             for att in message.attachments:
@@ -1052,6 +1093,78 @@ Powered by InkFlow
                 body_html=body_html,
             )
         )
+
+    async def send_conversation_message(
+        self,
+        to_email: str,
+        client_name: str,
+        sender_name: str,
+        studio_name: str | None,
+        subject: str,
+        content: str,
+        thread_token: str,
+        message_id: str,
+        in_reply_to: str | None = None,
+    ) -> tuple[bool, str]:
+        """
+        Send a message from the inbox as an email.
+
+        Returns: (success, generated_message_id)
+        """
+        # Generate reply-to address with thread token for routing
+        reply_to_address = f"reply+{thread_token}@{settings.inbound_email_domain}"
+
+        # Build plain text email
+        body_text = f"""{content}
+
+---
+Sent by {sender_name}{f" at {studio_name}" if studio_name else ""} via InkFlow
+
+To reply, simply respond to this email.
+"""
+
+        # Build HTML email
+        body_html = f"""
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+    <div style="padding: 30px;">
+        <p>Hi {client_name},</p>
+
+        <div style="white-space: pre-wrap; margin: 20px 0; line-height: 1.6;">
+{content}
+        </div>
+
+        <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+
+        <p style="color: #666; font-size: 13px;">
+            Sent by <strong>{sender_name}</strong>{f" at <strong>{studio_name}</strong>" if studio_name else ""} via InkFlow
+        </p>
+
+        <p style="color: #999; font-size: 12px;">
+            To reply, simply respond to this email.
+        </p>
+    </div>
+
+    <div style="background-color: #f5f5f5; padding: 15px; text-align: center;">
+        <p style="color: #999; font-size: 12px; margin: 0;">
+            Powered by <a href="https://inkflow.io" style="color: #e11d48;">InkFlow</a>
+        </p>
+    </div>
+</div>
+"""
+
+        success = await self.send(
+            EmailMessage(
+                to_email=to_email,
+                subject=subject,
+                body_text=body_text,
+                body_html=body_html,
+                reply_to=reply_to_address,
+                message_id=message_id,
+                in_reply_to=in_reply_to,
+            )
+        )
+
+        return success, message_id
 
 
 # Singleton instance

@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     # Email - SendGrid (empty = stub to console)
     sendgrid_api_key: str = ""
     from_email: str = "noreply@inkflow.local"
+    inbound_email_domain: str = "inkflow.local"  # Domain for reply-to addresses
 
     # SMS - Twilio (empty = stub to console)
     twilio_account_sid: str = ""

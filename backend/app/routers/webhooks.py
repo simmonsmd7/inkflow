@@ -1,0 +1,190 @@
+"""Webhooks router for external service integrations."""
+
+import re
+import uuid
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, Form, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.database import get_db_context
+from app.models.message import (
+    Conversation,
+    ConversationStatus,
+    Message,
+    MessageChannel,
+    MessageDirection,
+)
+
+router = APIRouter(prefix="/webhooks", tags=["Webhooks"])
+
+
+def _extract_thread_token(to_address: str) -> str | None:
+    """
+    Extract thread token from reply-to address.
+
+    Expected format: reply+{token}@domain.com
+    """
+    match = re.search(r"reply\+([a-zA-Z0-9_-]+)@", to_address)
+    if match:
+        return match.group(1)
+    return None
+
+
+def _extract_plain_text_from_email(text: str, html: str | None) -> str:
+    """
+    Extract the reply content from email, removing quoted text.
+
+    Tries to find the new message content before common reply markers.
+    """
+    content = text or ""
+
+    # Common reply markers to strip quoted content
+    reply_markers = [
+        r"\n--\s*\n",  # -- signature
+        r"\nOn .+ wrote:\s*\n",  # On [date] [person] wrote:
+        r"\n>{1,}",  # Quoted lines starting with >
+        r"\n_{10,}",  # Outlook style ______
+        r"\nFrom:.+\nSent:.+\nTo:",  # Outlook forward header
+        r"\n-{5,}\s*Original Message",  # ----- Original Message -----
+        r"\n\*From:\*",  # Bold From: in some clients
+    ]
+
+    # Find the earliest marker and truncate there
+    min_pos = len(content)
+    for pattern in reply_markers:
+        match = re.search(pattern, content, re.IGNORECASE)
+        if match and match.start() < min_pos:
+            min_pos = match.start()
+
+    # Truncate at the marker if found
+    if min_pos < len(content):
+        content = content[:min_pos]
+
+    # Clean up whitespace
+    content = content.strip()
+
+    return content
+
+
+@router.post("/inbound-email")
+async def receive_inbound_email(
+    to: str = Form(...),
+    from_email: str = Form(..., alias="from"),
+    subject: str = Form(""),
+    text: str = Form(""),
+    html: str = Form(""),
+    headers: str = Form(""),
+    envelope: str = Form(""),
+) -> dict:
+    """
+    Receive inbound emails from SendGrid Inbound Parse.
+
+    This webhook is called by SendGrid when an email is received at
+    the configured domain (e.g., reply+{token}@inkflow.io).
+
+    The thread token in the To address is used to route the email
+    to the correct conversation.
+    """
+    # Extract thread token from To address
+    thread_token = _extract_thread_token(to)
+
+    if not thread_token:
+        # No valid thread token - can't route this email
+        # Return 200 so SendGrid doesn't retry
+        return {
+            "status": "ignored",
+            "reason": "no_thread_token",
+            "message": "No thread token found in recipient address",
+        }
+
+    # Extract the actual message content (without quoted replies)
+    content = _extract_plain_text_from_email(text, html)
+
+    if not content:
+        return {
+            "status": "ignored",
+            "reason": "empty_content",
+            "message": "No message content found",
+        }
+
+    # Find the conversation by thread token
+    async with get_db_context() as db:
+        query = select(Conversation).where(
+            Conversation.email_thread_token == thread_token
+        )
+        result = await db.execute(query)
+        conversation = result.scalar_one_or_none()
+
+        if not conversation:
+            return {
+                "status": "ignored",
+                "reason": "conversation_not_found",
+                "message": f"No conversation found for thread token",
+            }
+
+        now = datetime.now(timezone.utc)
+
+        # Extract sender name from email (format: "Name <email@example.com>")
+        sender_name = conversation.client_name
+        from_match = re.match(r'^"?([^"<]+)"?\s*<', from_email)
+        if from_match:
+            sender_name = from_match.group(1).strip()
+
+        # Extract Message-ID from headers if present
+        email_message_id = None
+        email_in_reply_to = None
+        if headers:
+            msg_id_match = re.search(r"Message-ID:\s*<([^>]+)>", headers, re.IGNORECASE)
+            if msg_id_match:
+                email_message_id = f"<{msg_id_match.group(1)}>"
+
+            reply_to_match = re.search(r"In-Reply-To:\s*<([^>]+)>", headers, re.IGNORECASE)
+            if reply_to_match:
+                email_in_reply_to = f"<{reply_to_match.group(1)}>"
+
+        # Create the inbound message
+        message = Message(
+            conversation_id=conversation.id,
+            content=content,
+            channel=MessageChannel.EMAIL,
+            direction=MessageDirection.INBOUND,
+            sender_name=sender_name,
+            is_read=False,
+            email_message_id=email_message_id,
+            email_in_reply_to=email_in_reply_to,
+            email_subject=subject or None,
+            delivered_at=now,
+        )
+        db.add(message)
+
+        # Update conversation
+        conversation.last_message_at = now
+        conversation.last_message_preview = content[:200] if content else None
+        conversation.unread_count = (conversation.unread_count or 0) + 1
+
+        # Mark as unread if it was resolved
+        if conversation.status == ConversationStatus.RESOLVED:
+            conversation.status = ConversationStatus.UNREAD
+
+        await db.commit()
+
+        return {
+            "status": "success",
+            "message_id": str(message.id),
+            "conversation_id": str(conversation.id),
+        }
+
+
+@router.post("/inbound-email/test")
+async def test_inbound_email_endpoint() -> dict:
+    """
+    Test endpoint to verify inbound email webhook is accessible.
+
+    Returns a simple success response for health checking.
+    """
+    return {
+        "status": "ok",
+        "message": "Inbound email webhook is active",
+    }

@@ -18,6 +18,7 @@ import type {
   ConversationStatus,
   ConversationSummary,
   InboxStats,
+  MessageChannel,
 } from '../types/api';
 
 // Status configuration for badges and labels
@@ -28,6 +29,16 @@ const STATUS_CONFIG: Record<
   unread: { label: 'Unread', color: 'text-red-400', bgColor: 'bg-red-400/10' },
   pending: { label: 'Pending', color: 'text-yellow-400', bgColor: 'bg-yellow-400/10' },
   resolved: { label: 'Resolved', color: 'text-green-400', bgColor: 'bg-green-400/10' },
+};
+
+// Channel configuration for badges and icons
+const CHANNEL_CONFIG: Record<
+  MessageChannel,
+  { label: string; icon: string; color: string; bgColor: string }
+> = {
+  internal: { label: 'Internal', icon: '💬', color: 'text-ink-400', bgColor: 'bg-ink-700' },
+  email: { label: 'Email', icon: '📧', color: 'text-blue-400', bgColor: 'bg-blue-400/10' },
+  sms: { label: 'SMS', icon: '📱', color: 'text-green-400', bgColor: 'bg-green-400/10' },
 };
 
 // Filter tabs for status
@@ -55,6 +66,7 @@ export function Inbox() {
   // New message form
   const [newMessage, setNewMessage] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
+  const [selectedChannel, setSelectedChannel] = useState<MessageChannel>('internal');
 
   // New conversation modal
   const [showNewConversation, setShowNewConversation] = useState(false);
@@ -130,7 +142,10 @@ export function Inbox() {
 
     try {
       setSendingMessage(true);
-      const message = await sendMessage(selectedConversation.id, { content: newMessage });
+      const message = await sendMessage(selectedConversation.id, {
+        content: newMessage,
+        channel: selectedChannel,
+      });
 
       // Add message to conversation
       setSelectedConversation((prev) =>
@@ -420,11 +435,37 @@ export function Inbox() {
                         }`}
                       >
                         <p className="whitespace-pre-wrap">{message.content}</p>
-                        <div className="flex items-center justify-between mt-2 text-xs text-ink-500">
-                          <span>
-                            {message.sender_name ||
-                              (message.direction === 'outbound' ? 'You' : 'Client')}
-                          </span>
+                        <div className="flex items-center justify-between mt-2 text-xs text-ink-500 gap-3">
+                          <div className="flex items-center gap-2">
+                            <span>
+                              {message.sender_name ||
+                                (message.direction === 'outbound' ? 'You' : 'Client')}
+                            </span>
+                            {/* Channel badge */}
+                            <span
+                              className={`px-1.5 py-0.5 rounded text-[10px] ${
+                                CHANNEL_CONFIG[message.channel].bgColor
+                              } ${CHANNEL_CONFIG[message.channel].color}`}
+                              title={CHANNEL_CONFIG[message.channel].label}
+                            >
+                              {CHANNEL_CONFIG[message.channel].icon}{' '}
+                              {CHANNEL_CONFIG[message.channel].label}
+                            </span>
+                            {/* Delivery status for email */}
+                            {message.channel === 'email' && message.direction === 'outbound' && (
+                              <span className="text-[10px]">
+                                {message.failed_at ? (
+                                  <span className="text-red-400" title={message.failure_reason || 'Failed to send'}>
+                                    ⚠️ Failed
+                                  </span>
+                                ) : message.delivered_at ? (
+                                  <span className="text-green-400">✓ Sent</span>
+                                ) : (
+                                  <span className="text-yellow-400">⏳ Sending...</span>
+                                )}
+                              </span>
+                            )}
+                          </div>
                           <span>
                             {new Date(message.created_at).toLocaleTimeString([], {
                               hour: '2-digit',
@@ -440,10 +481,73 @@ export function Inbox() {
 
               {/* Message input */}
               <form onSubmit={handleSendMessage} className="p-4 border-t border-ink-700">
+                {/* Channel selector */}
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-xs text-ink-400">Send via:</span>
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedChannel('internal')}
+                      className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                        selectedChannel === 'internal'
+                          ? 'bg-ink-600 text-white'
+                          : 'bg-ink-800 text-ink-400 hover:text-white'
+                      }`}
+                    >
+                      💬 Internal
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedChannel('email')}
+                      disabled={!selectedConversation.client_email}
+                      className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                        selectedChannel === 'email'
+                          ? 'bg-blue-600 text-white'
+                          : selectedConversation.client_email
+                          ? 'bg-ink-800 text-ink-400 hover:text-white'
+                          : 'bg-ink-800 text-ink-600 cursor-not-allowed'
+                      }`}
+                      title={selectedConversation.client_email ? 'Send via email' : 'No email address'}
+                    >
+                      📧 Email
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedChannel('sms')}
+                      disabled={!selectedConversation.client_phone}
+                      className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                        selectedChannel === 'sms'
+                          ? 'bg-green-600 text-white'
+                          : selectedConversation.client_phone
+                          ? 'bg-ink-800 text-ink-400 hover:text-white'
+                          : 'bg-ink-800 text-ink-600 cursor-not-allowed'
+                      }`}
+                      title={selectedConversation.client_phone ? 'Send via SMS' : 'No phone number'}
+                    >
+                      📱 SMS
+                    </button>
+                  </div>
+                  {selectedChannel === 'email' && selectedConversation.client_email && (
+                    <span className="text-xs text-ink-500">
+                      → {selectedConversation.client_email}
+                    </span>
+                  )}
+                  {selectedChannel === 'sms' && selectedConversation.client_phone && (
+                    <span className="text-xs text-ink-500">
+                      → {selectedConversation.client_phone}
+                    </span>
+                  )}
+                </div>
                 <div className="flex gap-2">
                   <input
                     type="text"
-                    placeholder="Type a message..."
+                    placeholder={
+                      selectedChannel === 'email'
+                        ? 'Type your email message...'
+                        : selectedChannel === 'sms'
+                        ? 'Type your SMS message...'
+                        : 'Type a message...'
+                    }
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     className="flex-1 px-4 py-2 bg-ink-800 border border-ink-700 rounded-lg focus:outline-none focus:border-accent-500"
@@ -452,9 +556,21 @@ export function Inbox() {
                   <button
                     type="submit"
                     disabled={sendingMessage || !newMessage.trim()}
-                    className="px-4 py-2 bg-accent-500 hover:bg-accent-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-medium transition-colors"
+                    className={`px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-medium transition-colors ${
+                      selectedChannel === 'email'
+                        ? 'bg-blue-500 hover:bg-blue-600'
+                        : selectedChannel === 'sms'
+                        ? 'bg-green-500 hover:bg-green-600'
+                        : 'bg-accent-500 hover:bg-accent-600'
+                    }`}
                   >
-                    {sendingMessage ? 'Sending...' : 'Send'}
+                    {sendingMessage
+                      ? 'Sending...'
+                      : selectedChannel === 'email'
+                      ? 'Send Email'
+                      : selectedChannel === 'sms'
+                      ? 'Send SMS'
+                      : 'Send'}
                   </button>
                 </div>
               </form>

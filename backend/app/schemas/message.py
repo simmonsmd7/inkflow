@@ -56,6 +56,10 @@ class MessageResponse(BaseModel):
     delivered_at: datetime | None
     failed_at: datetime | None
     failure_reason: str | None
+    # Email threading fields
+    email_message_id: str | None = None
+    email_in_reply_to: str | None = None
+    email_subject: str | None = None
     created_at: datetime
 
     class Config:

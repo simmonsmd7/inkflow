@@ -8,6 +8,7 @@ from app.routers.messages import router as messages_router
 from app.routers.reminders import router as reminders_router
 from app.routers.studios import router as studios_router
 from app.routers.users import router as users_router
+from app.routers.webhooks import router as webhooks_router
 
 __all__ = [
     "artists_router",
@@ -18,4 +19,5 @@ __all__ = [
     "reminders_router",
     "studios_router",
     "users_router",
+    "webhooks_router",
 ]

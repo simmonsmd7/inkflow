@@ -1,5 +1,6 @@
 """Messages router for unified inbox system."""
 
+import secrets
 import uuid
 from datetime import datetime, timezone
 
@@ -8,6 +9,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.config import get_settings
 from app.database import get_db
 from app.models.message import (
     Conversation,
@@ -30,6 +32,9 @@ from app.schemas.message import (
     MessageResponse,
 )
 from app.services.auth import get_current_user
+from app.services.email import email_service
+
+settings = get_settings()
 
 router = APIRouter(prefix="/messages", tags=["Messages"])
 
@@ -342,6 +347,16 @@ async def assign_conversation(
 # ============ Messages ============
 
 
+def _generate_email_message_id(conversation_id: uuid.UUID, message_id: uuid.UUID) -> str:
+    """Generate RFC 5322 compliant Message-ID for email threading."""
+    return f"<{message_id}@{settings.inbound_email_domain}>"
+
+
+def _generate_thread_token() -> str:
+    """Generate a unique token for email thread routing."""
+    return secrets.token_urlsafe(32)
+
+
 @router.post("/conversations/{conversation_id}/messages", response_model=MessageResponse, status_code=status.HTTP_201_CREATED)
 async def send_message(
     conversation_id: uuid.UUID,
@@ -351,9 +366,16 @@ async def send_message(
 ) -> MessageResponse:
     """
     Send a message in a conversation.
+
+    If channel is 'email', the message will be sent via email to the client.
+    Requires the conversation to have a client_email set.
     """
-    # Get the conversation
-    query = select(Conversation).where(Conversation.id == conversation_id)
+    # Get the conversation with studio relationship for studio name
+    query = (
+        select(Conversation)
+        .options(selectinload(Conversation.studio))
+        .where(Conversation.id == conversation_id)
+    )
     result = await db.execute(query)
     conversation = result.scalar_one_or_none()
 
@@ -364,12 +386,25 @@ async def send_message(
         )
 
     now = datetime.now(timezone.utc)
+    channel = MessageChannel(data.channel.value)
+
+    # Validate email channel requirements
+    if channel == MessageChannel.EMAIL:
+        if not conversation.client_email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot send email: conversation has no client email address",
+            )
+
+    # Ensure conversation has a thread token for email routing
+    if not conversation.email_thread_token:
+        conversation.email_thread_token = _generate_thread_token()
 
     # Create the message
     message = Message(
         conversation_id=conversation_id,
         content=data.content,
-        channel=MessageChannel(data.channel.value),
+        channel=channel,
         direction=MessageDirection.OUTBOUND,  # Staff sending
         sender_id=current_user.id,
         sender_name=current_user.full_name,
@@ -378,6 +413,72 @@ async def send_message(
         read_by_id=current_user.id,
     )
     db.add(message)
+    await db.flush()  # Get message ID
+
+    # If sending via email, actually send the email
+    if channel == MessageChannel.EMAIL:
+        # Generate email message ID
+        email_msg_id = _generate_email_message_id(conversation_id, message.id)
+        message.email_message_id = email_msg_id
+
+        # Determine subject line
+        subject = conversation.subject or "Message from InkFlow"
+        if not subject.lower().startswith("re:"):
+            # Only add Re: if there are previous messages in the thread
+            prev_messages_query = (
+                select(func.count())
+                .select_from(Message)
+                .where(
+                    Message.conversation_id == conversation_id,
+                    Message.channel == MessageChannel.EMAIL,
+                    Message.id != message.id,
+                )
+            )
+            prev_count_result = await db.execute(prev_messages_query)
+            prev_count = prev_count_result.scalar() or 0
+            if prev_count > 0:
+                subject = f"Re: {subject}"
+
+        message.email_subject = subject
+
+        # Find the last email in the thread for In-Reply-To
+        last_email_query = (
+            select(Message)
+            .where(
+                Message.conversation_id == conversation_id,
+                Message.channel == MessageChannel.EMAIL,
+                Message.email_message_id.isnot(None),
+                Message.id != message.id,
+            )
+            .order_by(Message.created_at.desc())
+            .limit(1)
+        )
+        last_email_result = await db.execute(last_email_query)
+        last_email = last_email_result.scalar_one_or_none()
+
+        in_reply_to = last_email.email_message_id if last_email else None
+        message.email_in_reply_to = in_reply_to
+
+        # Send the email
+        studio_name = conversation.studio.name if conversation.studio else None
+
+        success, _ = await email_service.send_conversation_message(
+            to_email=conversation.client_email,
+            client_name=conversation.client_name,
+            sender_name=current_user.full_name,
+            studio_name=studio_name,
+            subject=subject,
+            content=data.content,
+            thread_token=conversation.email_thread_token,
+            message_id=email_msg_id,
+            in_reply_to=in_reply_to,
+        )
+
+        if success:
+            message.delivered_at = datetime.now(timezone.utc)
+        else:
+            message.failed_at = datetime.now(timezone.utc)
+            message.failure_reason = "Failed to send email"
 
     # Update conversation
     conversation.last_message_at = now

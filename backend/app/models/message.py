@@ -84,6 +84,14 @@ class Conversation(BaseModel):
     last_message_preview: Mapped[str | None] = mapped_column(String(200), nullable=True)
     unread_count: Mapped[int] = mapped_column(default=0, nullable=False)
 
+    # Email threading token for inbound routing
+    email_thread_token: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+        unique=True,
+        index=True,
+    )  # Used in reply-to address for routing: reply+{token}@inkflow.io
+
     # Relationships
     studio = relationship("Studio", back_populates="conversations")
     booking_request = relationship("BookingRequest", back_populates="conversation")
@@ -161,6 +169,21 @@ class Message(BaseModel):
         nullable=True,
     )
     failure_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+    # Email threading fields (RFC 5322)
+    email_message_id: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+        index=True,
+    )  # Message-ID header for threading
+    email_in_reply_to: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )  # In-Reply-To header
+    email_subject: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True,
+    )  # Email subject line
 
     # Relationships
     conversation = relationship("Conversation", back_populates="messages")
