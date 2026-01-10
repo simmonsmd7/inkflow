@@ -1,12 +1,30 @@
 import { Routes, Route } from 'react-router-dom';
 import { Layout } from './components/layout';
-import { ArtistProfile, Availability, BookingForm, BookingQueue, Dashboard, ForgotPassword, Login, Register, ResetPassword, StudioSettings, Team } from './pages';
+import {
+  ArtistProfile,
+  Availability,
+  BookingForm,
+  BookingQueue,
+  Dashboard,
+  DepositPayment,
+  ForgotPassword,
+  Login,
+  PaymentSuccess,
+  Register,
+  ResetPassword,
+  StubCheckout,
+  StudioSettings,
+  Team,
+} from './pages';
 
 function App() {
   return (
     <Routes>
       {/* Public routes - no auth required */}
       <Route path="/book/:studioSlug" element={<BookingForm />} />
+      <Route path="/pay-deposit/:token" element={<DepositPayment />} />
+      <Route path="/pay-deposit/:token/stub-checkout" element={<StubCheckout />} />
+      <Route path="/pay-deposit/:token/success" element={<PaymentSuccess />} />
 
       {/* Auth routes - no layout */}
       <Route path="/login" element={<Login />} />

@@ -144,3 +144,26 @@ export async function sendDepositRequest(
 export async function getDepositInfo(token: string): Promise<DepositPaymentInfo> {
   return api.get<DepositPaymentInfo>(`/api/v1/bookings/deposit/${token}`);
 }
+
+/**
+ * Create a Stripe checkout session for deposit payment (public).
+ */
+export async function createCheckoutSession(token: string): Promise<{
+  stub_mode: boolean;
+  session_id: string;
+  checkout_url: string;
+  message?: string;
+}> {
+  return api.post(`/api/v1/bookings/deposit/${token}/create-checkout`, {});
+}
+
+/**
+ * Confirm a stub payment (for testing without Stripe configured).
+ */
+export async function confirmStubPayment(token: string): Promise<{
+  message: string;
+  status: string;
+  deposit_paid_at: string;
+}> {
+  return api.post(`/api/v1/bookings/deposit/${token}/confirm-stub`, {});
+}

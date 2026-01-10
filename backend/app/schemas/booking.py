@@ -222,3 +222,20 @@ class DepositPaymentInfo(BaseModel):
     expires_at: datetime
     is_expired: bool
     quote_notes: str | None = None
+
+
+class CheckoutSessionResponse(BaseModel):
+    """Response from creating a Stripe checkout session."""
+
+    stub_mode: bool
+    session_id: str
+    checkout_url: str
+    message: str | None = None
+
+
+class StubPaymentConfirmation(BaseModel):
+    """Confirmation of a stub payment (for testing without Stripe)."""
+
+    message: str
+    status: str
+    deposit_paid_at: datetime

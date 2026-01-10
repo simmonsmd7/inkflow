@@ -29,15 +29,18 @@ from app.schemas.booking import (
     BookingRequestSummary,
     BookingRequestUpdate,
     BookingSubmissionResponse,
+    CheckoutSessionResponse,
     DepositPaymentInfo,
     ReferenceImageResponse,
     SendDepositRequestInput,
     SendDepositRequestResponse,
+    StubPaymentConfirmation,
 )
 from app.schemas.booking import BookingRequestStatus as SchemaStatus
 from app.schemas.booking import TattooSize as SchemaSize
 from app.services.auth import get_current_user, require_role
 from app.services.email import email_service
+from app.services.stripe_service import stripe_service
 
 settings = get_settings()
 
@@ -649,4 +652,114 @@ async def get_deposit_info(
         expires_at=booking.deposit_request_expires_at or datetime.now(timezone.utc),
         is_expired=is_expired,
         quote_notes=booking.quote_notes,
+    )
+
+
+@router.post("/deposit/{token}/create-checkout", response_model=CheckoutSessionResponse)
+async def create_checkout_session(
+    token: str,
+    db: AsyncSession = Depends(get_db),
+) -> CheckoutSessionResponse:
+    """Create a Stripe checkout session for deposit payment (public)."""
+    result = await db.execute(
+        select(BookingRequest)
+        .where(
+            BookingRequest.deposit_payment_token == token,
+            BookingRequest.deleted_at.is_(None),
+        )
+        .options(selectinload(BookingRequest.studio))
+    )
+    booking = result.scalar_one_or_none()
+
+    if not booking:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Deposit request not found",
+        )
+
+    # Check if already paid
+    if booking.status == BookingRequestStatus.DEPOSIT_PAID:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This deposit has already been paid",
+        )
+
+    # Check expiry
+    if booking.deposit_request_expires_at:
+        if datetime.now(timezone.utc) > booking.deposit_request_expires_at:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This deposit request has expired",
+            )
+
+    # Create checkout session
+    session_data = await stripe_service.create_checkout_session(
+        amount_cents=booking.deposit_amount or 0,
+        currency="usd",
+        client_name=booking.client_name,
+        client_email=booking.client_email,
+        studio_name=booking.studio.name,
+        booking_request_id=str(booking.id),
+        deposit_token=token,
+        success_url=f"{settings.frontend_url}/pay-deposit/{token}/success",
+        cancel_url=f"{settings.frontend_url}/pay-deposit/{token}",
+    )
+
+    return CheckoutSessionResponse(
+        stub_mode=session_data.get("stub_mode", False),
+        session_id=session_data.get("session_id", ""),
+        checkout_url=session_data.get("checkout_url", ""),
+        message=session_data.get("message"),
+    )
+
+
+@router.post("/deposit/{token}/confirm-stub", response_model=StubPaymentConfirmation)
+async def confirm_stub_payment(
+    token: str,
+    db: AsyncSession = Depends(get_db),
+) -> StubPaymentConfirmation:
+    """Confirm a stub payment (for testing without Stripe configured)."""
+    if stripe_service.is_configured:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Stub payments not available when Stripe is configured",
+        )
+
+    result = await db.execute(
+        select(BookingRequest).where(
+            BookingRequest.deposit_payment_token == token,
+            BookingRequest.deleted_at.is_(None),
+        )
+    )
+    booking = result.scalar_one_or_none()
+
+    if not booking:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Deposit request not found",
+        )
+
+    # Check if already paid
+    if booking.status == BookingRequestStatus.DEPOSIT_PAID:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This deposit has already been paid",
+        )
+
+    # Mark as paid
+    booking.status = BookingRequestStatus.DEPOSIT_PAID
+    booking.deposit_paid_at = datetime.now(timezone.utc)
+    booking.deposit_stripe_payment_intent_id = f"stub_pi_{token[:16]}"
+
+    await db.commit()
+    await db.refresh(booking)
+
+    print(f"[STRIPE STUB] Payment confirmed for booking {booking.id}")
+    print(f"  Amount: ${(booking.deposit_amount or 0) / 100:.2f}")
+    print(f"  Client: {booking.client_name} ({booking.client_email})")
+
+    return StubPaymentConfirmation(
+        message="Payment confirmed (stub mode)",
+        status="deposit_paid",
+        deposit_paid_at=booking.deposit_paid_at,
     )
