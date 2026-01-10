@@ -135,20 +135,18 @@ export function Aftercare() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // RBAC check
-  if (!user || !['owner', 'artist', 'receptionist'].includes(user.role)) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <p className="text-ink-400">You don't have permission to view this page.</p>
-      </div>
-    );
-  }
-
-  const canEdit = user.role === 'owner' || user.role === 'artist';
-  const canDelete = user.role === 'owner';
+  // Compute permissions (but don't return early - must call hooks first)
+  const hasPermission = user && ['owner', 'artist', 'receptionist'].includes(user.role);
+  const canEdit = user?.role === 'owner' || user?.role === 'artist';
+  const canDelete = user?.role === 'owner';
 
   // Load data based on active tab
   useEffect(() => {
+    // Only load data if user has permission
+    if (!hasPermission) {
+      setLoading(false);
+      return;
+    }
     if (activeTab === 'templates') {
       loadTemplates();
     } else if (activeTab === 'sent') {
@@ -158,7 +156,7 @@ export function Aftercare() {
     } else if (activeTab === 'issues') {
       loadHealingIssues();
     }
-  }, [activeTab, followUpFilter, issueStatusFilter, issueSeverityFilter]);
+  }, [activeTab, followUpFilter, issueStatusFilter, issueSeverityFilter, hasPermission]);
 
   async function loadSentAftercare() {
     try {
@@ -526,6 +524,15 @@ export function Aftercare() {
       return () => clearTimeout(timer);
     }
   }, [success]);
+
+  // RBAC check - must be after all hooks
+  if (!hasPermission) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <p className="text-ink-400">You don't have permission to view this page.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
