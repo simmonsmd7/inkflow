@@ -78,9 +78,9 @@ tattooproject/
 - [ ] **P1.5** Implement dark/light theme toggle (tattoo artists work late)
 
 ### Phase 2: Authentication & Users
-- [ ] **P2.1** User registration with email verification
+- [ ] **P2.1** User registration (stub email verification to console if SENDGRID_API_KEY is empty)
 - [ ] **P2.2** Login/logout with JWT tokens
-- [ ] **P2.3** Password reset flow
+- [ ] **P2.3** Password reset flow (stub email to console if SENDGRID_API_KEY is empty)
 - [ ] **P2.4** User roles: Owner, Artist, Receptionist
 - [ ] **P2.5** Studio profile setup (name, logo, address, hours)
 - [ ] **P2.6** Artist profiles (bio, portfolio gallery, specialties)
@@ -98,12 +98,11 @@ tattooproject/
 
 ### Phase 4: Unified Inbox
 - [ ] **P4.1** Internal messaging system (foundation)
-- [ ] **P4.2** Email integration (receive and send)
-- [ ] **P4.3** SMS integration (Twilio)
-- [ ] **P4.4** Instagram DM integration (Meta API)
-- [ ] **P4.5** Conversation threading and assignment to artists
-- [ ] **P4.6** Quick reply templates
-- [ ] **P4.7** Message status (unread, pending, resolved)
+- [ ] **P4.2** Email integration (stub to console if SENDGRID_API_KEY is empty)
+- [ ] **P4.3** SMS integration (stub to console if TWILIO_ACCOUNT_SID is empty)
+- [ ] **P4.4** Conversation threading and assignment to artists
+- [ ] **P4.5** Quick reply templates
+- [ ] **P4.6** Message status (unread, pending, resolved)
 
 ### Phase 5: Commission & Payroll
 - [ ] **P5.1** Commission rules engine (percentage, flat fee, tiered)
@@ -145,6 +144,31 @@ tattooproject/
 - [ ] **P9.4** Consent form signing
 - [ ] **P9.5** Aftercare instructions access
 - [ ] **P9.6** Rebooking flow
+
+### Phase 10: Future Enhancements (DO NOT IMPLEMENT - requires manual setup)
+These features require external service setup that cannot be automated:
+- [ ] **P10.1** Instagram DM integration (requires Meta business verification + app review)
+- [ ] **P10.2** Facebook Messenger integration (requires Meta approval)
+- [ ] **P10.3** WhatsApp Business integration (requires Meta approval)
+
+---
+
+## External Service Stubbing
+
+When credentials are missing, STUB the functionality instead of failing:
+
+### Email (SendGrid)
+If `SENDGRID_API_KEY` is empty:
+- Log email content to console: `[EMAIL STUB] To: {email}, Subject: {subject}, Body: {body}`
+- Return success (don't block the flow)
+- Mark verification tokens as auto-verified in dev mode
+
+### SMS (Twilio)
+If `TWILIO_ACCOUNT_SID` is empty:
+- Log SMS content to console: `[SMS STUB] To: {phone}, Message: {message}`
+- Return success (don't block the flow)
+
+This ensures the full application flow works without real credentials.
 
 ---
 
