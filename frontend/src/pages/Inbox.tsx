@@ -451,8 +451,8 @@ export function Inbox() {
                               {CHANNEL_CONFIG[message.channel].icon}{' '}
                               {CHANNEL_CONFIG[message.channel].label}
                             </span>
-                            {/* Delivery status for email */}
-                            {message.channel === 'email' && message.direction === 'outbound' && (
+                            {/* Delivery status for email and SMS */}
+                            {(message.channel === 'email' || message.channel === 'sms') && message.direction === 'outbound' && (
                               <span className="text-[10px]">
                                 {message.failed_at ? (
                                   <span className="text-red-400" title={message.failure_reason || 'Failed to send'}>

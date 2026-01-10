@@ -99,5 +99,57 @@ class SMSService:
         return await self.send(to_phone, message)
 
 
+    async def send_conversation_message(
+        self,
+        to_phone: str,
+        client_name: str,
+        sender_name: str,
+        studio_name: str | None,
+        content: str,
+    ) -> tuple[bool, str | None]:
+        """
+        Send a conversation message via SMS.
+
+        Returns: (success, message_sid or None)
+        """
+        # Build message with context
+        if studio_name:
+            prefix = f"[{studio_name}] {sender_name}: "
+        else:
+            prefix = f"{sender_name}: "
+
+        # SMS has 160 char limit for single message, 1600 for multipart
+        # Keep it concise with prefix
+        max_content_len = 1500 - len(prefix)
+        truncated_content = content[:max_content_len]
+        if len(content) > max_content_len:
+            truncated_content = truncated_content[:-3] + "..."
+
+        message = f"{prefix}{truncated_content}"
+
+        if not self.is_configured:
+            await self._send_stub(to_phone, message)
+            return True, "stub_message_id"
+
+        return await self._send_twilio_with_sid(to_phone, message)
+
+    async def _send_twilio_with_sid(
+        self,
+        to_phone: str,
+        message: str,
+    ) -> tuple[bool, str | None]:
+        """Send SMS via Twilio and return message SID."""
+        try:
+            msg = self._client.messages.create(
+                body=message,
+                from_=self.from_number,
+                to=to_phone,
+            )
+            return True, msg.sid
+        except Exception as e:
+            logger.error(f"Failed to send SMS via Twilio: {e}")
+            return False, None
+
+
 # Singleton instance
 sms_service = SMSService()

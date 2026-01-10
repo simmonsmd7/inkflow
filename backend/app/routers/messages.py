@@ -33,6 +33,7 @@ from app.schemas.message import (
 )
 from app.services.auth import get_current_user
 from app.services.email import email_service
+from app.services.sms import sms_service
 
 settings = get_settings()
 
@@ -396,6 +397,14 @@ async def send_message(
                 detail="Cannot send email: conversation has no client email address",
             )
 
+    # Validate SMS channel requirements
+    if channel == MessageChannel.SMS:
+        if not conversation.client_phone:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot send SMS: conversation has no client phone number",
+            )
+
     # Ensure conversation has a thread token for email routing
     if not conversation.email_thread_token:
         conversation.email_thread_token = _generate_thread_token()
@@ -479,6 +488,25 @@ async def send_message(
         else:
             message.failed_at = datetime.now(timezone.utc)
             message.failure_reason = "Failed to send email"
+
+    # If sending via SMS, actually send the SMS
+    if channel == MessageChannel.SMS:
+        studio_name = conversation.studio.name if conversation.studio else None
+
+        success, message_sid = await sms_service.send_conversation_message(
+            to_phone=conversation.client_phone,
+            client_name=conversation.client_name,
+            sender_name=current_user.full_name,
+            studio_name=studio_name,
+            content=data.content,
+        )
+
+        if success:
+            message.delivered_at = datetime.now(timezone.utc)
+            message.external_id = message_sid  # Store Twilio message SID
+        else:
+            message.failed_at = datetime.now(timezone.utc)
+            message.failure_reason = "Failed to send SMS"
 
     # Update conversation
     conversation.last_message_at = now

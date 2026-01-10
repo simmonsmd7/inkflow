@@ -188,3 +188,123 @@ async def test_inbound_email_endpoint() -> dict:
         "status": "ok",
         "message": "Inbound email webhook is active",
     }
+
+
+def _normalize_phone_number(phone: str) -> str:
+    """
+    Normalize phone number for comparison.
+
+    Removes common formatting and ensures consistent format.
+    """
+    # Remove all non-digit characters except leading +
+    digits = re.sub(r"[^\d+]", "", phone)
+
+    # If it starts with +1, normalize to just digits without +
+    if digits.startswith("+1"):
+        digits = digits[2:]
+    elif digits.startswith("+"):
+        digits = digits[1:]
+    elif digits.startswith("1") and len(digits) == 11:
+        digits = digits[1:]
+
+    return digits
+
+
+@router.post("/inbound-sms")
+async def receive_inbound_sms(
+    From: str = Form(...),  # Sender's phone number
+    To: str = Form(...),  # Our Twilio phone number
+    Body: str = Form(""),  # Message content
+    MessageSid: str = Form(""),  # Twilio message SID
+    AccountSid: str = Form(""),  # Twilio account SID
+    NumMedia: str = Form("0"),  # Number of media attachments
+) -> dict:
+    """
+    Receive inbound SMS from Twilio.
+
+    This webhook is called by Twilio when an SMS is received on
+    the configured Twilio phone number.
+
+    The sender's phone number is matched to existing conversations
+    to route the message appropriately.
+    """
+    content = Body.strip()
+
+    if not content:
+        # Return TwiML with no response for empty messages
+        return {"status": "ignored", "reason": "empty_content"}
+
+    sender_phone = From
+    normalized_sender = _normalize_phone_number(sender_phone)
+
+    # Find conversation by client phone number
+    async with get_db_context() as db:
+        # Try to find an existing conversation with this phone number
+        # We normalize both sides for matching
+        query = select(Conversation).where(
+            Conversation.client_phone.isnot(None)
+        )
+        result = await db.execute(query)
+        conversations = result.scalars().all()
+
+        # Find matching conversation by normalized phone
+        matching_conversation = None
+        for conv in conversations:
+            if conv.client_phone:
+                normalized_client = _normalize_phone_number(conv.client_phone)
+                if normalized_client == normalized_sender:
+                    matching_conversation = conv
+                    break
+
+        if not matching_conversation:
+            # No existing conversation - we could create one, but for now just log
+            return {
+                "status": "ignored",
+                "reason": "no_matching_conversation",
+                "message": f"No conversation found for phone {sender_phone}",
+            }
+
+        now = datetime.now(timezone.utc)
+
+        # Create the inbound message
+        message = Message(
+            conversation_id=matching_conversation.id,
+            content=content,
+            channel=MessageChannel.SMS,
+            direction=MessageDirection.INBOUND,
+            sender_name=matching_conversation.client_name,
+            external_id=MessageSid,
+            is_read=False,
+            delivered_at=now,
+        )
+        db.add(message)
+
+        # Update conversation
+        matching_conversation.last_message_at = now
+        matching_conversation.last_message_preview = content[:200] if content else None
+        matching_conversation.unread_count = (matching_conversation.unread_count or 0) + 1
+
+        # Mark as unread if it was resolved
+        if matching_conversation.status == ConversationStatus.RESOLVED:
+            matching_conversation.status = ConversationStatus.UNREAD
+
+        await db.commit()
+
+        return {
+            "status": "success",
+            "message_id": str(message.id),
+            "conversation_id": str(matching_conversation.id),
+        }
+
+
+@router.post("/inbound-sms/test")
+async def test_inbound_sms_endpoint() -> dict:
+    """
+    Test endpoint to verify inbound SMS webhook is accessible.
+
+    Returns a simple success response for health checking.
+    """
+    return {
+        "status": "ok",
+        "message": "Inbound SMS webhook is active",
+    }
