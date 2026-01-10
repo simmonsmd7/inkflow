@@ -87,6 +87,8 @@ function App() {
                 <Route path="/profile" element={<ArtistProfile />} />
                 <Route path="/availability" element={<Availability />} />
                 <Route path="/team" element={<Team />} />
+                <Route path="/artists" element={<Navigate to="/team" replace />} />
+                <Route path="/clients" element={<Navigate to="/bookings" replace />} />
                 <Route path="/commissions" element={<Commissions />} />
                 <Route path="/artist-performance" element={<ArtistPerformance />} />
                 <Route path="/client-retention" element={<ClientRetention />} />
