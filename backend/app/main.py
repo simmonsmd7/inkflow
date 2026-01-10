@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from app.config import get_settings
 from app.database import close_db, init_db
 from app.routers import (
+    aftercare_router,
     artists_router,
     auth_router,
     availability_router,
@@ -58,6 +59,7 @@ app.add_middleware(
 )
 
 # Include routers
+app.include_router(aftercare_router, prefix="/api/v1")
 app.include_router(artists_router, prefix="/api/v1")
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(availability_router, prefix="/api/v1")

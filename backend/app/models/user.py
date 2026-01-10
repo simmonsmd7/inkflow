@@ -13,6 +13,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import BaseModel, SoftDeleteMixin
 
 if TYPE_CHECKING:
+    from app.models.aftercare import AftercareSent, AftercareTemplate, HealingIssueReport
     from app.models.artist import ArtistProfile
     from app.models.availability import ArtistAvailability, ArtistTimeOff
     from app.models.booking import BookingRequest
@@ -159,6 +160,24 @@ class User(BaseModel, SoftDeleteMixin):
         "ConsentAuditLog",
         back_populates="performed_by",
         foreign_keys="ConsentAuditLog.performed_by_id",
+        lazy="selectin",
+    )
+    created_aftercare_templates: Mapped[list["AftercareTemplate"]] = relationship(
+        "AftercareTemplate",
+        back_populates="created_by",
+        foreign_keys="AftercareTemplate.created_by_id",
+        lazy="selectin",
+    )
+    aftercare_sent_by: Mapped[list["AftercareSent"]] = relationship(
+        "AftercareSent",
+        back_populates="artist",
+        foreign_keys="AftercareSent.artist_id",
+        lazy="selectin",
+    )
+    responded_healing_reports: Mapped[list["HealingIssueReport"]] = relationship(
+        "HealingIssueReport",
+        back_populates="responded_by",
+        foreign_keys="HealingIssueReport.responded_by_id",
         lazy="selectin",
     )
 

@@ -11,6 +11,7 @@ from app.models.base import BaseModel, SoftDeleteMixin
 from app.models.commission import PayPeriodSchedule
 
 if TYPE_CHECKING:
+    from app.models.aftercare import AftercareSent, AftercareTemplate, HealingIssueReport
     from app.models.booking import BookingRequest
     from app.models.commission import CommissionRule, EarnedCommission, PayPeriod
     from app.models.consent import ConsentFormSubmission, ConsentFormTemplate
@@ -110,6 +111,22 @@ class Studio(BaseModel, SoftDeleteMixin):
     )
     consent_submissions: Mapped[list["ConsentFormSubmission"]] = relationship(
         "ConsentFormSubmission",
+        back_populates="studio",
+        lazy="selectin",
+    )
+    aftercare_templates: Mapped[list["AftercareTemplate"]] = relationship(
+        "AftercareTemplate",
+        back_populates="studio",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+    )
+    aftercare_sent: Mapped[list["AftercareSent"]] = relationship(
+        "AftercareSent",
+        back_populates="studio",
+        lazy="selectin",
+    )
+    healing_reports: Mapped[list["HealingIssueReport"]] = relationship(
+        "HealingIssueReport",
         back_populates="studio",
         lazy="selectin",
     )

@@ -1,0 +1,782 @@
+/**
+ * Aftercare page - manage aftercare instruction templates.
+ */
+
+import { useEffect, useState } from 'react';
+import { useAuth } from '../hooks/useAuth';
+import {
+  listTemplates,
+  getTemplate,
+  createTemplate,
+  updateTemplate,
+  deleteTemplate,
+  listPrebuiltTemplates,
+  createFromPrebuilt,
+  getTattooTypeLabel,
+  getPlacementLabel,
+} from '../services/aftercare';
+import type {
+  AftercareTemplateSummary,
+  AftercareTemplateResponse,
+  AftercareTemplateCreate,
+  AftercareTemplateUpdate,
+  PrebuiltAftercareTemplate,
+  TattooType,
+  TattooPlacement,
+} from '../types/api';
+
+const TATTOO_TYPES: TattooType[] = [
+  'traditional', 'fine_line', 'blackwork', 'watercolor', 'realism',
+  'neo_traditional', 'geometric', 'tribal', 'dotwork', 'script',
+  'cover_up', 'touch_up', 'other',
+];
+
+const PLACEMENTS: TattooPlacement[] = [
+  'arm_upper', 'arm_lower', 'arm_inner', 'hand', 'finger',
+  'leg_upper', 'leg_lower', 'foot', 'chest', 'back', 'ribs',
+  'stomach', 'neck', 'face', 'head', 'shoulder', 'hip', 'other',
+];
+
+export function Aftercare() {
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  // Templates state
+  const [templates, setTemplates] = useState<AftercareTemplateSummary[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<AftercareTemplateResponse | null>(null);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [showPrebuiltModal, setShowPrebuiltModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [prebuiltTemplates, setPrebuiltTemplates] = useState<PrebuiltAftercareTemplate[]>([]);
+  const [loadingPrebuilt, setLoadingPrebuilt] = useState(false);
+
+  // Edit form state
+  const [editForm, setEditForm] = useState<AftercareTemplateCreate>({
+    name: '',
+    description: '',
+    tattoo_type: null,
+    placement: null,
+    instructions_html: '',
+    instructions_plain: '',
+    extra_data: null,
+    is_active: true,
+    is_default: false,
+  });
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  // RBAC check
+  if (!user || !['owner', 'artist', 'receptionist'].includes(user.role)) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <p className="text-ink-400">You don't have permission to view this page.</p>
+      </div>
+    );
+  }
+
+  const canEdit = user.role === 'owner' || user.role === 'artist';
+  const canDelete = user.role === 'owner';
+
+  // Load templates
+  useEffect(() => {
+    loadTemplates();
+  }, []);
+
+  async function loadTemplates() {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await listTemplates();
+      setTemplates(response.items);
+    } catch (err) {
+      setError('Failed to load aftercare templates');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadPrebuiltTemplates() {
+    try {
+      setLoadingPrebuilt(true);
+      const response = await listPrebuiltTemplates();
+      setPrebuiltTemplates(response.templates);
+    } catch (err) {
+      setError('Failed to load pre-built templates');
+      console.error(err);
+    } finally {
+      setLoadingPrebuilt(false);
+    }
+  }
+
+  async function handleSelectPrebuilt(templateId: string) {
+    try {
+      setSaving(true);
+      setError(null);
+      await createFromPrebuilt(templateId);
+      setShowPrebuiltModal(false);
+      setSuccess('Template created from pre-built successfully');
+      loadTemplates();
+    } catch (err) {
+      setError('Failed to create template from pre-built');
+      console.error(err);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleViewTemplate(template: AftercareTemplateSummary) {
+    try {
+      setLoading(true);
+      const fullTemplate = await getTemplate(template.id);
+      setSelectedTemplate(fullTemplate);
+    } catch (err) {
+      setError('Failed to load template details');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleEditTemplate(template: AftercareTemplateSummary) {
+    try {
+      setLoading(true);
+      const fullTemplate = await getTemplate(template.id);
+      setEditForm({
+        name: fullTemplate.name,
+        description: fullTemplate.description || '',
+        tattoo_type: fullTemplate.tattoo_type,
+        placement: fullTemplate.placement,
+        instructions_html: fullTemplate.instructions_html,
+        instructions_plain: fullTemplate.instructions_plain,
+        extra_data: fullTemplate.extra_data,
+        is_active: fullTemplate.is_active,
+        is_default: fullTemplate.is_default,
+      });
+      setEditingId(template.id);
+      setShowTemplateModal(true);
+    } catch (err) {
+      setError('Failed to load template for editing');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleNewTemplate() {
+    setEditForm({
+      name: '',
+      description: '',
+      tattoo_type: null,
+      placement: null,
+      instructions_html: '',
+      instructions_plain: '',
+      extra_data: null,
+      is_active: true,
+      is_default: false,
+    });
+    setEditingId(null);
+    setShowTemplateModal(true);
+  }
+
+  async function handleSaveTemplate() {
+    if (!editForm.name.trim()) {
+      setError('Template name is required');
+      return;
+    }
+    if (!editForm.instructions_html.trim() || !editForm.instructions_plain.trim()) {
+      setError('Both HTML and plain text instructions are required');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setError(null);
+
+      if (editingId) {
+        await updateTemplate(editingId, editForm as AftercareTemplateUpdate);
+        setSuccess('Template updated successfully');
+      } else {
+        await createTemplate(editForm);
+        setSuccess('Template created successfully');
+      }
+
+      setShowTemplateModal(false);
+      loadTemplates();
+    } catch (err) {
+      setError('Failed to save template');
+      console.error(err);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDeleteTemplate() {
+    if (!selectedTemplate) return;
+
+    try {
+      setSaving(true);
+      setError(null);
+      await deleteTemplate(selectedTemplate.id);
+      setSuccess('Template deleted successfully');
+      setShowDeleteModal(false);
+      setSelectedTemplate(null);
+      loadTemplates();
+    } catch (err) {
+      setError('Failed to delete template');
+      console.error(err);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // Clear success message after 3 seconds
+  useEffect(() => {
+    if (success) {
+      const timer = setTimeout(() => setSuccess(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [success]);
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-ink-100">Aftercare Templates</h1>
+          <p className="text-ink-400 mt-1">
+            Manage aftercare instruction templates for different tattoo types and placements
+          </p>
+        </div>
+        {canEdit && (
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => {
+                loadPrebuiltTemplates();
+                setShowPrebuiltModal(true);
+              }}
+              className="px-4 py-2 border border-ink-600 text-ink-300 rounded-lg hover:bg-ink-700 transition-colors"
+            >
+              Use Pre-built
+            </button>
+            <button
+              onClick={handleNewTemplate}
+              className="px-4 py-2 bg-accent-primary text-ink-900 rounded-lg hover:bg-accent-primary/90 transition-colors font-medium"
+            >
+              + New Template
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Messages */}
+      {error && (
+        <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400">
+          {error}
+        </div>
+      )}
+      {success && (
+        <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg text-green-400">
+          {success}
+        </div>
+      )}
+
+      {/* Loading */}
+      {loading && templates.length === 0 && (
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-primary"></div>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!loading && templates.length === 0 && (
+        <div className="text-center py-12 bg-ink-800 rounded-xl border border-ink-700">
+          <svg
+            className="w-12 h-12 mx-auto text-ink-500 mb-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.5}
+              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+            />
+          </svg>
+          <h3 className="text-lg font-medium text-ink-200 mb-2">No Aftercare Templates</h3>
+          <p className="text-ink-400 mb-4">
+            Create your first aftercare template or start from a pre-built one.
+          </p>
+          {canEdit && (
+            <div className="flex items-center justify-center gap-3">
+              <button
+                onClick={() => {
+                  loadPrebuiltTemplates();
+                  setShowPrebuiltModal(true);
+                }}
+                className="px-4 py-2 border border-ink-600 text-ink-300 rounded-lg hover:bg-ink-700 transition-colors"
+              >
+                Use Pre-built Template
+              </button>
+              <button
+                onClick={handleNewTemplate}
+                className="px-4 py-2 bg-accent-primary text-ink-900 rounded-lg hover:bg-accent-primary/90 transition-colors font-medium"
+              >
+                Create New Template
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Template Grid */}
+      {templates.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {templates.map((template) => (
+            <div
+              key={template.id}
+              className="bg-ink-800 rounded-xl border border-ink-700 p-5 hover:border-ink-600 transition-colors cursor-pointer"
+              onClick={() => handleViewTemplate(template)}
+            >
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <h3 className="text-lg font-medium text-ink-100">{template.name}</h3>
+                  {template.is_default && (
+                    <span className="text-xs bg-accent-primary/20 text-accent-primary px-2 py-0.5 rounded-full">
+                      Default
+                    </span>
+                  )}
+                </div>
+                <span
+                  className={`text-xs px-2 py-1 rounded-full ${
+                    template.is_active
+                      ? 'bg-green-500/10 text-green-400'
+                      : 'bg-ink-600 text-ink-400'
+                  }`}
+                >
+                  {template.is_active ? 'Active' : 'Inactive'}
+                </span>
+              </div>
+
+              {template.description && (
+                <p className="text-sm text-ink-400 mb-3 line-clamp-2">
+                  {template.description}
+                </p>
+              )}
+
+              <div className="flex flex-wrap gap-2 mb-3">
+                {template.tattoo_type && (
+                  <span className="text-xs bg-ink-700 text-ink-300 px-2 py-1 rounded">
+                    {getTattooTypeLabel(template.tattoo_type)}
+                  </span>
+                )}
+                {template.placement && (
+                  <span className="text-xs bg-ink-700 text-ink-300 px-2 py-1 rounded">
+                    {getPlacementLabel(template.placement)}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between text-xs text-ink-500">
+                <span>Used {template.use_count} times</span>
+                {template.last_used_at && (
+                  <span>
+                    Last used {new Date(template.last_used_at).toLocaleDateString()}
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Template Detail Modal */}
+      {selectedTemplate && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-ink-800 rounded-xl border border-ink-700 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-ink-700 sticky top-0 bg-ink-800">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-ink-100">{selectedTemplate.name}</h2>
+                  <div className="flex items-center gap-2 mt-2">
+                    {selectedTemplate.is_default && (
+                      <span className="text-xs bg-accent-primary/20 text-accent-primary px-2 py-0.5 rounded-full">
+                        Default
+                      </span>
+                    )}
+                    <span
+                      className={`text-xs px-2 py-1 rounded-full ${
+                        selectedTemplate.is_active
+                          ? 'bg-green-500/10 text-green-400'
+                          : 'bg-ink-600 text-ink-400'
+                      }`}
+                    >
+                      {selectedTemplate.is_active ? 'Active' : 'Inactive'}
+                    </span>
+                    {selectedTemplate.tattoo_type && (
+                      <span className="text-xs bg-ink-700 text-ink-300 px-2 py-1 rounded">
+                        {getTattooTypeLabel(selectedTemplate.tattoo_type)}
+                      </span>
+                    )}
+                    {selectedTemplate.placement && (
+                      <span className="text-xs bg-ink-700 text-ink-300 px-2 py-1 rounded">
+                        {getPlacementLabel(selectedTemplate.placement)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedTemplate(null)}
+                  className="text-ink-400 hover:text-ink-200 p-1"
+                >
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {selectedTemplate.description && (
+                <div>
+                  <h3 className="text-sm font-medium text-ink-300 mb-2">Description</h3>
+                  <p className="text-ink-400">{selectedTemplate.description}</p>
+                </div>
+              )}
+
+              {selectedTemplate.extra_data && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {selectedTemplate.extra_data.key_points.length > 0 && (
+                    <div className="bg-ink-700/50 rounded-lg p-4">
+                      <h4 className="text-sm font-medium text-ink-200 mb-2">Key Points</h4>
+                      <ul className="space-y-1">
+                        {selectedTemplate.extra_data.key_points.map((point, i) => (
+                          <li key={i} className="text-sm text-ink-400 flex items-start gap-2">
+                            <span className="text-accent-primary mt-0.5">•</span>
+                            {point}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {selectedTemplate.extra_data.products_recommended.length > 0 && (
+                    <div className="bg-ink-700/50 rounded-lg p-4">
+                      <h4 className="text-sm font-medium text-ink-200 mb-2">Recommended Products</h4>
+                      <ul className="space-y-1">
+                        {selectedTemplate.extra_data.products_recommended.map((product, i) => (
+                          <li key={i} className="text-sm text-ink-400 flex items-start gap-2">
+                            <span className="text-green-400 mt-0.5">✓</span>
+                            {product}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {selectedTemplate.extra_data.products_to_avoid.length > 0 && (
+                    <div className="bg-ink-700/50 rounded-lg p-4">
+                      <h4 className="text-sm font-medium text-ink-200 mb-2">Products to Avoid</h4>
+                      <ul className="space-y-1">
+                        {selectedTemplate.extra_data.products_to_avoid.map((product, i) => (
+                          <li key={i} className="text-sm text-ink-400 flex items-start gap-2">
+                            <span className="text-red-400 mt-0.5">✕</span>
+                            {product}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {selectedTemplate.extra_data.warning_signs.length > 0 && (
+                    <div className="bg-ink-700/50 rounded-lg p-4">
+                      <h4 className="text-sm font-medium text-ink-200 mb-2">Warning Signs</h4>
+                      <ul className="space-y-1">
+                        {selectedTemplate.extra_data.warning_signs.map((sign, i) => (
+                          <li key={i} className="text-sm text-ink-400 flex items-start gap-2">
+                            <span className="text-yellow-400 mt-0.5">⚠</span>
+                            {sign}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div>
+                <h3 className="text-sm font-medium text-ink-300 mb-2">Instructions Preview</h3>
+                <div
+                  className="bg-ink-900 rounded-lg p-4 prose prose-invert prose-sm max-w-none"
+                  dangerouslySetInnerHTML={{ __html: selectedTemplate.instructions_html }}
+                />
+              </div>
+            </div>
+
+            {canEdit && (
+              <div className="p-6 border-t border-ink-700 flex items-center justify-end gap-3">
+                {canDelete && (
+                  <button
+                    onClick={() => setShowDeleteModal(true)}
+                    className="px-4 py-2 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                  >
+                    Delete
+                  </button>
+                )}
+                <button
+                  onClick={() => handleEditTemplate(selectedTemplate)}
+                  className="px-4 py-2 bg-accent-primary text-ink-900 rounded-lg hover:bg-accent-primary/90 transition-colors font-medium"
+                >
+                  Edit Template
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Pre-built Templates Modal */}
+      {showPrebuiltModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-ink-800 rounded-xl border border-ink-700 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+            <div className="p-6 border-b border-ink-700">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-ink-100">Pre-built Templates</h2>
+                <button
+                  onClick={() => setShowPrebuiltModal(false)}
+                  className="text-ink-400 hover:text-ink-200 p-1"
+                >
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <p className="text-ink-400 mt-1">
+                Start with a professionally crafted aftercare template
+              </p>
+            </div>
+
+            <div className="p-6">
+              {loadingPrebuilt ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-primary"></div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {prebuiltTemplates.map((template) => (
+                    <button
+                      key={template.id}
+                      onClick={() => handleSelectPrebuilt(template.id)}
+                      disabled={saving}
+                      className="w-full text-left p-4 bg-ink-700/50 rounded-lg hover:bg-ink-700 transition-colors disabled:opacity-50"
+                    >
+                      <h3 className="font-medium text-ink-100">{template.name}</h3>
+                      <p className="text-sm text-ink-400 mt-1">{template.description}</p>
+                      <div className="flex gap-2 mt-2">
+                        {template.tattoo_type && (
+                          <span className="text-xs bg-ink-600 text-ink-300 px-2 py-0.5 rounded">
+                            {getTattooTypeLabel(template.tattoo_type)}
+                          </span>
+                        )}
+                        {template.placement && (
+                          <span className="text-xs bg-ink-600 text-ink-300 px-2 py-0.5 rounded">
+                            {getPlacementLabel(template.placement)}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create/Edit Template Modal */}
+      {showTemplateModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-ink-800 rounded-xl border border-ink-700 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-ink-700">
+              <h2 className="text-xl font-bold text-ink-100">
+                {editingId ? 'Edit Template' : 'New Template'}
+              </h2>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Basic Info */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-ink-300 mb-2">
+                    Template Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    className="w-full px-3 py-2 bg-ink-900 border border-ink-600 rounded-lg text-ink-100 focus:outline-none focus:border-accent-primary"
+                    placeholder="e.g., Standard Aftercare"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-ink-300 mb-2">
+                    Description
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.description || ''}
+                    onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                    className="w-full px-3 py-2 bg-ink-900 border border-ink-600 rounded-lg text-ink-100 focus:outline-none focus:border-accent-primary"
+                    placeholder="Brief description of when to use this template"
+                  />
+                </div>
+              </div>
+
+              {/* Categorization */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-ink-300 mb-2">
+                    Tattoo Type (optional)
+                  </label>
+                  <select
+                    value={editForm.tattoo_type || ''}
+                    onChange={(e) =>
+                      setEditForm({
+                        ...editForm,
+                        tattoo_type: e.target.value ? (e.target.value as TattooType) : null,
+                      })
+                    }
+                    className="w-full px-3 py-2 bg-ink-900 border border-ink-600 rounded-lg text-ink-100 focus:outline-none focus:border-accent-primary"
+                  >
+                    <option value="">Any type</option>
+                    {TATTOO_TYPES.map((type) => (
+                      <option key={type} value={type}>
+                        {getTattooTypeLabel(type)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-ink-300 mb-2">
+                    Body Placement (optional)
+                  </label>
+                  <select
+                    value={editForm.placement || ''}
+                    onChange={(e) =>
+                      setEditForm({
+                        ...editForm,
+                        placement: e.target.value ? (e.target.value as TattooPlacement) : null,
+                      })
+                    }
+                    className="w-full px-3 py-2 bg-ink-900 border border-ink-600 rounded-lg text-ink-100 focus:outline-none focus:border-accent-primary"
+                  >
+                    <option value="">Any placement</option>
+                    {PLACEMENTS.map((p) => (
+                      <option key={p} value={p}>
+                        {getPlacementLabel(p)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Settings */}
+              <div className="flex items-center gap-6">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editForm.is_active}
+                    onChange={(e) => setEditForm({ ...editForm, is_active: e.target.checked })}
+                    className="w-4 h-4 rounded border-ink-600 bg-ink-900 text-accent-primary focus:ring-accent-primary"
+                  />
+                  <span className="text-sm text-ink-300">Active</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editForm.is_default}
+                    onChange={(e) => setEditForm({ ...editForm, is_default: e.target.checked })}
+                    className="w-4 h-4 rounded border-ink-600 bg-ink-900 text-accent-primary focus:ring-accent-primary"
+                  />
+                  <span className="text-sm text-ink-300">Set as default template</span>
+                </label>
+              </div>
+
+              {/* Instructions - HTML */}
+              <div>
+                <label className="block text-sm font-medium text-ink-300 mb-2">
+                  Instructions (HTML) *
+                </label>
+                <textarea
+                  value={editForm.instructions_html}
+                  onChange={(e) => setEditForm({ ...editForm, instructions_html: e.target.value })}
+                  className="w-full px-3 py-2 bg-ink-900 border border-ink-600 rounded-lg text-ink-100 focus:outline-none focus:border-accent-primary font-mono text-sm"
+                  rows={10}
+                  placeholder="<h2>Aftercare Instructions</h2>..."
+                />
+              </div>
+
+              {/* Instructions - Plain Text */}
+              <div>
+                <label className="block text-sm font-medium text-ink-300 mb-2">
+                  Instructions (Plain Text) *
+                </label>
+                <textarea
+                  value={editForm.instructions_plain}
+                  onChange={(e) => setEditForm({ ...editForm, instructions_plain: e.target.value })}
+                  className="w-full px-3 py-2 bg-ink-900 border border-ink-600 rounded-lg text-ink-100 focus:outline-none focus:border-accent-primary"
+                  rows={8}
+                  placeholder="AFTERCARE INSTRUCTIONS..."
+                />
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-ink-700 flex items-center justify-end gap-3">
+              <button
+                onClick={() => setShowTemplateModal(false)}
+                className="px-4 py-2 text-ink-300 hover:bg-ink-700 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveTemplate}
+                disabled={saving}
+                className="px-4 py-2 bg-accent-primary text-ink-900 rounded-lg hover:bg-accent-primary/90 transition-colors font-medium disabled:opacity-50"
+              >
+                {saving ? 'Saving...' : editingId ? 'Save Changes' : 'Create Template'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && selectedTemplate && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-ink-800 rounded-xl border border-ink-700 max-w-md w-full p-6">
+            <h2 className="text-xl font-bold text-ink-100 mb-4">Delete Template?</h2>
+            <p className="text-ink-400 mb-6">
+              Are you sure you want to delete "{selectedTemplate.name}"? This action cannot be
+              undone.
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="px-4 py-2 text-ink-300 hover:bg-ink-700 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteTemplate}
+                disabled={saving}
+                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-medium disabled:opacity-50"
+              >
+                {saving ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

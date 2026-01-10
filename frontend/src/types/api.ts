@@ -1355,3 +1355,119 @@ export interface SubmitSigningResponse {
   access_token: string;
   message: string;
 }
+
+// === Aftercare Types ===
+
+export type TattooType =
+  | 'traditional'
+  | 'fine_line'
+  | 'blackwork'
+  | 'watercolor'
+  | 'realism'
+  | 'neo_traditional'
+  | 'geometric'
+  | 'tribal'
+  | 'dotwork'
+  | 'script'
+  | 'cover_up'
+  | 'touch_up'
+  | 'other';
+
+export type TattooPlacement =
+  | 'arm_upper'
+  | 'arm_lower'
+  | 'arm_inner'
+  | 'hand'
+  | 'finger'
+  | 'leg_upper'
+  | 'leg_lower'
+  | 'foot'
+  | 'chest'
+  | 'back'
+  | 'ribs'
+  | 'stomach'
+  | 'neck'
+  | 'face'
+  | 'head'
+  | 'shoulder'
+  | 'hip'
+  | 'other';
+
+export type AftercareSentStatus = 'pending' | 'sent' | 'delivered' | 'failed';
+export type FollowUpType = 'day_3' | 'week_1' | 'week_2' | 'week_4' | 'custom';
+export type FollowUpStatus = 'scheduled' | 'sent' | 'delivered' | 'cancelled' | 'failed';
+export type HealingIssueSeverity = 'minor' | 'moderate' | 'concerning' | 'urgent';
+export type HealingIssueStatus = 'reported' | 'acknowledged' | 'in_progress' | 'resolved' | 'escalated';
+
+export interface AftercareExtraData {
+  days_covered: number | null;
+  key_points: string[];
+  products_recommended: string[];
+  products_to_avoid: string[];
+  warning_signs: string[];
+}
+
+export interface AftercareTemplateSummary {
+  id: string;
+  name: string;
+  description: string | null;
+  tattoo_type: TattooType | null;
+  placement: TattooPlacement | null;
+  is_active: boolean;
+  is_default: boolean;
+  use_count: number;
+  last_used_at: string | null;
+  created_at: string;
+}
+
+export interface AftercareTemplateResponse extends AftercareTemplateSummary {
+  instructions_html: string;
+  instructions_plain: string;
+  extra_data: AftercareExtraData | null;
+  created_by_id: string | null;
+  updated_at: string;
+}
+
+export interface AftercareTemplateCreate {
+  name: string;
+  description?: string | null;
+  tattoo_type?: TattooType | null;
+  placement?: TattooPlacement | null;
+  instructions_html: string;
+  instructions_plain: string;
+  extra_data?: AftercareExtraData | null;
+  is_active?: boolean;
+  is_default?: boolean;
+}
+
+export interface AftercareTemplateUpdate {
+  name?: string;
+  description?: string | null;
+  tattoo_type?: TattooType | null;
+  placement?: TattooPlacement | null;
+  instructions_html?: string;
+  instructions_plain?: string;
+  extra_data?: AftercareExtraData | null;
+  is_active?: boolean;
+  is_default?: boolean;
+}
+
+export interface AftercareTemplateListResponse {
+  items: AftercareTemplateSummary[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
+export interface PrebuiltAftercareTemplate {
+  id: string;
+  name: string;
+  description: string | null;
+  tattoo_type: TattooType | null;
+  placement: TattooPlacement | null;
+}
+
+export interface PrebuiltAftercareTemplatesResponse {
+  templates: PrebuiltAftercareTemplate[];
+}

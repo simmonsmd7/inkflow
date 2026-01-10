@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
 import { Layout } from './components/layout';
 import {
+  Aftercare,
   ArtistProfile,
   Availability,
   BookingForm,
@@ -53,6 +54,7 @@ function App() {
               <Route path="/team" element={<Team />} />
               <Route path="/commissions" element={<Commissions />} />
               <Route path="/consent" element={<ConsentForms />} />
+              <Route path="/aftercare" element={<Aftercare />} />
               <Route path="/settings" element={<StudioSettings />} />
             </Routes>
           </Layout>

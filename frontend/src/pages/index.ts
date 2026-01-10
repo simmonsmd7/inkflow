@@ -2,6 +2,7 @@
  * Pages barrel export.
  */
 
+export { Aftercare } from './Aftercare';
 export { ArtistProfile } from './ArtistProfile';
 export { Availability } from './Availability';
 export { BookingForm } from './BookingForm';

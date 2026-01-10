@@ -19,6 +19,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import BaseModel, SoftDeleteMixin
 
 if TYPE_CHECKING:
+    from app.models.aftercare import AftercareSent, HealingIssueReport
     from app.models.commission import EarnedCommission
     from app.models.consent import ConsentFormSubmission
     from app.models.message import Conversation
@@ -210,6 +211,16 @@ class BookingRequest(BaseModel, SoftDeleteMixin):
         "ConsentFormSubmission",
         back_populates="booking_request",
         uselist=False,
+    )
+    aftercare_sent: Mapped[Optional["AftercareSent"]] = relationship(
+        "AftercareSent",
+        back_populates="booking_request",
+        uselist=False,
+    )
+    healing_issue_touch_ups: Mapped[list["HealingIssueReport"]] = relationship(
+        "HealingIssueReport",
+        back_populates="touch_up_booking",
+        foreign_keys="HealingIssueReport.touch_up_booking_id",
     )
 
 

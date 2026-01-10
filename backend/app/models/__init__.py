@@ -1,5 +1,18 @@
 """SQLAlchemy models package."""
 
+from app.models.aftercare import (
+    AftercareFollowUp,
+    AftercareSent,
+    AftercareSentStatus,
+    AftercareTemplate,
+    FollowUpStatus,
+    FollowUpType,
+    HealingIssueReport,
+    HealingIssueSeverity,
+    HealingIssueStatus,
+    TattooPlacement,
+    TattooType,
+)
 from app.models.artist import ArtistProfile, PortfolioImage
 from app.models.availability import ArtistAvailability, ArtistTimeOff
 from app.models.base import BaseModel, SoftDeleteMixin
@@ -38,6 +51,10 @@ from app.models.studio import Studio
 from app.models.user import User, UserRole
 
 __all__ = [
+    "AftercareFollowUp",
+    "AftercareSent",
+    "AftercareSentStatus",
+    "AftercareTemplate",
     "ArtistAvailability",
     "ArtistProfile",
     "ArtistTimeOff",
@@ -56,6 +73,11 @@ __all__ = [
     "Conversation",
     "ConversationStatus",
     "EarnedCommission",
+    "FollowUpStatus",
+    "FollowUpType",
+    "HealingIssueReport",
+    "HealingIssueSeverity",
+    "HealingIssueStatus",
     "Message",
     "MessageChannel",
     "MessageDirection",
@@ -66,7 +88,9 @@ __all__ = [
     "ReplyTemplate",
     "SoftDeleteMixin",
     "Studio",
+    "TattooPlacement",
     "TattooSize",
+    "TattooType",
     "TipPaymentMethod",
     "User",
     "UserRole",
