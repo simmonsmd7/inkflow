@@ -1647,3 +1647,28 @@ Frontend UI (Aftercare.tsx):
 - Verified: All backend imports resolve correctly
 Status: COMPLETE
 Next: P7.4 - Healing issue reporting from clients
+
+=== ITERATION 22 ===
+Date: 2026-01-10
+Task: P7.4 - Healing issue reporting from clients
+
+Changes:
+- backend/app/routers/aftercare.py: Added healing issue endpoints
+  - POST /healing-issues/report/{token} - public client reporting
+  - GET /healing-issues - list issues with filters
+  - GET /healing-issues/{id} - get issue details
+  - PATCH /healing-issues/{id} - update issue
+  - POST /healing-issues/{id}/acknowledge - acknowledge with email
+  - POST /healing-issues/{id}/resolve - resolve with touch-up option
+  - GET /healing-issues/by-aftercare/{token} - client view
+- frontend/src/types/api.ts: Added HealingIssue types
+- frontend/src/services/aftercare.ts: Added healing issue service functions
+- frontend/src/pages/Aftercare.tsx: Added "Healing Issues" tab with:
+  - Filter by status and severity
+  - Issue cards with severity badges
+  - Detail modal with symptoms, photos, timeline
+  - Acknowledge and Resolve modals with client notifications
+  - Badge showing unacknowledged issue count
+
+Status: COMPLETE
+Next: P7.5 - Touch-up scheduling integration
