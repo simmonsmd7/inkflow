@@ -30,10 +30,14 @@ from app.schemas.booking import (
     BookingRequestSummary,
     BookingRequestUpdate,
     BookingSubmissionResponse,
+    CancelInput,
+    CancelResponse,
     CheckoutSessionResponse,
     ConfirmBookingInput,
     DepositPaymentInfo,
     ReferenceImageResponse,
+    RescheduleInput,
+    RescheduleResponse,
     SendDepositRequestInput,
     SendDepositRequestResponse,
     StubPaymentConfirmation,
@@ -701,6 +705,234 @@ async def confirm_booking(
         scheduled_date=booking.scheduled_date,
         scheduled_duration_hours=booking.scheduled_duration_hours,
         confirmation_email_sent=confirmation_email_sent,
+    )
+
+
+@router.post(
+    "/requests/{request_id}/reschedule",
+    response_model=RescheduleResponse,
+)
+async def reschedule_booking(
+    request_id: uuid.UUID,
+    data: RescheduleInput,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> RescheduleResponse:
+    """Reschedule a confirmed booking to a new date/time."""
+    # Get booking request with relationships
+    result = await db.execute(
+        select(BookingRequest)
+        .where(BookingRequest.id == request_id, BookingRequest.deleted_at.is_(None))
+        .options(
+            selectinload(BookingRequest.studio),
+            selectinload(BookingRequest.assigned_artist),
+            selectinload(BookingRequest.preferred_artist),
+        )
+    )
+    booking = result.scalar_one_or_none()
+
+    if not booking:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Booking request not found",
+        )
+
+    # Artists can only reschedule their assigned bookings
+    if current_user.role == UserRole.ARTIST:
+        if booking.assigned_artist_id != current_user.id and booking.preferred_artist_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have access to this booking request",
+            )
+
+    # Can only reschedule confirmed bookings
+    if booking.status != BookingRequestStatus.CONFIRMED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot reschedule booking with status '{booking.status.value}'. Must be confirmed.",
+        )
+
+    # Must have an existing scheduled date
+    if not booking.scheduled_date:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Booking has no scheduled date to reschedule from.",
+        )
+
+    # Store old date for email and response
+    old_scheduled_date = booking.scheduled_date
+
+    # Store original date if first reschedule
+    if booking.reschedule_count == 0:
+        booking.original_scheduled_date = old_scheduled_date
+
+    # Update booking
+    booking.scheduled_date = data.new_date
+    if data.new_duration_hours:
+        booking.scheduled_duration_hours = data.new_duration_hours
+    booking.reschedule_count += 1
+    booking.last_rescheduled_at = datetime.now(timezone.utc)
+    booking.last_reschedule_reason = data.reason
+
+    await db.commit()
+    await db.refresh(booking)
+
+    # Send notification email
+    notification_sent = False
+    if data.notify_client:
+        # Get artist name
+        artist = booking.assigned_artist or booking.preferred_artist
+        artist_name = artist.full_name if artist else None
+
+        # Build studio address
+        studio = booking.studio
+        studio_address = None
+        if studio.address_line1:
+            address_parts = [studio.address_line1]
+            if studio.address_line2:
+                address_parts.append(studio.address_line2)
+            if studio.city and studio.state:
+                address_parts.append(f"{studio.city}, {studio.state} {studio.postal_code or ''}")
+            studio_address = ", ".join(address_parts)
+
+        # Generate updated calendar invite
+        calendar_ics = calendar_service.generate_tattoo_appointment_ics(
+            booking_id=str(booking.id),
+            client_name=booking.client_name,
+            client_email=booking.client_email,
+            studio_name=studio.name,
+            studio_address=studio_address,
+            studio_email=studio.email,
+            artist_name=artist_name,
+            design_summary=booking.design_idea,
+            placement=booking.placement,
+            scheduled_date=data.new_date,
+            duration_hours=booking.scheduled_duration_hours or 2.0,
+        )
+
+        # Format dates for email
+        old_date_str = old_scheduled_date.strftime("%B %d, %Y")
+        old_time_str = old_scheduled_date.strftime("%I:%M %p")
+        new_date_str = data.new_date.strftime("%B %d, %Y")
+        new_time_str = data.new_date.strftime("%I:%M %p")
+
+        # Send email
+        notification_sent = await email_service.send_reschedule_notification_email(
+            to_email=booking.client_email,
+            client_name=booking.client_name,
+            studio_name=studio.name,
+            studio_address=studio_address,
+            artist_name=artist_name,
+            design_summary=booking.design_idea,
+            old_date=old_date_str,
+            old_time=old_time_str,
+            new_date=new_date_str,
+            new_time=new_time_str,
+            duration_hours=booking.scheduled_duration_hours or 2.0,
+            reason=data.reason,
+            calendar_ics=calendar_ics.encode("utf-8"),
+        )
+
+    return RescheduleResponse(
+        message="Booking rescheduled successfully",
+        request_id=booking.id,
+        old_date=old_scheduled_date,
+        new_date=data.new_date,
+        reschedule_count=booking.reschedule_count,
+        notification_sent=notification_sent,
+    )
+
+
+@router.post(
+    "/requests/{request_id}/cancel",
+    response_model=CancelResponse,
+)
+async def cancel_booking(
+    request_id: uuid.UUID,
+    data: CancelInput,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> CancelResponse:
+    """Cancel a booking request."""
+    # Get booking request with relationships
+    result = await db.execute(
+        select(BookingRequest)
+        .where(BookingRequest.id == request_id, BookingRequest.deleted_at.is_(None))
+        .options(
+            selectinload(BookingRequest.studio),
+            selectinload(BookingRequest.assigned_artist),
+            selectinload(BookingRequest.preferred_artist),
+        )
+    )
+    booking = result.scalar_one_or_none()
+
+    if not booking:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Booking request not found",
+        )
+
+    # Artists can only cancel their assigned bookings
+    if current_user.role == UserRole.ARTIST:
+        if booking.assigned_artist_id != current_user.id and booking.preferred_artist_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have access to this booking request",
+            )
+
+    # Cannot cancel already cancelled or completed bookings
+    if booking.status in [BookingRequestStatus.CANCELLED, BookingRequestStatus.COMPLETED]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot cancel booking with status '{booking.status.value}'",
+        )
+
+    # Update booking
+    now = datetime.now(timezone.utc)
+    booking.status = BookingRequestStatus.CANCELLED
+    booking.cancelled_at = now
+    booking.cancelled_by = data.cancelled_by
+    booking.cancellation_reason = data.reason
+    booking.deposit_forfeited = data.forfeit_deposit
+
+    await db.commit()
+    await db.refresh(booking)
+
+    # Send notification email
+    notification_sent = False
+    if data.notify_client:
+        # Get artist name
+        artist = booking.assigned_artist or booking.preferred_artist
+        artist_name = artist.full_name if artist else None
+
+        # Format scheduled date for email
+        scheduled_date_str = None
+        if booking.scheduled_date:
+            scheduled_date_str = booking.scheduled_date.strftime("%B %d, %Y at %I:%M %p")
+
+        # Send email
+        notification_sent = await email_service.send_cancellation_notification_email(
+            to_email=booking.client_email,
+            client_name=booking.client_name,
+            studio_name=booking.studio.name,
+            artist_name=artist_name,
+            design_summary=booking.design_idea,
+            scheduled_date=scheduled_date_str,
+            cancelled_by=data.cancelled_by,
+            reason=data.reason,
+            deposit_amount=booking.deposit_amount,
+            deposit_forfeited=data.forfeit_deposit,
+        )
+
+    return CancelResponse(
+        message="Booking cancelled successfully",
+        request_id=booking.id,
+        status="cancelled",
+        cancelled_at=booking.cancelled_at,
+        cancelled_by=booking.cancelled_by,
+        deposit_forfeited=booking.deposit_forfeited,
+        deposit_amount=booking.deposit_amount,
+        notification_sent=notification_sent,
     )
 
 

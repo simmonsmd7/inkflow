@@ -688,5 +688,254 @@ Powered by InkFlow
         )
 
 
+    async def send_reschedule_notification_email(
+        self,
+        to_email: str,
+        client_name: str,
+        studio_name: str,
+        studio_address: str | None,
+        artist_name: str | None,
+        design_summary: str,
+        old_date: str,
+        old_time: str,
+        new_date: str,
+        new_time: str,
+        duration_hours: float,
+        reason: str | None = None,
+        calendar_ics: bytes | None = None,
+    ) -> bool:
+        """Send reschedule notification email with updated calendar invite."""
+        reason_section = ""
+        reason_html = ""
+        if reason:
+            reason_section = f"\nReason: {reason}\n"
+            reason_html = f"""
+            <div style="background-color: #f0f9ff; border-left: 4px solid #0ea5e9; padding: 15px; margin: 20px 0;">
+                <p style="margin: 0; color: #0369a1;"><strong>Reason:</strong> {reason}</p>
+            </div>
+            """
+
+        body_text = f"""Hi {client_name},
+
+Your tattoo appointment has been rescheduled.
+
+SCHEDULE CHANGE
+---------------
+Previous: {old_date} at {old_time}
+New: {new_date} at {new_time}
+Duration: {duration_hours:.1f} hours
+{reason_section}
+APPOINTMENT DETAILS
+-------------------
+Studio: {studio_name}
+{f"Artist: {artist_name}" if artist_name else ""}
+{f"Address: {studio_address}" if studio_address else ""}
+
+Design: {design_summary[:100]}...
+
+The updated calendar invite is attached - please update your calendar.
+
+If this new time doesn't work for you, please contact us as soon as possible.
+
+Best,
+{studio_name}
+Powered by InkFlow
+"""
+
+        body_html = f"""
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+    <div style="background-color: #0ea5e9; padding: 20px; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 24px;">📅 Appointment Rescheduled</h1>
+    </div>
+
+    <div style="padding: 30px;">
+        <p>Hi {client_name},</p>
+        <p>Your tattoo appointment has been rescheduled.</p>
+
+        <div style="display: flex; gap: 20px; margin: 25px 0;">
+            <div style="background-color: #fef2f2; padding: 20px; border-radius: 8px; flex: 1; text-align: center;">
+                <p style="margin: 0; color: #991b1b; font-size: 12px; text-transform: uppercase;">Previous</p>
+                <p style="margin: 10px 0 0 0; color: #dc2626; font-size: 16px; text-decoration: line-through;">{old_date}</p>
+                <p style="margin: 5px 0 0 0; color: #dc2626; font-size: 14px; text-decoration: line-through;">{old_time}</p>
+            </div>
+            <div style="background-color: #ecfdf5; padding: 20px; border-radius: 8px; flex: 1; text-align: center;">
+                <p style="margin: 0; color: #065f46; font-size: 12px; text-transform: uppercase;">New Time</p>
+                <p style="margin: 10px 0 0 0; color: #059669; font-size: 18px; font-weight: bold;">{new_date}</p>
+                <p style="margin: 5px 0 0 0; color: #059669; font-size: 16px;">{new_time}</p>
+            </div>
+        </div>
+
+        <p style="text-align: center; color: #666;">Duration: {duration_hours:.1f} hours</p>
+
+        {reason_html}
+
+        <div style="background-color: #f8f8f8; padding: 20px; border-radius: 8px; margin: 25px 0;">
+            <h3 style="margin: 0 0 15px 0; color: #1a1a1a;">Appointment Details</h3>
+            <p style="margin: 5px 0;"><strong>Studio:</strong> {studio_name}</p>
+            {"<p style='margin: 5px 0;'><strong>Artist:</strong> " + artist_name + "</p>" if artist_name else ""}
+            {"<p style='margin: 5px 0;'><strong>Address:</strong> " + studio_address + "</p>" if studio_address else ""}
+            <p style="margin: 15px 0 5px 0;"><strong>Design:</strong> {design_summary[:100]}...</p>
+        </div>
+
+        <p style="text-align: center; background-color: #f0f9ff; padding: 15px; border-radius: 6px; color: #0369a1;">
+            📅 <strong>Updated calendar invite attached</strong> - please update your calendar!
+        </p>
+
+        <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+
+        <p style="color: #666; font-size: 13px;">
+            If this new time doesn't work for you, please contact us as soon as possible.
+        </p>
+    </div>
+
+    <div style="background-color: #f5f5f5; padding: 15px; text-align: center;">
+        <p style="color: #999; font-size: 12px; margin: 0;">
+            {studio_name} • Powered by <a href="https://inkflow.io" style="color: #e11d48;">InkFlow</a>
+        </p>
+    </div>
+</div>
+"""
+
+        attachments = []
+        if calendar_ics:
+            attachments.append(
+                EmailAttachment(
+                    content=calendar_ics,
+                    filename="appointment-updated.ics",
+                    mime_type="text/calendar",
+                )
+            )
+
+        return await self.send(
+            EmailMessage(
+                to_email=to_email,
+                subject=f"Rescheduled: Tattoo appointment at {studio_name} - Now {new_date}",
+                body_text=body_text,
+                body_html=body_html,
+                attachments=attachments,
+            )
+        )
+
+    async def send_cancellation_notification_email(
+        self,
+        to_email: str,
+        client_name: str,
+        studio_name: str,
+        artist_name: str | None,
+        design_summary: str,
+        scheduled_date: str | None,
+        cancelled_by: str,
+        reason: str | None = None,
+        deposit_amount: int | None = None,
+        deposit_forfeited: bool = False,
+    ) -> bool:
+        """Send cancellation notification email to client."""
+        # Determine cancellation context
+        if cancelled_by == "client":
+            cancel_text = "You have cancelled your tattoo appointment."
+            cancel_header = "Appointment Cancelled"
+        else:
+            cancel_text = "Unfortunately, your tattoo appointment has been cancelled."
+            cancel_header = "Appointment Cancelled"
+
+        reason_section = ""
+        reason_html = ""
+        if reason:
+            reason_section = f"\nReason: {reason}\n"
+            reason_html = f"""
+            <div style="background-color: #f5f5f5; padding: 15px; border-radius: 6px; margin: 20px 0;">
+                <p style="margin: 0;"><strong>Reason:</strong> {reason}</p>
+            </div>
+            """
+
+        deposit_section = ""
+        deposit_html = ""
+        if deposit_amount and deposit_amount > 0:
+            deposit_formatted = f"${deposit_amount / 100:.2f}"
+            if deposit_forfeited:
+                deposit_section = f"\nDeposit Status: Your deposit of {deposit_formatted} has been forfeited per our cancellation policy.\n"
+                deposit_html = f"""
+                <div style="background-color: #fef2f2; border-left: 4px solid #dc2626; padding: 15px; margin: 20px 0;">
+                    <p style="margin: 0; color: #991b1b;">
+                        <strong>Deposit Status:</strong> Your deposit of {deposit_formatted} has been forfeited per our cancellation policy.
+                    </p>
+                </div>
+                """
+            else:
+                deposit_section = f"\nDeposit Status: Your deposit of {deposit_formatted} will be refunded within 5-10 business days.\n"
+                deposit_html = f"""
+                <div style="background-color: #ecfdf5; border-left: 4px solid #059669; padding: 15px; margin: 20px 0;">
+                    <p style="margin: 0; color: #065f46;">
+                        <strong>Deposit Status:</strong> Your deposit of {deposit_formatted} will be refunded within 5-10 business days.
+                    </p>
+                </div>
+                """
+
+        scheduled_text = f"Scheduled Date: {scheduled_date}\n" if scheduled_date else ""
+        scheduled_html = f"<p style='margin: 5px 0;'><strong>Was Scheduled:</strong> {scheduled_date}</p>" if scheduled_date else ""
+
+        body_text = f"""Hi {client_name},
+
+{cancel_text}
+
+CANCELLATION DETAILS
+--------------------
+{scheduled_text}Studio: {studio_name}
+{f"Artist: {artist_name}" if artist_name else ""}
+Design: {design_summary[:100]}...
+{reason_section}{deposit_section}
+If you'd like to book a new appointment in the future, we'd love to hear from you!
+
+Best,
+{studio_name}
+Powered by InkFlow
+"""
+
+        body_html = f"""
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+    <div style="background-color: #6b7280; padding: 20px; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 24px;">{cancel_header}</h1>
+    </div>
+
+    <div style="padding: 30px;">
+        <p>Hi {client_name},</p>
+        <p>{cancel_text}</p>
+
+        <div style="background-color: #f8f8f8; padding: 20px; border-radius: 8px; margin: 25px 0;">
+            <h3 style="margin: 0 0 15px 0; color: #1a1a1a;">Cancellation Details</h3>
+            {scheduled_html}
+            <p style="margin: 5px 0;"><strong>Studio:</strong> {studio_name}</p>
+            {"<p style='margin: 5px 0;'><strong>Artist:</strong> " + artist_name + "</p>" if artist_name else ""}
+            <p style="margin: 15px 0 5px 0;"><strong>Design:</strong> {design_summary[:100]}...</p>
+        </div>
+
+        {reason_html}
+        {deposit_html}
+
+        <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+
+        <p style="color: #666; font-size: 14px; text-align: center;">
+            If you'd like to book a new appointment in the future, we'd love to hear from you!
+        </p>
+    </div>
+
+    <div style="background-color: #f5f5f5; padding: 15px; text-align: center;">
+        <p style="color: #999; font-size: 12px; margin: 0;">
+            {studio_name} • Powered by <a href="https://inkflow.io" style="color: #e11d48;">InkFlow</a>
+        </p>
+    </div>
+</div>
+"""
+
+        return await self.send(
+            EmailMessage(
+                to_email=to_email,
+                subject=f"Cancelled: Tattoo appointment at {studio_name}",
+                body_text=body_text,
+                body_html=body_html,
+            )
+        )
+
+
 # Singleton instance
 email_service = EmailService()

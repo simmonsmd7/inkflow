@@ -12,9 +12,13 @@ import type {
   BookingRequestStatus,
   BookingRequestUpdate,
   BookingSubmissionResponse,
+  CancelInput,
+  CancelResponse,
   ConfirmBookingInput,
   DepositPaymentInfo,
   ReferenceImage,
+  RescheduleInput,
+  RescheduleResponse,
   SendDepositRequestInput,
   SendDepositRequestResponse,
 } from '../types/api';
@@ -184,6 +188,36 @@ export async function confirmBooking(
 ): Promise<BookingConfirmationResponse> {
   return api.post<BookingConfirmationResponse>(
     `/api/v1/bookings/requests/${requestId}/confirm`,
+    data
+  );
+}
+
+// ============================================================================
+// RESCHEDULE AND CANCELLATION ENDPOINTS
+// ============================================================================
+
+/**
+ * Reschedule a confirmed booking to a new date/time.
+ */
+export async function rescheduleBooking(
+  requestId: string,
+  data: RescheduleInput
+): Promise<RescheduleResponse> {
+  return api.post<RescheduleResponse>(
+    `/api/v1/bookings/requests/${requestId}/reschedule`,
+    data
+  );
+}
+
+/**
+ * Cancel a booking request.
+ */
+export async function cancelBooking(
+  requestId: string,
+  data: CancelInput
+): Promise<CancelResponse> {
+  return api.post<CancelResponse>(
+    `/api/v1/bookings/requests/${requestId}/cancel`,
     data
   );
 }

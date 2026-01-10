@@ -10,6 +10,8 @@ import {
   updateBookingRequest,
   sendDepositRequest,
   confirmBooking,
+  rescheduleBooking,
+  cancelBooking,
 } from '../services/bookings';
 import type {
   BookingConfirmationResponse,
@@ -17,6 +19,9 @@ import type {
   BookingRequestStatus,
   BookingRequestSummary,
   BookingRequestUpdate,
+  CancelledBy,
+  CancelResponse,
+  RescheduleResponse,
   SendDepositRequestResponse,
 } from '../types/api';
 
@@ -110,6 +115,29 @@ export function BookingQueue() {
   const [confirming, setConfirming] = useState(false);
   const [confirmSuccess, setConfirmSuccess] = useState<BookingConfirmationResponse | null>(null);
 
+  // Reschedule state
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+  const [rescheduleData, setRescheduleData] = useState({
+    new_date: '',
+    new_time: '',
+    new_duration_hours: '',
+    reason: '',
+    notify_client: true,
+  });
+  const [rescheduling, setRescheduling] = useState(false);
+  const [rescheduleSuccess, setRescheduleSuccess] = useState<RescheduleResponse | null>(null);
+
+  // Cancel booking state
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelData, setCancelData] = useState({
+    reason: '',
+    cancelled_by: 'studio' as CancelledBy,
+    forfeit_deposit: false,
+    notify_client: true,
+  });
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelSuccess, setCancelSuccess] = useState<CancelResponse | null>(null);
+
   // Check if user has access
   const hasAccess = user && (user.role === 'artist' || user.role === 'owner');
 
@@ -199,6 +227,23 @@ export function BookingQueue() {
       send_confirmation_email: true,
     });
     setConfirmSuccess(null);
+    setShowRescheduleModal(false);
+    setRescheduleData({
+      new_date: '',
+      new_time: '',
+      new_duration_hours: '',
+      reason: '',
+      notify_client: true,
+    });
+    setRescheduleSuccess(null);
+    setShowCancelModal(false);
+    setCancelData({
+      reason: '',
+      cancelled_by: 'studio',
+      forfeit_deposit: false,
+      notify_client: true,
+    });
+    setCancelSuccess(null);
   }
 
   function openDepositModal() {
@@ -280,6 +325,89 @@ export function BookingQueue() {
       setModalError(err instanceof Error ? err.message : 'Failed to confirm booking');
     } finally {
       setConfirming(false);
+    }
+  }
+
+  function openRescheduleModal() {
+    if (!selectedRequest || !selectedRequest.scheduled_date) return;
+    // Pre-fill with existing scheduled date/time
+    const existingDate = new Date(selectedRequest.scheduled_date);
+    const dateStr = existingDate.toISOString().split('T')[0];
+    const timeStr = existingDate.toTimeString().slice(0, 5);
+    const hours = selectedRequest.scheduled_duration_hours?.toString() || '2';
+    setRescheduleData({
+      new_date: dateStr,
+      new_time: timeStr,
+      new_duration_hours: hours,
+      reason: '',
+      notify_client: true,
+    });
+    setShowRescheduleModal(true);
+    setRescheduleSuccess(null);
+  }
+
+  async function handleReschedule() {
+    if (!selectedRequest || !rescheduleData.new_date || !rescheduleData.new_time) return;
+    setRescheduling(true);
+    setModalError(null);
+    try {
+      // Combine date and time into ISO string
+      const newDateTime = new Date(
+        `${rescheduleData.new_date}T${rescheduleData.new_time}:00`
+      ).toISOString();
+
+      const response = await rescheduleBooking(selectedRequest.id, {
+        new_date: newDateTime,
+        new_duration_hours: rescheduleData.new_duration_hours
+          ? parseFloat(rescheduleData.new_duration_hours)
+          : undefined,
+        reason: rescheduleData.reason || undefined,
+        notify_client: rescheduleData.notify_client,
+      });
+      setRescheduleSuccess(response);
+      // Refresh the selected request
+      const updated = await getBookingRequest(selectedRequest.id);
+      setSelectedRequest(updated);
+      loadRequests();
+    } catch (err) {
+      setModalError(err instanceof Error ? err.message : 'Failed to reschedule booking');
+    } finally {
+      setRescheduling(false);
+    }
+  }
+
+  function openCancelModal() {
+    if (!selectedRequest) return;
+    setCancelData({
+      reason: '',
+      cancelled_by: 'studio',
+      forfeit_deposit: false,
+      notify_client: true,
+    });
+    setShowCancelModal(true);
+    setCancelSuccess(null);
+  }
+
+  async function handleCancelBooking() {
+    if (!selectedRequest) return;
+    setCancelling(true);
+    setModalError(null);
+    try {
+      const response = await cancelBooking(selectedRequest.id, {
+        reason: cancelData.reason || undefined,
+        cancelled_by: cancelData.cancelled_by,
+        forfeit_deposit: cancelData.forfeit_deposit,
+        notify_client: cancelData.notify_client,
+      });
+      setCancelSuccess(response);
+      // Refresh the selected request
+      const updated = await getBookingRequest(selectedRequest.id);
+      setSelectedRequest(updated);
+      loadRequests();
+    } catch (err) {
+      setModalError(err instanceof Error ? err.message : 'Failed to cancel booking');
+    } finally {
+      setCancelling(false);
     }
   }
 
@@ -751,6 +879,27 @@ export function BookingQueue() {
                             Confirm Appointment
                           </button>
                         )}
+
+                        {/* Reschedule button - only show when booking is confirmed */}
+                        {selectedRequest.status === 'confirmed' && selectedRequest.scheduled_date && (
+                          <button
+                            onClick={openRescheduleModal}
+                            className="w-full py-2 mt-2 bg-sky-600 hover:bg-sky-700 text-white font-medium rounded-lg transition-colors"
+                          >
+                            Reschedule Appointment
+                          </button>
+                        )}
+
+                        {/* Cancel button - show for most statuses except cancelled/completed */}
+                        {selectedRequest.status !== 'cancelled' &&
+                          selectedRequest.status !== 'completed' && (
+                            <button
+                              onClick={openCancelModal}
+                              className="w-full py-2 mt-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors"
+                            >
+                              Cancel Booking
+                            </button>
+                          )}
                       </div>
                     </div>
 
@@ -1138,6 +1287,369 @@ export function BookingQueue() {
                       className="flex-1 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {confirming ? 'Confirming...' : 'Confirm Appointment'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reschedule Modal */}
+      {showRescheduleModal && selectedRequest && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-ink-900 rounded-lg w-full max-w-md">
+            <div className="border-b border-ink-700 p-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-ink-100">Reschedule Appointment</h2>
+              <button
+                onClick={() => setShowRescheduleModal(false)}
+                className="p-2 hover:bg-ink-800 rounded-lg transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-4">
+              {rescheduleSuccess ? (
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-sky-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg
+                      className="w-8 h-8 text-sky-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-semibold text-ink-100 mb-2">
+                    Appointment Rescheduled!
+                  </h3>
+                  <p className="text-ink-400 mb-4">
+                    {rescheduleSuccess.notification_sent
+                      ? `A notification email with an updated calendar invite has been sent to ${selectedRequest.client_email}.`
+                      : 'The appointment has been rescheduled.'}
+                  </p>
+                  <div className="bg-ink-800 rounded-lg p-3 text-left">
+                    <p className="text-sm text-ink-400">New Date:</p>
+                    <p className="text-lg font-semibold text-sky-400">
+                      {formatDate(rescheduleSuccess.new_date)}
+                    </p>
+                    <p className="text-sm text-ink-400 mt-2">Times Rescheduled:</p>
+                    <p className="text-ink-200">{rescheduleSuccess.reschedule_count}</p>
+                  </div>
+                  <button
+                    onClick={() => setShowRescheduleModal(false)}
+                    className="mt-4 w-full py-2 bg-ink-700 hover:bg-ink-600 text-ink-200 font-medium rounded-lg transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <p className="text-ink-400 text-sm">
+                    Reschedule the appointment for{' '}
+                    <span className="text-ink-200">{selectedRequest.client_name}</span>. A
+                    notification email with an updated calendar invite can be sent.
+                  </p>
+
+                  {selectedRequest.scheduled_date && (
+                    <div className="bg-ink-800 rounded-lg p-3">
+                      <p className="text-sm text-ink-400">Current Schedule:</p>
+                      <p className="text-ink-200">{formatDate(selectedRequest.scheduled_date)}</p>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-ink-300 mb-1">
+                        New Date *
+                      </label>
+                      <input
+                        type="date"
+                        value={rescheduleData.new_date}
+                        onChange={(e) =>
+                          setRescheduleData((d) => ({ ...d, new_date: e.target.value }))
+                        }
+                        className="w-full px-3 py-2 bg-ink-800 border border-ink-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-ink-300 mb-1">
+                        New Time *
+                      </label>
+                      <input
+                        type="time"
+                        value={rescheduleData.new_time}
+                        onChange={(e) =>
+                          setRescheduleData((d) => ({ ...d, new_time: e.target.value }))
+                        }
+                        className="w-full px-3 py-2 bg-ink-800 border border-ink-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-ink-300 mb-1">
+                      Duration (hours)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0.5"
+                      max="24"
+                      value={rescheduleData.new_duration_hours}
+                      onChange={(e) =>
+                        setRescheduleData((d) => ({ ...d, new_duration_hours: e.target.value }))
+                      }
+                      className="w-full px-3 py-2 bg-ink-800 border border-ink-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
+                      placeholder="2.0"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-ink-300 mb-1">
+                      Reason for Reschedule (optional)
+                    </label>
+                    <textarea
+                      value={rescheduleData.reason}
+                      onChange={(e) =>
+                        setRescheduleData((d) => ({ ...d, reason: e.target.value }))
+                      }
+                      rows={2}
+                      className="w-full px-3 py-2 bg-ink-800 border border-ink-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent resize-none"
+                      placeholder="Reason for rescheduling..."
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="reschedule_notify_client"
+                      checked={rescheduleData.notify_client}
+                      onChange={(e) =>
+                        setRescheduleData((d) => ({
+                          ...d,
+                          notify_client: e.target.checked,
+                        }))
+                      }
+                      className="w-4 h-4 rounded border-ink-700 bg-ink-800 text-accent focus:ring-accent"
+                    />
+                    <label
+                      htmlFor="reschedule_notify_client"
+                      className="text-sm text-ink-300 cursor-pointer"
+                    >
+                      Send notification email with updated calendar invite
+                    </label>
+                  </div>
+
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      onClick={() => setShowRescheduleModal(false)}
+                      className="flex-1 py-2 bg-ink-700 hover:bg-ink-600 text-ink-200 font-medium rounded-lg transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleReschedule}
+                      disabled={
+                        rescheduling || !rescheduleData.new_date || !rescheduleData.new_time
+                      }
+                      className="flex-1 py-2 bg-sky-600 hover:bg-sky-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {rescheduling ? 'Rescheduling...' : 'Reschedule'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel Booking Modal */}
+      {showCancelModal && selectedRequest && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-ink-900 rounded-lg w-full max-w-md">
+            <div className="border-b border-ink-700 p-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-ink-100">Cancel Booking</h2>
+              <button
+                onClick={() => setShowCancelModal(false)}
+                className="p-2 hover:bg-ink-800 rounded-lg transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-4">
+              {cancelSuccess ? (
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg
+                      className="w-8 h-8 text-red-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-semibold text-ink-100 mb-2">Booking Cancelled</h3>
+                  <p className="text-ink-400 mb-4">
+                    {cancelSuccess.notification_sent
+                      ? `A cancellation notification has been sent to ${selectedRequest.client_email}.`
+                      : 'The booking has been cancelled.'}
+                  </p>
+                  {cancelSuccess.deposit_amount && cancelSuccess.deposit_amount > 0 && (
+                    <div className="bg-ink-800 rounded-lg p-3 text-left">
+                      <p className="text-sm text-ink-400">Deposit:</p>
+                      <p
+                        className={`text-lg font-semibold ${cancelSuccess.deposit_forfeited ? 'text-red-400' : 'text-green-400'}`}
+                      >
+                        ${(cancelSuccess.deposit_amount / 100).toFixed(2)}
+                        {cancelSuccess.deposit_forfeited ? ' (Forfeited)' : ' (To be refunded)'}
+                      </p>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => {
+                      setShowCancelModal(false);
+                      closeModal();
+                    }}
+                    className="mt-4 w-full py-2 bg-ink-700 hover:bg-ink-600 text-ink-200 font-medium rounded-lg transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3">
+                    <p className="text-red-400 text-sm">
+                      Are you sure you want to cancel this booking? This action cannot be undone.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-ink-300 mb-1">
+                      Cancelled By
+                    </label>
+                    <select
+                      value={cancelData.cancelled_by}
+                      onChange={(e) =>
+                        setCancelData((d) => ({
+                          ...d,
+                          cancelled_by: e.target.value as CancelledBy,
+                        }))
+                      }
+                      className="w-full px-3 py-2 bg-ink-800 border border-ink-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
+                    >
+                      <option value="studio">Studio</option>
+                      <option value="artist">Artist</option>
+                      <option value="client">Client</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-ink-300 mb-1">
+                      Reason (optional)
+                    </label>
+                    <textarea
+                      value={cancelData.reason}
+                      onChange={(e) => setCancelData((d) => ({ ...d, reason: e.target.value }))}
+                      rows={2}
+                      className="w-full px-3 py-2 bg-ink-800 border border-ink-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent resize-none"
+                      placeholder="Reason for cancellation..."
+                    />
+                  </div>
+
+                  {selectedRequest.deposit_amount && selectedRequest.deposit_amount > 0 && (
+                    <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-3">
+                      <p className="text-orange-400 text-sm mb-2">
+                        This booking has a deposit of{' '}
+                        <strong>${(selectedRequest.deposit_amount / 100).toFixed(2)}</strong>
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="forfeit_deposit"
+                          checked={cancelData.forfeit_deposit}
+                          onChange={(e) =>
+                            setCancelData((d) => ({
+                              ...d,
+                              forfeit_deposit: e.target.checked,
+                            }))
+                          }
+                          className="w-4 h-4 rounded border-ink-700 bg-ink-800 text-red-500 focus:ring-red-500"
+                        />
+                        <label
+                          htmlFor="forfeit_deposit"
+                          className="text-sm text-orange-300 cursor-pointer"
+                        >
+                          Forfeit deposit (client will not receive refund)
+                        </label>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="cancel_notify_client"
+                      checked={cancelData.notify_client}
+                      onChange={(e) =>
+                        setCancelData((d) => ({
+                          ...d,
+                          notify_client: e.target.checked,
+                        }))
+                      }
+                      className="w-4 h-4 rounded border-ink-700 bg-ink-800 text-accent focus:ring-accent"
+                    />
+                    <label
+                      htmlFor="cancel_notify_client"
+                      className="text-sm text-ink-300 cursor-pointer"
+                    >
+                      Send cancellation notification email
+                    </label>
+                  </div>
+
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      onClick={() => setShowCancelModal(false)}
+                      className="flex-1 py-2 bg-ink-700 hover:bg-ink-600 text-ink-200 font-medium rounded-lg transition-colors"
+                    >
+                      Keep Booking
+                    </button>
+                    <button
+                      onClick={handleCancelBooking}
+                      disabled={cancelling}
+                      className="flex-1 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {cancelling ? 'Cancelling...' : 'Cancel Booking'}
                     </button>
                   </div>
                 </div>

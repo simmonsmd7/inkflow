@@ -143,6 +143,26 @@ class BookingRequest(BaseModel, SoftDeleteMixin):
         DateTime(timezone=True), nullable=True
     )
 
+    # Cancellation tracking
+    cancelled_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    cancelled_by: Mapped[Optional[str]] = mapped_column(
+        String(50), nullable=True
+    )  # 'client', 'artist', 'studio'
+    cancellation_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    deposit_forfeited: Mapped[bool] = mapped_column(default=False)
+
+    # Reschedule tracking
+    reschedule_count: Mapped[int] = mapped_column(Integer, default=0)
+    original_scheduled_date: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_rescheduled_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_reschedule_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     # Relationships
     studio: Mapped["Studio"] = relationship("Studio", back_populates="booking_requests")
     preferred_artist: Mapped[Optional["User"]] = relationship(

@@ -133,6 +133,18 @@ class BookingRequestResponse(BaseModel):
     scheduled_date: datetime | None = None
     scheduled_duration_hours: float | None = None
 
+    # Cancellation tracking
+    cancelled_at: datetime | None = None
+    cancelled_by: str | None = None
+    cancellation_reason: str | None = None
+    deposit_forfeited: bool = False
+
+    # Reschedule tracking
+    reschedule_count: int = 0
+    original_scheduled_date: datetime | None = None
+    last_rescheduled_at: datetime | None = None
+    last_reschedule_reason: str | None = None
+
     # Internal
     internal_notes: str | None = None
 
@@ -262,3 +274,57 @@ class BookingConfirmationResponse(BaseModel):
     scheduled_date: datetime
     scheduled_duration_hours: float
     confirmation_email_sent: bool
+
+
+class RescheduleInput(BaseModel):
+    """Input for rescheduling an appointment."""
+
+    new_date: datetime = Field(..., description="New scheduled date and time")
+    new_duration_hours: float | None = Field(
+        None, ge=0.5, le=24, description="New duration in hours (optional)"
+    )
+    reason: str | None = Field(None, max_length=500, description="Reason for rescheduling")
+    notify_client: bool = Field(
+        default=True, description="Whether to send notification email to client"
+    )
+
+
+class RescheduleResponse(BaseModel):
+    """Response after rescheduling an appointment."""
+
+    message: str
+    request_id: UUID
+    old_date: datetime
+    new_date: datetime
+    reschedule_count: int
+    notification_sent: bool
+
+
+class CancelInput(BaseModel):
+    """Input for cancelling a booking."""
+
+    reason: str | None = Field(None, max_length=500, description="Reason for cancellation")
+    cancelled_by: str = Field(
+        default="studio",
+        pattern="^(client|artist|studio)$",
+        description="Who initiated the cancellation",
+    )
+    forfeit_deposit: bool = Field(
+        default=False, description="Whether to forfeit the client's deposit"
+    )
+    notify_client: bool = Field(
+        default=True, description="Whether to send notification email to client"
+    )
+
+
+class CancelResponse(BaseModel):
+    """Response after cancelling a booking."""
+
+    message: str
+    request_id: UUID
+    status: str
+    cancelled_at: datetime
+    cancelled_by: str
+    deposit_forfeited: bool
+    deposit_amount: int | None
+    notification_sent: bool

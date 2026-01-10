@@ -485,3 +485,41 @@ export interface BookingConfirmationResponse {
   scheduled_duration_hours: number;
   confirmation_email_sent: boolean;
 }
+
+// Reschedule types
+export interface RescheduleInput {
+  new_date: string; // ISO datetime string
+  new_duration_hours?: number;
+  reason?: string;
+  notify_client?: boolean;
+}
+
+export interface RescheduleResponse {
+  message: string;
+  request_id: string;
+  old_date: string;
+  new_date: string;
+  reschedule_count: number;
+  notification_sent: boolean;
+}
+
+// Cancel types
+export type CancelledBy = 'client' | 'artist' | 'studio';
+
+export interface CancelInput {
+  reason?: string;
+  cancelled_by?: CancelledBy;
+  forfeit_deposit?: boolean;
+  notify_client?: boolean;
+}
+
+export interface CancelResponse {
+  message: string;
+  request_id: string;
+  status: string;
+  cancelled_at: string;
+  cancelled_by: string;
+  deposit_forfeited: boolean;
+  deposit_amount: number | null;
+  notification_sent: boolean;
+}
