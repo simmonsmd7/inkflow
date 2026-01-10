@@ -1756,3 +1756,64 @@ Changes:
 - frontend/src/App.tsx: Added /dashboard route
 Status: COMPLETE
 Next: P8.2 - Artist performance metrics
+
+=== ITERATION 39 ===
+Date: 2026-01-10
+Task: P8.2 - Artist performance metrics
+
+Changes:
+Backend Schemas (analytics.py):
+- ArtistRevenueBreakdown: Service revenue, tips, commission earned, average per booking
+- ArtistBookingStats: Total requests, completed, confirmed, cancelled, no-shows, completion rate
+- ArtistSpecialtyStats: Placement breakdown, size breakdown, top placements
+- ArtistTimeStats: Total hours booked, average duration, busiest day/hour, utilization rate
+- MonthlyPerformance: Monthly trends for revenue, bookings, tips
+- ArtistDetailedPerformance: Comprehensive individual artist analytics
+- ArtistPerformanceListItem: Summary view for artist list
+- ArtistPerformanceListResponse: Paginated artist list with period label
+
+Backend Router (analytics.py):
+- GET /api/v1/analytics/artists: List all artists with performance metrics
+  - Calculates revenue, tips, commission, completion rate, utilization
+  - Supports time range filtering (today, week, month, quarter, year, custom)
+- GET /api/v1/analytics/artists/{artist_id}: Detailed individual artist performance
+  - Revenue breakdown by service vs tips
+  - Booking stats with completion rate
+  - Specialty analysis (placement, size trends)
+  - Time utilization metrics
+  - Monthly performance trends
+  - Client retention metrics
+
+Frontend Service (analytics.ts):
+- ArtistPerformanceListItem, ArtistPerformanceListResponse types
+- ArtistDetailedPerformance and related interfaces
+- getArtistPerformanceList(): Fetch artist list with performance metrics
+- getArtistDetailedPerformance(): Fetch individual artist analytics
+
+Frontend Page (ArtistPerformance.tsx):
+- Sortable table with columns: Artist, Bookings, Revenue, Commission, Tips, Completion Rate, Utilization
+- Time range selector (Month, Quarter, Year)
+- Click row to open detailed performance modal
+- Modal sections:
+  - Overview cards (revenue, bookings, hours, clients)
+  - Revenue breakdown chart (service vs tips)
+  - Booking stats with completion metrics
+  - Specialty breakdown (top placements, sizes)
+  - Monthly performance trend chart
+  - Client retention metrics
+- Loading and error states
+- Empty state for no artists
+
+Navigation & Routes:
+- frontend/src/App.tsx: Added /artist-performance route
+- frontend/src/components/layout/Sidebar.tsx: Added "Artist Performance" nav item under Analytics section
+- frontend/src/pages/index.ts: Exported ArtistPerformance page
+
+Bug Fixes:
+- backend/app/routers/aftercare.py: Fixed UploadFile type annotation bug (changed from string forward reference to proper import)
+- frontend/src/services/analytics.ts: Fixed API URL prefixes to use /api/v1/ prefix
+
+- Verified: Frontend build passes with no TypeScript errors
+- Verified: Backend starts successfully
+Status: COMPLETE
+Next: P8.3 - Revenue reports
