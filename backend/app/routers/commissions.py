@@ -168,7 +168,7 @@ def calculate_commission(
 # ============ Commission Rules CRUD ============
 
 
-@router.get("", response_model=CommissionRulesListResponse)
+@router.get("/rules", response_model=CommissionRulesListResponse)
 async def list_commission_rules(
     current_user: User = Depends(require_owner),
     db: AsyncSession = Depends(get_db),
@@ -234,7 +234,7 @@ async def list_commission_rules(
     )
 
 
-@router.post("", response_model=CommissionRuleResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/rules", response_model=CommissionRuleResponse, status_code=status.HTTP_201_CREATED)
 async def create_commission_rule(
     data: CommissionRuleCreate,
     current_user: User = Depends(require_owner),
@@ -291,7 +291,7 @@ async def create_commission_rule(
     return await get_commission_rule(db, rule.id, studio.id)
 
 
-@router.get("/{rule_id}", response_model=CommissionRuleResponse)
+@router.get("/rules/{rule_id}", response_model=CommissionRuleResponse)
 async def get_commission_rule_by_id(
     rule_id: uuid.UUID,
     current_user: User = Depends(require_owner),
@@ -305,7 +305,7 @@ async def get_commission_rule_by_id(
     return await get_commission_rule(db, rule_id, studio.id)
 
 
-@router.put("/{rule_id}", response_model=CommissionRuleResponse)
+@router.put("/rules/{rule_id}", response_model=CommissionRuleResponse)
 async def update_commission_rule(
     rule_id: uuid.UUID,
     data: CommissionRuleUpdate,
@@ -363,7 +363,7 @@ async def update_commission_rule(
     return await get_commission_rule(db, rule.id, studio.id)
 
 
-@router.delete("/{rule_id}", response_model=MessageResponse)
+@router.delete("/rules/{rule_id}", response_model=MessageResponse)
 async def delete_commission_rule(
     rule_id: uuid.UUID,
     current_user: User = Depends(require_owner),
@@ -504,7 +504,7 @@ async def assign_commission_rule(
 # ============ Commission Calculation ============
 
 
-@router.post("/{rule_id}/calculate", response_model=CommissionCalculationResult)
+@router.post("/rules/{rule_id}/calculate", response_model=CommissionCalculationResult)
 async def calculate_commission_amount(
     rule_id: uuid.UUID,
     data: CommissionCalculationInput,

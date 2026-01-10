@@ -380,7 +380,7 @@ async def get_dashboard(
     )
     no_show_count = no_show_result.scalar() or 0
 
-    conversion = (completed_bookings + confirmed_count) / total_requests * 100 if total_requests > 0 else 0
+    conversion = min((completed_bookings + confirmed_count) / total_requests * 100, 100) if total_requests > 0 else 0
 
     bookings = BookingMetrics(
         total_requests=total_requests,

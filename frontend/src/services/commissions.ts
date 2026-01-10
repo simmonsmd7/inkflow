@@ -50,14 +50,14 @@ export async function listCommissionRules(
   if (isActive !== undefined) {
     params.append('is_active', isActive.toString());
   }
-  return api.get<CommissionRulesListResponse>(`/api/v1/commissions?${params.toString()}`);
+  return api.get<CommissionRulesListResponse>(`/api/v1/commissions/rules?${params.toString()}`);
 }
 
 /**
  * Get a commission rule by ID.
  */
 export async function getCommissionRule(ruleId: string): Promise<CommissionRule> {
-  return api.get<CommissionRule>(`/api/v1/commissions/${ruleId}`);
+  return api.get<CommissionRule>(`/api/v1/commissions/rules/${ruleId}`);
 }
 
 /**
@@ -66,7 +66,7 @@ export async function getCommissionRule(ruleId: string): Promise<CommissionRule>
 export async function createCommissionRule(
   data: CommissionRuleCreate
 ): Promise<CommissionRule> {
-  return api.post<CommissionRule>('/api/v1/commissions', data);
+  return api.post<CommissionRule>('/api/v1/commissions/rules', data);
 }
 
 /**
@@ -76,14 +76,14 @@ export async function updateCommissionRule(
   ruleId: string,
   data: CommissionRuleUpdate
 ): Promise<CommissionRule> {
-  return api.put<CommissionRule>(`/api/v1/commissions/${ruleId}`, data);
+  return api.put<CommissionRule>(`/api/v1/commissions/rules/${ruleId}`, data);
 }
 
 /**
  * Delete a commission rule.
  */
 export async function deleteCommissionRule(ruleId: string): Promise<MessageResponse> {
-  return api.delete<MessageResponse>(`/api/v1/commissions/${ruleId}`);
+  return api.delete<MessageResponse>(`/api/v1/commissions/rules/${ruleId}`);
 }
 
 /**
@@ -110,7 +110,7 @@ export async function calculateCommission(
   ruleId: string,
   data: CommissionCalculationInput
 ): Promise<CommissionCalculationResult> {
-  return api.post<CommissionCalculationResult>(`/api/v1/commissions/${ruleId}/calculate`, data);
+  return api.post<CommissionCalculationResult>(`/api/v1/commissions/rules/${ruleId}/calculate`, data);
 }
 
 /**

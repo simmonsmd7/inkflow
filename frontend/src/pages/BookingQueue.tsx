@@ -26,6 +26,7 @@ import type {
   RescheduleResponse,
   SendDepositRequestResponse,
 } from '../types/api';
+import { formatCurrency } from '../services/analytics';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -200,11 +201,11 @@ export function BookingQueue() {
     try {
       const request = await getBookingRequest(requestId);
       setSelectedRequest(request);
-      // Pre-fill quote form with existing values
+      // Pre-fill quote form with existing values (convert cents to dollars for display)
       setQuoteData({
-        quoted_price: request.quoted_price?.toString() || '',
+        quoted_price: request.quoted_price ? (request.quoted_price / 100).toFixed(2) : '',
         estimated_hours: request.estimated_hours?.toString() || '',
-        deposit_amount: request.deposit_amount?.toString() || '',
+        deposit_amount: request.deposit_amount ? (request.deposit_amount / 100).toFixed(2) : '',
         quote_notes: request.quote_notes || '',
         internal_notes: request.internal_notes || '',
       });
@@ -484,13 +485,15 @@ export function BookingQueue() {
     try {
       const update: BookingRequestUpdate = {};
       if (quoteData.quoted_price) {
-        update.quoted_price = parseFloat(quoteData.quoted_price);
+        // Convert dollars to cents for backend
+        update.quoted_price = Math.round(parseFloat(quoteData.quoted_price) * 100);
       }
       if (quoteData.estimated_hours) {
         update.estimated_hours = parseFloat(quoteData.estimated_hours);
       }
       if (quoteData.deposit_amount) {
-        update.deposit_amount = parseFloat(quoteData.deposit_amount);
+        // Convert dollars to cents for backend
+        update.deposit_amount = Math.round(parseFloat(quoteData.deposit_amount) * 100);
       }
       update.quote_notes = quoteData.quote_notes || null;
       update.internal_notes = quoteData.internal_notes || null;
@@ -595,7 +598,7 @@ export function BookingQueue() {
                           <span>{request.reference_image_count} reference image(s)</span>
                         )}
                         {request.quoted_price && (
-                          <span className="text-green-400">${request.quoted_price}</span>
+                          <span className="text-green-400">{formatCurrency(request.quoted_price)}</span>
                         )}
                       </div>
                     </div>
@@ -1004,7 +1007,7 @@ export function BookingQueue() {
                         </p>
                         {selectedRequest.quoted_price && (
                           <p className="text-green-400 text-lg font-semibold mt-1">
-                            ${selectedRequest.quoted_price}
+                            {formatCurrency(selectedRequest.quoted_price)}
                           </p>
                         )}
                       </div>
@@ -1146,7 +1149,7 @@ export function BookingQueue() {
                       <p className="text-sm text-ink-400">
                         Quoted Price:{' '}
                         <span className="text-green-400 font-medium">
-                          ${selectedRequest.quoted_price}
+                          {formatCurrency(selectedRequest.quoted_price)}
                         </span>
                       </p>
                     </div>
@@ -1320,14 +1323,14 @@ export function BookingQueue() {
                       <div className="flex justify-between text-sm">
                         <span className="text-ink-400">Quoted Price:</span>
                         <span className="text-green-400 font-medium">
-                          ${selectedRequest.quoted_price}
+                          {formatCurrency(selectedRequest.quoted_price)}
                         </span>
                       </div>
                       {selectedRequest.deposit_amount && (
                         <div className="flex justify-between text-sm mt-1">
                           <span className="text-ink-400">Deposit Paid:</span>
                           <span className="text-teal-400 font-medium">
-                            ${(selectedRequest.deposit_amount / 100).toFixed(2)}
+                            {formatCurrency(selectedRequest.deposit_amount)}
                           </span>
                         </div>
                       )}
