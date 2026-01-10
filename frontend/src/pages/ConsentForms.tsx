@@ -14,6 +14,9 @@ import {
   voidSubmission,
   generateFieldId,
   getFieldTypeLabel,
+  getSubmissionAuditLog,
+  getDecryptedSignature,
+  getDecryptedPhotoId,
 } from '../services/consent';
 import type {
   ConsentFormTemplateSummary,
@@ -24,6 +27,7 @@ import type {
   PrebuiltTemplateInfo,
   ConsentSubmissionSummary,
   ConsentSubmission,
+  ConsentAuditLog,
 } from '../types/api';
 
 type TabType = 'templates' | 'submissions';
@@ -62,6 +66,16 @@ export function ConsentForms() {
   const [showVoidModal, setShowVoidModal] = useState(false);
   const [voidReason, setVoidReason] = useState('');
   const [searchEmail, setSearchEmail] = useState('');
+
+  // Audit log state
+  const [auditLogs, setAuditLogs] = useState<ConsentAuditLog[]>([]);
+  const [showAuditLog, setShowAuditLog] = useState(false);
+  const [loadingAuditLog, setLoadingAuditLog] = useState(false);
+
+  // Decrypted data state
+  const [decryptedSignature, setDecryptedSignature] = useState<string | null>(null);
+  const [decryptedPhotoId, setDecryptedPhotoId] = useState<string | null>(null);
+  const [loadingDecryption, setLoadingDecryption] = useState(false);
 
   // RBAC check
   if (!user || !['owner', 'artist', 'receptionist'].includes(user.role)) {
@@ -194,6 +208,12 @@ export function ConsentForms() {
   // Handle view submission
   const handleViewSubmission = async (submission: ConsentSubmissionSummary) => {
     try {
+      // Reset decrypted data and audit log state
+      setDecryptedSignature(null);
+      setDecryptedPhotoId(null);
+      setAuditLogs([]);
+      setShowAuditLog(false);
+
       const fullSubmission = await getSubmission(submission.id);
       setSelectedSubmission(fullSubmission);
       setShowSubmissionModal(true);
@@ -229,6 +249,46 @@ export function ConsentForms() {
       await loadSubmissions();
     } catch (err) {
       setError('Failed to void submission');
+    }
+  };
+
+  // Load audit log for submission
+  const loadAuditLog = async (submissionId: string) => {
+    try {
+      setLoadingAuditLog(true);
+      const response = await getSubmissionAuditLog(submissionId, { page: 1, page_size: 100 });
+      setAuditLogs(response.logs);
+      setShowAuditLog(true);
+    } catch (err) {
+      setError('Failed to load audit log');
+    } finally {
+      setLoadingAuditLog(false);
+    }
+  };
+
+  // Load decrypted signature
+  const loadDecryptedSignature = async (submissionId: string) => {
+    try {
+      setLoadingDecryption(true);
+      const response = await getDecryptedSignature(submissionId);
+      setDecryptedSignature(response.signature_data);
+    } catch (err) {
+      setError('Failed to decrypt signature');
+    } finally {
+      setLoadingDecryption(false);
+    }
+  };
+
+  // Load decrypted photo ID
+  const loadDecryptedPhotoId = async (submissionId: string) => {
+    try {
+      setLoadingDecryption(true);
+      const blobUrl = await getDecryptedPhotoId(submissionId);
+      setDecryptedPhotoId(blobUrl);
+    } catch (err) {
+      setError('Failed to decrypt photo ID');
+    } finally {
+      setLoadingDecryption(false);
     }
   };
 
@@ -1008,12 +1068,29 @@ export function ConsentForms() {
               {/* Signature */}
               {selectedSubmission.signature_data && (
                 <div className="bg-ink-700/50 rounded-lg p-4">
-                  <h3 className="font-medium text-ink-100 mb-3">Signature</h3>
-                  <img
-                    src={selectedSubmission.signature_data}
-                    alt="Client signature"
-                    className="max-h-32 bg-white rounded"
-                  />
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-medium text-ink-100">Signature</h3>
+                    {!decryptedSignature && (
+                      <button
+                        onClick={() => loadDecryptedSignature(selectedSubmission.id)}
+                        disabled={loadingDecryption}
+                        className="px-3 py-1.5 text-sm bg-accent-600 hover:bg-accent-500 text-white rounded transition-colors disabled:opacity-50"
+                      >
+                        {loadingDecryption ? 'Decrypting...' : 'View Signature'}
+                      </button>
+                    )}
+                  </div>
+                  {decryptedSignature ? (
+                    <img
+                      src={decryptedSignature}
+                      alt="Client signature"
+                      className="max-h-32 bg-white rounded"
+                    />
+                  ) : (
+                    <p className="text-ink-500 text-sm">
+                      Signature is encrypted. Click "View Signature" to decrypt.
+                    </p>
+                  )}
                   <p className="text-ink-500 text-sm mt-2">
                     Signed at: {new Date(selectedSubmission.signature_timestamp!).toLocaleString()}
                   </p>
@@ -1025,20 +1102,37 @@ export function ConsentForms() {
                 <div className="bg-ink-700/50 rounded-lg p-4">
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="font-medium text-ink-100">Photo ID</h3>
-                    {!selectedSubmission.photo_id_verified && !selectedSubmission.is_voided && isOwner && (
-                      <button
-                        onClick={handleVerifyPhotoId}
-                        className="px-3 py-1.5 text-sm bg-green-600 hover:bg-green-500 text-white rounded transition-colors"
-                      >
-                        Verify ID
-                      </button>
-                    )}
+                    <div className="flex items-center space-x-2">
+                      {!decryptedPhotoId && (
+                        <button
+                          onClick={() => loadDecryptedPhotoId(selectedSubmission.id)}
+                          disabled={loadingDecryption}
+                          className="px-3 py-1.5 text-sm bg-accent-600 hover:bg-accent-500 text-white rounded transition-colors disabled:opacity-50"
+                        >
+                          {loadingDecryption ? 'Decrypting...' : 'View ID'}
+                        </button>
+                      )}
+                      {!selectedSubmission.photo_id_verified && !selectedSubmission.is_voided && (isOwner || user?.role === 'artist') && (
+                        <button
+                          onClick={handleVerifyPhotoId}
+                          className="px-3 py-1.5 text-sm bg-green-600 hover:bg-green-500 text-white rounded transition-colors"
+                        >
+                          Verify ID
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <img
-                    src={`http://localhost:8000${selectedSubmission.photo_id_url}`}
-                    alt="Photo ID"
-                    className="max-h-48 rounded"
-                  />
+                  {decryptedPhotoId ? (
+                    <img
+                      src={decryptedPhotoId}
+                      alt="Photo ID"
+                      className="max-h-48 rounded"
+                    />
+                  ) : (
+                    <p className="text-ink-500 text-sm">
+                      Photo ID is encrypted. Click "View ID" to decrypt and view.
+                    </p>
+                  )}
                   {selectedSubmission.photo_id_verified && (
                     <p className="text-green-400 text-sm mt-2">
                       Verified at: {new Date(selectedSubmission.photo_id_verified_at!).toLocaleString()}
@@ -1069,6 +1163,65 @@ export function ConsentForms() {
                   </div>
                 </div>
               </div>
+
+              {/* Audit Log */}
+              {isOwner && (
+                <div className="bg-ink-700/50 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-medium text-ink-100">Audit Log</h3>
+                    {!showAuditLog && (
+                      <button
+                        onClick={() => loadAuditLog(selectedSubmission.id)}
+                        disabled={loadingAuditLog}
+                        className="px-3 py-1.5 text-sm bg-ink-600 hover:bg-ink-500 text-ink-200 rounded transition-colors disabled:opacity-50"
+                      >
+                        {loadingAuditLog ? 'Loading...' : 'View Audit Log'}
+                      </button>
+                    )}
+                  </div>
+                  {showAuditLog ? (
+                    auditLogs.length > 0 ? (
+                      <div className="space-y-2 max-h-64 overflow-y-auto">
+                        {auditLogs.map((log) => (
+                          <div
+                            key={log.id}
+                            className="flex items-start justify-between p-2 bg-ink-800/50 rounded text-sm"
+                          >
+                            <div>
+                              <span className={`inline-block px-2 py-0.5 rounded text-xs mr-2 ${
+                                log.action === 'created' ? 'bg-green-900/30 text-green-400' :
+                                log.action === 'viewed' ? 'bg-blue-900/30 text-blue-400' :
+                                log.action === 'verified' ? 'bg-green-900/30 text-green-400' :
+                                log.action === 'voided' ? 'bg-red-900/30 text-red-400' :
+                                log.action === 'downloaded' ? 'bg-purple-900/30 text-purple-400' :
+                                'bg-ink-600 text-ink-300'
+                              }`}>
+                                {log.action}
+                              </span>
+                              <span className="text-ink-300">
+                                {log.is_client_access ? 'Client' : log.performed_by_name || 'System'}
+                              </span>
+                              {log.notes && (
+                                <p className="text-ink-500 text-xs mt-1">{log.notes}</p>
+                              )}
+                            </div>
+                            <div className="text-right text-ink-500 text-xs">
+                              <div>{new Date(log.created_at).toLocaleString()}</div>
+                              {log.ip_address && <div>IP: {log.ip_address}</div>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-ink-500 text-sm">No audit log entries found.</p>
+                    )
+                  ) : (
+                    <p className="text-ink-500 text-sm">
+                      Audit log tracks all access and modifications to this consent form.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Actions */}
