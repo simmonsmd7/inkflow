@@ -151,7 +151,10 @@ export function ClientPortal() {
           </div>
 
           {/* Booking History */}
-          <div className="bg-ink-800 rounded-xl border border-ink-700 p-6">
+          <Link
+            to="/client/bookings"
+            className="bg-ink-800 rounded-xl border border-ink-700 p-6 hover:border-ink-600 transition-colors block"
+          >
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
                 <svg
@@ -173,8 +176,8 @@ export function ClientPortal() {
             <p className="text-ink-400 text-sm mb-4">
               View your complete booking history
             </p>
-            <span className="text-ink-500 text-sm">Coming soon</span>
-          </div>
+            <span className="text-accent-primary text-sm font-medium">View History &rarr;</span>
+          </Link>
 
           {/* Consent Forms */}
           <div className="bg-ink-800 rounded-xl border border-ink-700 p-6">

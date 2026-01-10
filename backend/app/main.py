@@ -19,6 +19,7 @@ from app.routers import (
     availability_router,
     bookings_router,
     client_auth_router,
+    client_portal_router,
     commissions_router,
     consent_router,
     messages_router,
@@ -68,6 +69,7 @@ app.include_router(auth_router, prefix="/api/v1")
 app.include_router(availability_router, prefix="/api/v1")
 app.include_router(bookings_router, prefix="/api/v1")
 app.include_router(client_auth_router, prefix="/api/v1")
+app.include_router(client_portal_router, prefix="/api/v1")
 app.include_router(commissions_router, prefix="/api/v1")
 app.include_router(consent_router, prefix="/api/v1")
 app.include_router(messages_router, prefix="/api/v1")

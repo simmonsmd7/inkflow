@@ -7,6 +7,7 @@ import {
   Availability,
   BookingForm,
   BookingQueue,
+  ClientBookingHistory,
   ClientLogin,
   ClientPortal,
   ClientRegister,
@@ -54,6 +55,7 @@ function App() {
       <Route path="/client/login" element={<ClientLogin />} />
       <Route path="/client/register" element={<ClientRegister />} />
       <Route path="/client" element={<ClientPortal />} />
+      <Route path="/client/bookings" element={<ClientBookingHistory />} />
 
       {/* App routes - with layout */}
       <Route

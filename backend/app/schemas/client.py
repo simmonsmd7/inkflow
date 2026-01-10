@@ -111,3 +111,77 @@ class ClientMessageResponse(BaseModel):
 
     message: str
     success: bool = True
+
+
+# ============================================================================
+# Client Portal Booking Schemas
+# ============================================================================
+
+
+class ClientBookingArtistInfo(BaseModel):
+    """Artist info for client booking view."""
+
+    id: uuid.UUID
+    name: str
+
+
+class ClientBookingStudioInfo(BaseModel):
+    """Studio info for client booking view."""
+
+    id: uuid.UUID
+    name: str
+
+
+class ClientBookingSummary(BaseModel):
+    """Summary of a booking for client portal list view."""
+
+    id: uuid.UUID
+    design_idea: str
+    placement: str
+    size: str
+    status: str
+    quoted_price: int | None = None
+    deposit_amount: int | None = None
+    deposit_paid_at: datetime | None = None
+    scheduled_date: datetime | None = None
+    scheduled_duration_hours: float | None = None
+    created_at: datetime
+    artist: ClientBookingArtistInfo | None = None
+    studio: ClientBookingStudioInfo | None = None
+
+    class Config:
+        from_attributes = True
+
+
+class ClientBookingDetail(ClientBookingSummary):
+    """Detailed booking view for client portal."""
+
+    client_name: str
+    client_email: str
+    client_phone: str | None = None
+    is_cover_up: bool = False
+    is_first_tattoo: bool = False
+    color_preference: str | None = None
+    budget_range: str | None = None
+    additional_notes: str | None = None
+    preferred_dates: str | None = None
+    quote_notes: str | None = None
+    quoted_at: datetime | None = None
+    cancelled_at: datetime | None = None
+    cancellation_reason: str | None = None
+    deposit_forfeited: bool = False
+    reschedule_count: int = 0
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ClientBookingsListResponse(BaseModel):
+    """Paginated list of client bookings."""
+
+    bookings: list[ClientBookingSummary]
+    total: int
+    page: int
+    per_page: int
+    pages: int

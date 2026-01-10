@@ -9,6 +9,7 @@ export { default as ClientRetention } from './ClientRetention';
 export { Availability } from './Availability';
 export { BookingForm } from './BookingForm';
 export { BookingQueue } from './BookingQueue';
+export { ClientBookingHistory } from './ClientBookingHistory';
 export { ClientLogin } from './ClientLogin';
 export { ClientPortal } from './ClientPortal';
 export { ClientRegister } from './ClientRegister';

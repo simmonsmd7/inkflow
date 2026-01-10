@@ -1866,3 +1866,67 @@ export interface ClientUpdate {
   emergency_contact_phone?: string | null;
   medical_notes?: string | null;
 }
+
+// Client Portal Booking Types
+export interface ClientBookingArtist {
+  id: string;
+  name: string;
+}
+
+export interface ClientBookingStudio {
+  id: string;
+  name: string;
+}
+
+export interface ClientBookingSummary {
+  id: string;
+  design_idea: string;
+  placement: string;
+  size: string;
+  status: string;
+  quoted_price: number | null;
+  deposit_amount: number | null;
+  deposit_paid_at: string | null;
+  scheduled_date: string | null;
+  scheduled_duration_hours: number | null;
+  created_at: string;
+  artist: ClientBookingArtist | null;
+  studio: ClientBookingStudio | null;
+}
+
+export interface ClientBookingDetail extends ClientBookingSummary {
+  client_name: string;
+  client_email: string;
+  client_phone: string | null;
+  is_cover_up: boolean;
+  is_first_tattoo: boolean;
+  color_preference: string | null;
+  budget_range: string | null;
+  additional_notes: string | null;
+  preferred_dates: string | null;
+  quote_notes: string | null;
+  quoted_at: string | null;
+  cancelled_at: string | null;
+  cancellation_reason: string | null;
+  deposit_forfeited: boolean;
+  reschedule_count: number;
+  updated_at: string;
+}
+
+export interface ClientBookingsListResponse {
+  bookings: ClientBookingSummary[];
+  total: number;
+  page: number;
+  per_page: number;
+  pages: number;
+}
+
+export interface ClientBookingStats {
+  total_bookings: number;
+  completed: number;
+  upcoming: number;
+  pending: number;
+  cancelled: number;
+  total_spent_cents: number;
+  status_breakdown: Record<string, number>;
+}
