@@ -311,3 +311,119 @@ export interface TimeOffListResponse {
   time_off: TimeOff[];
   total: number;
 }
+
+// Booking types
+export type TattooSize =
+  | 'tiny'
+  | 'small'
+  | 'medium'
+  | 'large'
+  | 'extra_large'
+  | 'half_sleeve'
+  | 'full_sleeve'
+  | 'back_piece'
+  | 'full_body';
+
+export type BookingRequestStatus =
+  | 'pending'
+  | 'reviewing'
+  | 'quoted'
+  | 'deposit_requested'
+  | 'deposit_paid'
+  | 'confirmed'
+  | 'completed'
+  | 'rejected'
+  | 'cancelled';
+
+export interface ReferenceImage {
+  id: string;
+  image_url: string;
+  thumbnail_url: string | null;
+  original_filename: string | null;
+  display_order: number;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface BookingRequestCreate {
+  client_name: string;
+  client_email: string;
+  client_phone?: string | null;
+  design_idea: string;
+  placement: string;
+  size: TattooSize;
+  is_cover_up?: boolean;
+  is_first_tattoo?: boolean;
+  color_preference?: string | null;
+  budget_range?: string | null;
+  additional_notes?: string | null;
+  preferred_artist_id?: string | null;
+  preferred_dates?: string | null;
+}
+
+export interface BookingSubmissionResponse {
+  message: string;
+  request_id: string;
+  status: string;
+}
+
+export interface ArtistOption {
+  id: string;
+  name: string;
+  specialties: string[];
+}
+
+export interface BookingRequestSummary {
+  id: string;
+  client_name: string;
+  client_email: string;
+  design_idea: string;
+  placement: string;
+  size: TattooSize;
+  status: BookingRequestStatus;
+  preferred_artist_id: string | null;
+  assigned_artist_id: string | null;
+  quoted_price: number | null;
+  scheduled_date: string | null;
+  reference_image_count: number;
+  created_at: string;
+}
+
+export interface BookingRequest {
+  id: string;
+  client_name: string;
+  client_email: string;
+  client_phone: string | null;
+  design_idea: string;
+  placement: string;
+  size: TattooSize;
+  is_cover_up: boolean;
+  is_first_tattoo: boolean;
+  color_preference: string | null;
+  budget_range: string | null;
+  additional_notes: string | null;
+  studio_id: string;
+  preferred_artist_id: string | null;
+  assigned_artist_id: string | null;
+  status: BookingRequestStatus;
+  quoted_price: number | null;
+  deposit_amount: number | null;
+  estimated_hours: number | null;
+  quote_notes: string | null;
+  quoted_at: string | null;
+  preferred_dates: string | null;
+  scheduled_date: string | null;
+  scheduled_duration_hours: number | null;
+  internal_notes: string | null;
+  reference_images: ReferenceImage[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BookingRequestsListResponse {
+  requests: BookingRequestSummary[];
+  total: number;
+  page: number;
+  per_page: number;
+  pages: number;
+}

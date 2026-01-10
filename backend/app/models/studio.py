@@ -10,6 +10,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import BaseModel, SoftDeleteMixin
 
 if TYPE_CHECKING:
+    from app.models.booking import BookingRequest
     from app.models.user import User
 
 
@@ -55,6 +56,12 @@ class Studio(BaseModel, SoftDeleteMixin):
 
     # Relationships
     owner: Mapped["User"] = relationship("User", back_populates="owned_studios")
+    booking_requests: Mapped[list["BookingRequest"]] = relationship(
+        "BookingRequest",
+        back_populates="studio",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+    )
 
     @property
     def full_address(self) -> str | None:

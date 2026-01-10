@@ -4,6 +4,7 @@
 
 export { ArtistProfile } from './ArtistProfile';
 export { Availability } from './Availability';
+export { BookingForm } from './BookingForm';
 export { Dashboard } from './Dashboard';
 export { ForgotPassword } from './ForgotPassword';
 export { Login } from './Login';

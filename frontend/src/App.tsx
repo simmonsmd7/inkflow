@@ -1,10 +1,13 @@
 import { Routes, Route } from 'react-router-dom';
 import { Layout } from './components/layout';
-import { ArtistProfile, Availability, Dashboard, ForgotPassword, Login, Register, ResetPassword, StudioSettings, Team } from './pages';
+import { ArtistProfile, Availability, BookingForm, Dashboard, ForgotPassword, Login, Register, ResetPassword, StudioSettings, Team } from './pages';
 
 function App() {
   return (
     <Routes>
+      {/* Public routes - no auth required */}
+      <Route path="/book/:studioSlug" element={<BookingForm />} />
+
       {/* Auth routes - no layout */}
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />

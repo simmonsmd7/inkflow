@@ -12,6 +12,18 @@ from app.schemas.artist import (
     PortfolioImageUpdate,
     ReorderPortfolioRequest,
 )
+from app.schemas.booking import (
+    ArtistOptionResponse,
+    BookingRequestCreate,
+    BookingRequestResponse,
+    BookingRequestsListResponse,
+    BookingRequestStatus,
+    BookingRequestSummary,
+    BookingRequestUpdate,
+    BookingSubmissionResponse,
+    ReferenceImageResponse,
+    TattooSize,
+)
 from app.schemas.availability import (
     AvailabilityCheckRequest,
     AvailabilityCheckResponse,
@@ -53,6 +65,7 @@ from app.schemas.user import (
 __all__ = [
     # Artist schemas
     "ArtistDetailResponse",
+    "ArtistOptionResponse",
     "ArtistProfileCreate",
     "ArtistProfileResponse",
     "ArtistProfileUpdate",
@@ -77,6 +90,16 @@ __all__ = [
     "TimeOffResponse",
     "TimeOffUpdate",
     "WeeklySchedule",
+    # Booking schemas
+    "BookingRequestCreate",
+    "BookingRequestResponse",
+    "BookingRequestsListResponse",
+    "BookingRequestStatus",
+    "BookingRequestSummary",
+    "BookingRequestUpdate",
+    "BookingSubmissionResponse",
+    "ReferenceImageResponse",
+    "TattooSize",
     # Studio schemas
     "BusinessHours",
     "BusinessHoursDay",
