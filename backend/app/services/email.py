@@ -556,5 +556,137 @@ Powered by InkFlow
         )
 
 
+    async def send_appointment_reminder_email(
+        self,
+        to_email: str,
+        client_name: str,
+        studio_name: str,
+        studio_address: str | None,
+        artist_name: str | None,
+        design_summary: str,
+        placement: str,
+        scheduled_date: str,
+        scheduled_time: str,
+        duration_hours: float,
+        hours_until: int,
+    ) -> bool:
+        """Send appointment reminder email."""
+        if hours_until == 24:
+            subject = f"Tomorrow: Tattoo appointment at {studio_name}"
+            time_text = "tomorrow"
+            urgency_color = "#f59e0b"  # Amber
+        elif hours_until == 2:
+            subject = f"In 2 hours: Tattoo appointment at {studio_name}"
+            time_text = "in 2 hours"
+            urgency_color = "#ef4444"  # Red
+        else:
+            subject = f"Reminder: Tattoo appointment at {studio_name}"
+            time_text = f"in {hours_until} hours"
+            urgency_color = "#3b82f6"  # Blue
+
+        body_text = f"""Hi {client_name},
+
+This is a friendly reminder that your tattoo appointment is {time_text}!
+
+APPOINTMENT DETAILS
+-------------------
+Date: {scheduled_date}
+Time: {scheduled_time}
+Duration: {duration_hours:.1f} hours
+
+Studio: {studio_name}
+{f"Artist: {artist_name}" if artist_name else ""}
+{f"Address: {studio_address}" if studio_address else ""}
+
+Tattoo Details:
+- Design: {design_summary[:100]}...
+- Placement: {placement}
+
+DON'T FORGET
+------------
+- Get a good night's sleep
+- Eat a meal before arriving
+- Stay hydrated
+- Avoid alcohol and blood thinners 24 hours before
+- Wear comfortable, loose clothing
+- Bring a valid ID
+
+If you need to reschedule or cancel, please contact us as soon as possible.
+
+See you soon!
+
+Best,
+{studio_name}
+Powered by InkFlow
+"""
+
+        body_html = f"""
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+    <div style="background-color: {urgency_color}; padding: 20px; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 24px;">
+            ⏰ Your Appointment is {time_text.title()}!
+        </h1>
+    </div>
+
+    <div style="padding: 30px;">
+        <p>Hi {client_name},</p>
+        <p>This is a friendly reminder that your tattoo appointment is <strong>{time_text}</strong>!</p>
+
+        <div style="background-color: #1a1a1a; color: #ffffff; padding: 20px; border-radius: 8px; margin: 25px 0; text-align: center;">
+            <h2 style="margin: 0 0 10px 0; font-size: 28px;">{scheduled_date}</h2>
+            <p style="margin: 0; font-size: 20px;">{scheduled_time}</p>
+            <p style="margin: 10px 0 0 0; opacity: 0.9;">Duration: {duration_hours:.1f} hours</p>
+        </div>
+
+        <div style="background-color: #f8f8f8; padding: 20px; border-radius: 8px; margin: 25px 0;">
+            <h3 style="margin: 0 0 15px 0; color: #1a1a1a;">Appointment Details</h3>
+            <p style="margin: 5px 0;"><strong>Studio:</strong> {studio_name}</p>
+            {"<p style='margin: 5px 0;'><strong>Artist:</strong> " + artist_name + "</p>" if artist_name else ""}
+            {"<p style='margin: 5px 0;'><strong>Address:</strong> " + studio_address + "</p>" if studio_address else ""}
+            <p style="margin: 15px 0 5px 0;"><strong>Design:</strong> {design_summary[:100]}...</p>
+            <p style="margin: 5px 0;"><strong>Placement:</strong> {placement}</p>
+        </div>
+
+        <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 20px; margin: 25px 0;">
+            <h3 style="margin: 0 0 15px 0; color: #92400e;">Don't Forget!</h3>
+            <ul style="margin: 0; padding-left: 20px; color: #92400e;">
+                <li style="margin: 5px 0;">Get a good night's sleep</li>
+                <li style="margin: 5px 0;">Eat a meal before arriving</li>
+                <li style="margin: 5px 0;">Stay hydrated</li>
+                <li style="margin: 5px 0;">Avoid alcohol and blood thinners 24 hours before</li>
+                <li style="margin: 5px 0;">Wear comfortable, loose clothing</li>
+                <li style="margin: 5px 0;">Bring a valid ID</li>
+            </ul>
+        </div>
+
+        <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+
+        <p style="color: #666; font-size: 13px;">
+            If you need to reschedule or cancel, please contact us as soon as possible.
+        </p>
+
+        <p style="color: #666; font-size: 13px; text-align: center; font-weight: bold;">
+            See you soon! 🎨
+        </p>
+    </div>
+
+    <div style="background-color: #f5f5f5; padding: 15px; text-align: center;">
+        <p style="color: #999; font-size: 12px; margin: 0;">
+            {studio_name} • Powered by <a href="https://inkflow.io" style="color: #e11d48;">InkFlow</a>
+        </p>
+    </div>
+</div>
+"""
+
+        return await self.send(
+            EmailMessage(
+                to_email=to_email,
+                subject=subject,
+                body_text=body_text,
+                body_html=body_html,
+            )
+        )
+
+
 # Singleton instance
 email_service = EmailService()

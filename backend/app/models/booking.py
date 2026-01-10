@@ -135,6 +135,14 @@ class BookingRequest(BaseModel, SoftDeleteMixin):
     # Internal notes
     internal_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
+    # Reminder tracking
+    reminder_24h_sent_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    reminder_2h_sent_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
     # Relationships
     studio: Mapped["Studio"] = relationship("Studio", back_populates="booking_requests")
     preferred_artist: Mapped[Optional["User"]] = relationship(
