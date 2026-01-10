@@ -1901,3 +1901,53 @@ Changes:
 - frontend/src/components/layout/Sidebar.tsx: Added Client Retention nav item (owner-only)
 Status: COMPLETE
 Next: P8.5 - No-show rate tracking
+
+=== ITERATION 43 ===
+Date: 2026-01-10
+Task: P8.5 - No-show rate tracking
+Changes:
+Backend Schemas (analytics.py):
+- NoShowByArtist: Artist breakdown with no-show rate, deposits forfeited, revenue lost
+- NoShowByDayOfWeek: Day patterns with day name and no-show rate
+- NoShowByTimeSlot: Time patterns with hour and formatted time label
+- NoShowClient: Repeat offender data with booking history and last no-show date
+- NoShowTrend: Weekly trend data with deposits forfeited
+- NoShowReportResponse: Full report response with all metrics and breakdowns
+
+Backend Router (analytics.py):
+- GET /api/v1/analytics/reports/no-shows: Comprehensive no-show report endpoint
+- Calculates summary metrics (rate, total, deposits, revenue lost)
+- Compares with previous period for trend analysis
+- Aggregates by artist, day of week, time slot
+- Generates weekly trends
+- Identifies repeat offenders (2+ no-shows)
+- Calculates risk metrics (high-risk upcoming appointments)
+
+Frontend Service (analytics.ts):
+- NoShowReport, NoShowByArtist, NoShowByDayOfWeek, NoShowByTimeSlot, NoShowClient, NoShowTrend types
+- getNoShowReport(): Fetch no-show report for date range
+- getNoShowRateSeverity(): Returns severity level (low/medium/high/critical) with colors
+- getNoShowBarColor(): Returns bar color based on no-show rate
+
+Frontend Page (NoShowTracking.tsx):
+- Date range selector with presets
+- Key metrics cards (no-show rate, total, deposits forfeited, revenue lost)
+- High-risk alert banner when upcoming appointments with risky clients
+- By Day of Week visualization with bars
+- By Time Slot visualization with bars
+- Weekly trends table
+- By Artist breakdown cards
+- Repeat offenders list with client details
+- Summary statistics
+- Tips section for reducing no-shows
+- Severity-based color coding throughout
+
+Navigation & Routes:
+- frontend/src/App.tsx: Added /no-show-tracking route
+- frontend/src/components/layout/Sidebar.tsx: Added "No-Show Tracking" nav item (owner only)
+- frontend/src/pages/index.ts: Exported NoShowTracking page
+
+- Verified: Frontend build passes with no TypeScript errors
+- Verified: Page renders correctly (error state shown when not authenticated - expected)
+Status: COMPLETE
+Next: P8.6 - Popular time slots analysis
