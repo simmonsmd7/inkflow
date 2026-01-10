@@ -53,7 +53,7 @@ const navItems: NavItem[] = [
       </svg>
     ),
     href: '/bookings',
-    badge: 3,
+    roles: ['artist', 'owner'],
   },
   {
     id: 'inbox',

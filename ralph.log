@@ -296,6 +296,97 @@ Frontend:
 Status: COMPLETE
 Next: P3.2 - Booking request form
 
+=== ITERATION 13 ===
+Date: 2026-01-10
+Task: P3.2 - Booking request form
+Changes:
+Backend:
+- backend/app/models/booking.py: NEW - BookingRequest model (client_name, client_email, client_phone, design_idea, placement, size, is_cover_up, is_first_tattoo, color_preference, budget_range, additional_notes, preferred_artist_id, assigned_artist_id, status, quoted_price, deposit_amount, estimated_hours, quote_notes, quoted_at, preferred_dates, scheduled_date, scheduled_duration_hours, internal_notes) + BookingReferenceImage model (booking_request_id, image_url, thumbnail_url, original_filename, display_order, notes)
+- backend/app/models/booking.py: TattooSize enum (tiny, small, medium, large, extra_large, half_sleeve, full_sleeve, back_piece, full_body) + BookingRequestStatus enum (pending, reviewing, quoted, deposit_requested, deposit_paid, confirmed, completed, rejected, cancelled)
+- backend/app/models/user.py: Added preferred_booking_requests and assigned_booking_requests relationships
+- backend/app/models/studio.py: Added booking_requests relationship
+- backend/app/models/__init__.py: Export new models
+- backend/app/schemas/booking.py: NEW - Pydantic schemas for BookingRequestCreate, BookingRequestUpdate, BookingRequestResponse, BookingRequestSummary, BookingRequestsListResponse, BookingSubmissionResponse, ArtistOptionResponse, ReferenceImageResponse
+- backend/app/schemas/__init__.py: Export new schemas
+- backend/app/routers/bookings.py: NEW - Bookings router with endpoints:
+  - GET /bookings/studios/{slug}/artists - Get artists for studio (public)
+  - POST /bookings/studios/{slug}/submit - Submit booking request (public)
+  - POST /bookings/requests/{id}/images - Upload reference image
+  - GET /bookings/requests - List booking requests (authenticated)
+  - GET /bookings/requests/{id} - Get single request (authenticated)
+  - PATCH /bookings/requests/{id} - Update request (authenticated)
+  - DELETE /bookings/requests/{id} - Delete request (authenticated)
+- backend/app/routers/__init__.py: Export bookings_router
+- backend/app/main.py: Include bookings router, create uploads/references directory
+
+Frontend:
+- frontend/src/types/api.ts: Added TattooSize, BookingRequestStatus, ReferenceImage, BookingRequestCreate, BookingSubmissionResponse, ArtistOption, BookingRequestSummary, BookingRequest, BookingRequestsListResponse types
+- frontend/src/services/bookings.ts: NEW - API service for booking submission (getStudioArtists, submitBookingRequest, uploadReferenceImage)
+- frontend/src/pages/BookingForm.tsx: NEW - Public booking form with:
+  - Contact information (name, email, phone)
+  - Tattoo details (design idea, placement, size selector, color preference, budget range, cover-up/first tattoo checkboxes)
+  - Reference images upload (up to 5 images)
+  - Preferences (artist dropdown, preferred dates, additional notes)
+  - Client-side validation with error display
+  - Loading state during submission
+  - Success confirmation with reference ID display
+- frontend/src/pages/index.ts: Export BookingForm
+- frontend/src/App.tsx: Added /book/:studioSlug route (public)
+
+- Verified: Frontend build passes with no TypeScript errors
+- Verified: Booking form renders correctly at /book/test-studio
+- Verified: Artist dropdown loads from API
+- Verified: Form validation works (shows errors for missing required fields)
+- Verified: Booking submission creates record in database with 201 Created response
+- Verified: Success screen displays with reference ID after submission
+Status: COMPLETE
+Next: P3.3 - Request queue dashboard for artists to review
+
+=== ITERATION 14 ===
+Date: 2026-01-10
+Task: P3.3 - Request queue dashboard for artists to review
+Changes:
+Backend:
+- No changes needed - all required endpoints already exist in backend/app/routers/bookings.py:
+  - GET /bookings/requests - List requests with pagination and status filtering
+  - GET /bookings/requests/{id} - Get single request details
+  - PATCH /bookings/requests/{id} - Update request (status, quotes)
+  - DELETE /bookings/requests/{id} - Delete request (owner only)
+
+Frontend:
+- frontend/src/types/api.ts: Added BookingRequestUpdate interface for updating booking requests (status, quoted_price, deposit_amount, estimated_hours, quote_notes, internal_notes, etc.)
+- frontend/src/services/bookings.ts: Extended with authenticated endpoints:
+  - listBookingRequests() - List requests with pagination and status filter
+  - getBookingRequest() - Get single request details
+  - updateBookingRequest() - Update request status/quote
+  - deleteBookingRequest() - Delete request
+- frontend/src/pages/BookingQueue.tsx: NEW - Booking queue page with:
+  - Status filter tabs (All, Pending, Reviewing, Quoted, Confirmed, Completed)
+  - Request cards showing client name, status badge, design idea, placement, size, reference image count, quoted price
+  - Detail modal with:
+    - Full client contact info
+    - Status change buttons (all 9 states)
+    - Complete design details (idea, placement, size, cover-up, first tattoo, color preference, budget, preferred dates, additional notes)
+    - Reference images gallery with links
+    - Quote form (price, hours, deposit, notes visible to client, private internal notes)
+    - Quote history section
+    - Timestamps (created, updated)
+  - Pagination for large request lists
+  - RBAC enforcement (artists and owners only)
+  - Fixed React Rules of Hooks violation (moved useEffect before conditional return)
+- frontend/src/pages/index.ts: Export BookingQueue
+- frontend/src/App.tsx: Added /bookings route
+- frontend/src/components/layout/Sidebar.tsx: Added role restriction for Bookings nav item (artists/owners only)
+
+- Verified: Frontend build passes with no TypeScript errors
+- Verified: BookingQueue page loads correctly at /bookings
+- Verified: Request cards display with proper status badges
+- Verified: Detail modal opens with full request information
+- Verified: Quote form displays with editable fields
+- Verified: Status buttons render for changing request state
+Status: COMPLETE
+Next: P3.4 - Quote and deposit system
+
 ---
 PROJECT: InkFlow - Tattoo Studio Management Platform
 TARGET: Solo artists and 2-5 artist studios at $29-69/month

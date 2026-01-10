@@ -1,11 +1,15 @@
 /**
- * Booking requests service for client submissions.
+ * Booking requests service for client submissions and artist management.
  */
 
 import { api } from './api';
 import type {
   ArtistOption,
+  BookingRequest,
   BookingRequestCreate,
+  BookingRequestsListResponse,
+  BookingRequestStatus,
+  BookingRequestUpdate,
   BookingSubmissionResponse,
   ReferenceImage,
 } from '../types/api';
@@ -59,4 +63,57 @@ export async function uploadReferenceImage(
   }
 
   return response.json();
+}
+
+// ============================================================================
+// AUTHENTICATED ENDPOINTS (For artists/staff to manage requests)
+// ============================================================================
+
+export interface ListBookingRequestsParams {
+  page?: number;
+  per_page?: number;
+  status?: BookingRequestStatus;
+  artist_id?: string;
+}
+
+/**
+ * List booking requests (authenticated).
+ */
+export async function listBookingRequests(
+  params: ListBookingRequestsParams = {}
+): Promise<BookingRequestsListResponse> {
+  const searchParams = new URLSearchParams();
+  if (params.page) searchParams.set('page', params.page.toString());
+  if (params.per_page) searchParams.set('per_page', params.per_page.toString());
+  if (params.status) searchParams.set('status', params.status);
+  if (params.artist_id) searchParams.set('artist_id', params.artist_id);
+
+  const query = searchParams.toString();
+  return api.get<BookingRequestsListResponse>(
+    `/api/v1/bookings/requests${query ? `?${query}` : ''}`
+  );
+}
+
+/**
+ * Get a single booking request (authenticated).
+ */
+export async function getBookingRequest(requestId: string): Promise<BookingRequest> {
+  return api.get<BookingRequest>(`/api/v1/bookings/requests/${requestId}`);
+}
+
+/**
+ * Update a booking request (authenticated).
+ */
+export async function updateBookingRequest(
+  requestId: string,
+  data: BookingRequestUpdate
+): Promise<BookingRequest> {
+  return api.patch<BookingRequest>(`/api/v1/bookings/requests/${requestId}`, data);
+}
+
+/**
+ * Delete a booking request (owner only).
+ */
+export async function deleteBookingRequest(requestId: string): Promise<void> {
+  return api.delete(`/api/v1/bookings/requests/${requestId}`);
 }

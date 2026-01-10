@@ -427,3 +427,15 @@ export interface BookingRequestsListResponse {
   per_page: number;
   pages: number;
 }
+
+export interface BookingRequestUpdate {
+  status?: BookingRequestStatus;
+  assigned_artist_id?: string | null;
+  quoted_price?: number | null;
+  deposit_amount?: number | null;
+  estimated_hours?: number | null;
+  quote_notes?: string | null;
+  scheduled_date?: string | null;
+  scheduled_duration_hours?: number | null;
+  internal_notes?: string | null;
+}

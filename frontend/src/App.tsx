@@ -1,6 +1,6 @@
 import { Routes, Route } from 'react-router-dom';
 import { Layout } from './components/layout';
-import { ArtistProfile, Availability, BookingForm, Dashboard, ForgotPassword, Login, Register, ResetPassword, StudioSettings, Team } from './pages';
+import { ArtistProfile, Availability, BookingForm, BookingQueue, Dashboard, ForgotPassword, Login, Register, ResetPassword, StudioSettings, Team } from './pages';
 
 function App() {
   return (
@@ -21,6 +21,7 @@ function App() {
           <Layout>
             <Routes>
               <Route path="/" element={<Dashboard />} />
+              <Route path="/bookings" element={<BookingQueue />} />
               <Route path="/profile" element={<ArtistProfile />} />
               <Route path="/availability" element={<Availability />} />
               <Route path="/team" element={<Team />} />
