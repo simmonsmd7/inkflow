@@ -2011,3 +2011,93 @@ export interface ClientConsentSignResponse {
   access_token: string;
   message: string;
 }
+
+// ============ Client Portal Aftercare Types ============
+
+export interface ClientAftercareExtraData {
+  days_covered: number | null;
+  key_points: string[];
+  products_recommended: string[];
+  products_to_avoid: string[];
+  warning_signs: string[];
+}
+
+export interface ClientAftercareSummary {
+  id: string;
+  template_name: string;
+  client_name: string;
+  appointment_date: string;
+  tattoo_type: string | null;
+  placement: string | null;
+  tattoo_description: string | null;
+  status: string;
+  sent_at: string | null;
+  view_count: number;
+  studio_name: string;
+  artist_name: string | null;
+  booking_design_idea: string | null;
+  created_at: string;
+}
+
+export interface ClientAftercareListResponse {
+  instructions: ClientAftercareSummary[];
+  total: number;
+  page: number;
+  per_page: number;
+  pages: number;
+}
+
+export interface ClientFollowUpSummary {
+  id: string;
+  follow_up_type: string;
+  scheduled_for: string;
+  status: string;
+  subject: string;
+  sent_at: string | null;
+}
+
+export interface ClientAftercareDetail {
+  id: string;
+  template_name: string;
+  client_name: string;
+  appointment_date: string;
+  tattoo_type: string | null;
+  placement: string | null;
+  tattoo_description: string | null;
+  instructions_html: string;
+  extra_data: ClientAftercareExtraData | null;
+  status: string;
+  sent_at: string | null;
+  first_viewed_at: string | null;
+  view_count: number;
+  studio_name: string;
+  studio_id: string;
+  artist_name: string | null;
+  booking_id: string | null;
+  booking_design_idea: string | null;
+  follow_ups: ClientFollowUpSummary[];
+  created_at: string;
+}
+
+export interface ClientHealingIssueInput {
+  description: string;
+  severity?: string;
+  symptoms?: string[];
+}
+
+export interface ClientHealingIssueResponse {
+  id: string;
+  message: string;
+  studio_will_contact: boolean;
+}
+
+export interface ClientHealingIssueSummary {
+  id: string;
+  description: string;
+  severity: string;
+  symptoms: string[];
+  days_since_appointment: number;
+  status: string;
+  staff_notes: string | null;
+  created_at: string;
+}

@@ -13,6 +13,11 @@ import type {
   ClientConsentTemplateResponse,
   ClientConsentSignInput,
   ClientConsentSignResponse,
+  ClientAftercareListResponse,
+  ClientAftercareDetail,
+  ClientHealingIssueInput,
+  ClientHealingIssueResponse,
+  ClientHealingIssueSummary,
 } from '../types/api';
 
 export interface GetBookingsParams {
@@ -122,6 +127,56 @@ export const clientPortalService = {
     return api.post<ClientConsentSignResponse>(
       '/api/v1/client/portal/consent/sign',
       data,
+      { headers: getClientAuthHeaders() }
+    );
+  },
+
+  // ============ Aftercare Functions ============
+
+  /**
+   * Get the client's aftercare instructions with pagination.
+   */
+  async getAftercareList(params: { page?: number; per_page?: number } = {}): Promise<ClientAftercareListResponse> {
+    const { page = 1, per_page = 10 } = params;
+
+    const queryParams = new URLSearchParams({
+      page: page.toString(),
+      per_page: per_page.toString(),
+    });
+
+    return api.get<ClientAftercareListResponse>(
+      `/api/v1/client/portal/aftercare?${queryParams.toString()}`,
+      { headers: getClientAuthHeaders() }
+    );
+  },
+
+  /**
+   * Get detailed aftercare instructions by ID.
+   */
+  async getAftercareDetail(aftercareId: string): Promise<ClientAftercareDetail> {
+    return api.get<ClientAftercareDetail>(
+      `/api/v1/client/portal/aftercare/${aftercareId}`,
+      { headers: getClientAuthHeaders() }
+    );
+  },
+
+  /**
+   * Report a healing issue for aftercare.
+   */
+  async reportHealingIssue(aftercareId: string, data: ClientHealingIssueInput): Promise<ClientHealingIssueResponse> {
+    return api.post<ClientHealingIssueResponse>(
+      `/api/v1/client/portal/aftercare/${aftercareId}/report-issue`,
+      data,
+      { headers: getClientAuthHeaders() }
+    );
+  },
+
+  /**
+   * Get healing issues for an aftercare record.
+   */
+  async getHealingIssues(aftercareId: string): Promise<ClientHealingIssueSummary[]> {
+    return api.get<ClientHealingIssueSummary[]>(
+      `/api/v1/client/portal/aftercare/${aftercareId}/issues`,
       { headers: getClientAuthHeaders() }
     );
   },

@@ -14,6 +14,7 @@ from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.models import BookingRequest, Studio, User
+from app.models.aftercare import AftercareSent, AftercareFollowUp, HealingIssueReport, HealingIssueSeverity, HealingIssueStatus
 from app.models.client import Client
 from app.models.consent import ConsentAuditAction, ConsentAuditLog, ConsentFormSubmission, ConsentFormTemplate
 from app.schemas.client import (
@@ -738,3 +739,396 @@ async def sign_consent_form(
         access_token=access_token,
         message="Consent form signed successfully",
     )
+
+
+# ============ Aftercare Schemas ============
+
+
+class ClientAftercareExtraData(BaseModel):
+    """Structured extra data from aftercare template."""
+
+    days_covered: int | None = None
+    key_points: list[str] = []
+    products_recommended: list[str] = []
+    products_to_avoid: list[str] = []
+    warning_signs: list[str] = []
+
+
+class ClientAftercareSummary(BaseModel):
+    """Summary of aftercare instructions for list view."""
+
+    id: UUID
+    template_name: str
+    client_name: str
+    appointment_date: datetime
+    tattoo_type: str | None
+    placement: str | None
+    tattoo_description: str | None
+    status: str
+    sent_at: datetime | None
+    view_count: int
+    studio_name: str
+    artist_name: str | None
+    booking_design_idea: str | None
+    created_at: datetime
+
+
+class ClientAftercareListResponse(BaseModel):
+    """Paginated list of aftercare instructions."""
+
+    instructions: list[ClientAftercareSummary]
+    total: int
+    page: int
+    per_page: int
+    pages: int
+
+
+class ClientFollowUpSummary(BaseModel):
+    """Summary of a follow-up message."""
+
+    id: UUID
+    follow_up_type: str
+    scheduled_for: datetime
+    status: str
+    subject: str
+    sent_at: datetime | None
+
+
+class ClientAftercareDetail(BaseModel):
+    """Full aftercare instructions detail view."""
+
+    id: UUID
+    template_name: str
+    client_name: str
+    appointment_date: datetime
+    tattoo_type: str | None
+    placement: str | None
+    tattoo_description: str | None
+    instructions_html: str
+    extra_data: ClientAftercareExtraData | None
+    status: str
+    sent_at: datetime | None
+    first_viewed_at: datetime | None
+    view_count: int
+    studio_name: str
+    studio_id: UUID
+    artist_name: str | None
+    booking_id: UUID | None
+    booking_design_idea: str | None
+    follow_ups: list[ClientFollowUpSummary]
+    created_at: datetime
+
+
+class ClientHealingIssueInput(BaseModel):
+    """Input for reporting a healing issue."""
+
+    description: str = Field(..., min_length=10, max_length=2000)
+    severity: str = Field(default="minor")
+    symptoms: list[str] = Field(default_factory=list)
+
+
+class ClientHealingIssueResponse(BaseModel):
+    """Response after reporting a healing issue."""
+
+    id: UUID
+    message: str
+    studio_will_contact: bool
+
+
+class ClientHealingIssueSummary(BaseModel):
+    """Summary of a healing issue report."""
+
+    id: UUID
+    description: str
+    severity: str
+    symptoms: list[str]
+    days_since_appointment: int
+    status: str
+    staff_notes: str | None
+    created_at: datetime
+
+
+# ============ Aftercare Endpoints ============
+
+
+@router.get("/aftercare", response_model=ClientAftercareListResponse)
+async def get_my_aftercare_instructions(
+    current_client: Client = Depends(get_current_client),
+    db: AsyncSession = Depends(get_db),
+    page: int = Query(1, ge=1, description="Page number"),
+    per_page: int = Query(10, ge=1, le=50, description="Items per page"),
+) -> ClientAftercareListResponse:
+    """
+    Get aftercare instructions for the current client.
+
+    Returns all aftercare instructions sent to the client's email address,
+    sorted by appointment date (newest first).
+    """
+    # Base query - find aftercare sent by client email
+    base_query = (
+        select(AftercareSent)
+        .where(
+            AftercareSent.client_email == current_client.email,
+        )
+        .options(
+            selectinload(AftercareSent.studio),
+            selectinload(AftercareSent.artist),
+            selectinload(AftercareSent.booking_request),
+        )
+    )
+
+    # Count total
+    count_query = select(func.count()).select_from(base_query.subquery())
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+
+    # Calculate pagination
+    pages = ceil(total / per_page) if total > 0 else 1
+    offset = (page - 1) * per_page
+
+    # Get paginated results
+    paginated_query = (
+        base_query
+        .order_by(AftercareSent.appointment_date.desc())
+        .offset(offset)
+        .limit(per_page)
+    )
+    result = await db.execute(paginated_query)
+    records = result.scalars().all()
+
+    # Build response
+    instructions_list = [
+        ClientAftercareSummary(
+            id=record.id,
+            template_name=record.template_name,
+            client_name=record.client_name,
+            appointment_date=record.appointment_date,
+            tattoo_type=record.tattoo_type.value if record.tattoo_type else None,
+            placement=record.placement.value if record.placement else None,
+            tattoo_description=record.tattoo_description,
+            status=record.status.value,
+            sent_at=record.sent_at,
+            view_count=record.view_count,
+            studio_name=record.studio.name if record.studio else "Unknown Studio",
+            artist_name=record.artist.full_name if record.artist else None,
+            booking_design_idea=(
+                record.booking_request.design_idea[:50] + "..."
+                if record.booking_request and len(record.booking_request.design_idea) > 50
+                else (record.booking_request.design_idea if record.booking_request else None)
+            ),
+            created_at=record.created_at,
+        )
+        for record in records
+    ]
+
+    return ClientAftercareListResponse(
+        instructions=instructions_list,
+        total=total,
+        page=page,
+        per_page=per_page,
+        pages=pages,
+    )
+
+
+@router.get("/aftercare/{aftercare_id}", response_model=ClientAftercareDetail)
+async def get_aftercare_detail(
+    aftercare_id: UUID,
+    current_client: Client = Depends(get_current_client),
+    db: AsyncSession = Depends(get_db),
+) -> ClientAftercareDetail:
+    """
+    Get detailed aftercare instructions.
+
+    This also increments the view count and sets first_viewed_at if not already set.
+    """
+    # Find the aftercare record
+    query = (
+        select(AftercareSent)
+        .where(
+            AftercareSent.id == aftercare_id,
+            AftercareSent.client_email == current_client.email,
+        )
+        .options(
+            selectinload(AftercareSent.studio),
+            selectinload(AftercareSent.artist),
+            selectinload(AftercareSent.booking_request),
+            selectinload(AftercareSent.follow_ups),
+        )
+    )
+    result = await db.execute(query)
+    record = result.scalar_one_or_none()
+
+    if not record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Aftercare instructions not found",
+        )
+
+    # Update view tracking
+    now = datetime.now(timezone.utc)
+    if record.first_viewed_at is None:
+        record.first_viewed_at = now
+    record.view_count += 1
+    await db.commit()
+    await db.refresh(record)
+
+    # Parse extra_data
+    extra_data = None
+    if record.template and record.template.extra_data:
+        ed = record.template.extra_data
+        extra_data = ClientAftercareExtraData(
+            days_covered=ed.get("days_covered"),
+            key_points=ed.get("key_points", []),
+            products_recommended=ed.get("products_recommended", []),
+            products_to_avoid=ed.get("products_to_avoid", []),
+            warning_signs=ed.get("warning_signs", []),
+        )
+
+    # Build follow-ups list
+    follow_ups = [
+        ClientFollowUpSummary(
+            id=fu.id,
+            follow_up_type=fu.follow_up_type.value,
+            scheduled_for=fu.scheduled_for,
+            status=fu.status.value,
+            subject=fu.subject,
+            sent_at=fu.sent_at,
+        )
+        for fu in (record.follow_ups or [])
+    ]
+
+    return ClientAftercareDetail(
+        id=record.id,
+        template_name=record.template_name,
+        client_name=record.client_name,
+        appointment_date=record.appointment_date,
+        tattoo_type=record.tattoo_type.value if record.tattoo_type else None,
+        placement=record.placement.value if record.placement else None,
+        tattoo_description=record.tattoo_description,
+        instructions_html=record.instructions_snapshot,
+        extra_data=extra_data,
+        status=record.status.value,
+        sent_at=record.sent_at,
+        first_viewed_at=record.first_viewed_at,
+        view_count=record.view_count,
+        studio_name=record.studio.name if record.studio else "Unknown Studio",
+        studio_id=record.studio_id,
+        artist_name=record.artist.full_name if record.artist else None,
+        booking_id=record.booking_request_id,
+        booking_design_idea=record.booking_request.design_idea if record.booking_request else None,
+        follow_ups=sorted(follow_ups, key=lambda f: f.scheduled_for),
+        created_at=record.created_at,
+    )
+
+
+@router.post("/aftercare/{aftercare_id}/report-issue", response_model=ClientHealingIssueResponse)
+async def report_healing_issue(
+    aftercare_id: UUID,
+    data: ClientHealingIssueInput,
+    current_client: Client = Depends(get_current_client),
+    db: AsyncSession = Depends(get_db),
+) -> ClientHealingIssueResponse:
+    """
+    Report a healing issue for an aftercare record.
+
+    The studio will be notified and can respond.
+    """
+    # Find the aftercare record
+    query = (
+        select(AftercareSent)
+        .where(
+            AftercareSent.id == aftercare_id,
+            AftercareSent.client_email == current_client.email,
+        )
+    )
+    result = await db.execute(query)
+    record = result.scalar_one_or_none()
+
+    if not record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Aftercare instructions not found",
+        )
+
+    # Calculate days since appointment
+    now = datetime.now(timezone.utc)
+    days_since = (now - record.appointment_date).days
+    if days_since < 0:
+        days_since = 0
+
+    # Map severity string to enum
+    severity_map = {
+        "minor": HealingIssueSeverity.MINOR,
+        "moderate": HealingIssueSeverity.MODERATE,
+        "concerning": HealingIssueSeverity.CONCERNING,
+        "urgent": HealingIssueSeverity.URGENT,
+    }
+    severity = severity_map.get(data.severity.lower(), HealingIssueSeverity.MINOR)
+
+    # Create the healing issue report
+    issue = HealingIssueReport(
+        aftercare_sent_id=record.id,
+        studio_id=record.studio_id,
+        description=data.description,
+        severity=severity,
+        symptoms=data.symptoms,
+        days_since_appointment=days_since,
+        status=HealingIssueStatus.REPORTED,
+    )
+    db.add(issue)
+    await db.commit()
+    await db.refresh(issue)
+
+    return ClientHealingIssueResponse(
+        id=issue.id,
+        message="Healing issue reported successfully. The studio will review and contact you.",
+        studio_will_contact=True,
+    )
+
+
+@router.get("/aftercare/{aftercare_id}/issues", response_model=list[ClientHealingIssueSummary])
+async def get_my_healing_issues(
+    aftercare_id: UUID,
+    current_client: Client = Depends(get_current_client),
+    db: AsyncSession = Depends(get_db),
+) -> list[ClientHealingIssueSummary]:
+    """
+    Get healing issues reported for a specific aftercare record.
+    """
+    # Verify the aftercare record belongs to client
+    aftercare_query = (
+        select(AftercareSent)
+        .where(
+            AftercareSent.id == aftercare_id,
+            AftercareSent.client_email == current_client.email,
+        )
+    )
+    aftercare_result = await db.execute(aftercare_query)
+    if not aftercare_result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Aftercare instructions not found",
+        )
+
+    # Get healing issues
+    query = (
+        select(HealingIssueReport)
+        .where(HealingIssueReport.aftercare_sent_id == aftercare_id)
+        .order_by(HealingIssueReport.created_at.desc())
+    )
+    result = await db.execute(query)
+    issues = result.scalars().all()
+
+    return [
+        ClientHealingIssueSummary(
+            id=issue.id,
+            description=issue.description,
+            severity=issue.severity.value,
+            symptoms=issue.symptoms or [],
+            days_since_appointment=issue.days_since_appointment,
+            status=issue.status.value,
+            staff_notes=issue.staff_notes,
+            created_at=issue.created_at,
+        )
+        for issue in issues
+    ]
