@@ -605,4 +605,52 @@ Database:
 - Verified: Frontend build passes with no TypeScript errors
 - Verified: All endpoints registered correctly
 Status: COMPLETE
-Next: P4.1 - Appointment calendar for artists (week and day views)
+Next: P4.1 - Internal messaging system (foundation)
+
+=== ITERATION 21 ===
+Date: 2026-01-10
+Task: P4.1 - Internal messaging system (foundation)
+Changes:
+Backend:
+- backend/app/models/message.py: NEW - Conversation and Message models with:
+  - ConversationStatus enum (unread, pending, resolved)
+  - MessageChannel enum (internal, email, sms)
+  - MessageDirection enum (inbound, outbound)
+  - Conversation: client info, status, assignment, studio/booking relationships
+  - Message: content, channel, direction, sender info, read/delivery tracking
+- backend/app/models/user.py: Added assigned_conversations and sent_messages relationships
+- backend/app/models/studio.py: Added conversations relationship
+- backend/app/models/booking.py: Added conversation relationship (one-to-one)
+- backend/app/schemas/message.py: NEW - Pydantic schemas for:
+  - ConversationCreate, ConversationUpdate, ConversationSummary, ConversationResponse
+  - ConversationsListResponse, MessageCreate, MessageResponse
+  - MarkReadResponse, AssignConversationResponse
+  - ReplyTemplateCreate, ReplyTemplateResponse, ReplyTemplateUpdate
+- backend/app/routers/messages.py: NEW - Messages router with endpoints:
+  - GET /conversations - List with filtering (status, assigned_to_me, search)
+  - POST /conversations - Create new conversation
+  - GET /conversations/{id} - Get with all messages
+  - PATCH /conversations/{id} - Update status/assignment
+  - POST /conversations/{id}/assign - Assign to team member
+  - POST /conversations/{id}/messages - Send message
+  - POST /conversations/{id}/mark-read - Mark messages as read
+  - GET /stats - Inbox statistics
+
+Frontend:
+- frontend/src/types/api.ts: Added messaging types (ConversationStatus, MessageChannel,
+  MessageDirection, InboxMessage, ConversationSummary, Conversation, InboxStats)
+- frontend/src/services/messages.ts: NEW - API service with all messaging functions
+- frontend/src/pages/Inbox.tsx: NEW - Full inbox page with:
+  - Conversation list with status indicators
+  - Status filter tabs (All, Unread, Pending, Resolved)
+  - Search and "Assigned to me" filter
+  - Conversation detail view with message history
+  - Message composer for sending replies
+  - New conversation modal
+  - Empty states for no conversations/selection
+- frontend/src/components/layout/Sidebar.tsx: Removed hardcoded badge from inbox nav
+
+- Verified: Frontend build passes with no TypeScript errors
+- Verified: All endpoints registered at /api/v1/messages/*
+Status: COMPLETE
+Next: P4.2 - Email integration for messaging
