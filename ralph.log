@@ -771,3 +771,51 @@ Frontend:
 - Verified: Inbox page works correctly in browser
 Status: COMPLETE
 Next: P4.5 - Reply templates and canned responses
+
+=== ITERATION 25 ===
+Date: 2026-01-10
+Task: P4.5 - Quick reply templates
+Changes:
+Backend:
+- backend/app/models/message.py: Added ReplyTemplate model with:
+  - name (100 char), content (text), category (50 char, optional, indexed)
+  - created_by_id (FK to users), studio_id (FK to studios, optional)
+  - use_count (int, default 0), last_used_at (datetime, nullable)
+  - Relationships to User (created_by) and Studio
+- backend/app/models/__init__.py: Exported ReplyTemplate
+- backend/app/schemas/message.py: Added ReplyTemplateResponse, ReplyTemplatesListResponse
+- backend/app/routers/messages.py: Added template endpoints:
+  - GET /templates - List templates with category/search filters
+  - POST /templates - Create new template
+  - GET /templates/{id} - Get single template
+  - PUT /templates/{id} - Update template
+  - DELETE /templates/{id} - Delete template
+  - POST /templates/{id}/use - Mark as used, increment use_count
+  - GET /templates/categories/list - Get unique categories
+
+Frontend:
+- frontend/src/types/api.ts: Added TypeScript types
+  - ReplyTemplate, ReplyTemplateCreate, ReplyTemplateUpdate
+  - ReplyTemplatesListResponse, TemplateCategoriesResponse
+- frontend/src/services/messages.ts: Added service functions
+  - listReplyTemplates(), createReplyTemplate(), getReplyTemplate()
+  - updateReplyTemplate(), deleteReplyTemplate(), useReplyTemplate()
+  - getTemplateCategories()
+- frontend/src/pages/Inbox.tsx: Added template UI
+  - Lightning bolt (⚡) button in message input area
+  - Templates dropdown with search and category filter
+  - Template list showing name, category, and use count
+  - "+ New" button for creating templates
+  - Edit/delete buttons on each template
+  - Template create/edit modal with name, category, content fields
+  - Inserting template appends content to message input
+
+Database:
+- Created reply_templates table with all columns and indexes
+
+- Verified: Frontend build passes with no TypeScript errors
+- Verified: Templates dropdown opens and shows empty state
+- Verified: Create template modal renders with proper fields
+- Verified: All CRUD endpoints registered at /api/v1/messages/templates/*
+Status: COMPLETE
+Next: P4.6 - Message status (unread, pending, resolved)
