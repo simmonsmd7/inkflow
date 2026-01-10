@@ -975,3 +975,91 @@ Database:
 - Verified: All commission endpoints registered in OpenAPI spec
 Status: COMPLETE
 Next: P5.4 - Pay period tracking (weekly/bi-weekly)
+
+=== ITERATION 30 ===
+Date: 2026-01-10
+Task: P5.4 - Pay period tracking (weekly, bi-weekly, monthly)
+Changes:
+Backend Models:
+- backend/app/models/commission.py:
+  - Added PayPeriodSchedule enum: weekly, biweekly, semimonthly, monthly
+  - Added PayPeriodStatus enum: open, closed, paid
+  - Added PayPeriod model with:
+    - studio_id, start_date, end_date, status
+    - Denormalized totals: total_service, total_studio_commission, total_artist_payout, total_tips
+    - commission_count, closed_at, paid_at, payout_reference, payment_notes
+  - Added pay_period_id to EarnedCommission model
+  - Added pay_period relationship to EarnedCommission
+- backend/app/models/studio.py:
+  - Added pay_period_schedule column (PayPeriodSchedule)
+  - Added pay_period_start_day column (Integer, default 1)
+  - Added pay_periods relationship
+- backend/app/models/__init__.py: Exported PayPeriod, PayPeriodSchedule, PayPeriodStatus
+
+Backend Schemas:
+- backend/app/schemas/commission.py: Added comprehensive schemas:
+  - PayPeriodSchedule, PayPeriodStatus (literal types)
+  - PayPeriodSettingsBase, PayPeriodSettingsUpdate, PayPeriodSettingsResponse
+  - PayPeriodBase, PayPeriodCreate, PayPeriodSummary, PayPeriodResponse
+  - PayPeriodWithCommissions (includes earned_commissions list)
+  - PayPeriodsListResponse
+  - AssignToPayPeriodInput, AssignToPayPeriodResponse
+  - ClosePayPeriodInput, ClosePayPeriodResponse
+  - MarkPayPeriodPaidInput, MarkPayPeriodPaidResponse
+- backend/app/schemas/__init__.py: Exported all new pay period schemas
+
+Backend Router:
+- backend/app/routers/commissions.py: Added pay period endpoints:
+  - GET /pay-periods/settings - Get studio pay period settings
+  - PUT /pay-periods/settings - Update studio pay period settings
+  - GET /pay-periods - List pay periods with status filter
+  - POST /pay-periods - Create new pay period
+  - GET /pay-periods/{id} - Get pay period with all commissions
+  - POST /pay-periods/{id}/assign - Assign earned commissions to pay period
+  - POST /pay-periods/{id}/close - Close pay period (no more assignments)
+  - POST /pay-periods/{id}/mark-paid - Mark pay period as paid
+  - DELETE /pay-periods/{id} - Delete open pay period
+  - GET /pay-periods/unassigned - List unassigned commissions
+  - Helper: recalculate_pay_period_totals() - Keep denormalized totals in sync
+
+Frontend Types:
+- frontend/src/types/api.ts: Added TypeScript types:
+  - PayPeriodSchedule, PayPeriodStatus types
+  - PayPeriodSettings, PayPeriodSettingsUpdate interfaces
+  - PayPeriodCreate, PayPeriodSummary, PayPeriod interfaces
+  - EarnedCommission, EarnedCommissionsListResponse interfaces
+  - PayPeriodWithCommissions, PayPeriodsListResponse interfaces
+  - AssignToPayPeriodInput, AssignToPayPeriodResponse interfaces
+  - ClosePayPeriodInput, ClosePayPeriodResponse interfaces
+  - MarkPayPeriodPaidInput, MarkPayPeriodPaidResponse interfaces
+
+Frontend Service:
+- frontend/src/services/commissions.ts: Added API functions:
+  - getPayPeriodSettings, updatePayPeriodSettings
+  - listPayPeriods, createPayPeriod, getPayPeriod
+  - assignToPayPeriod, closePayPeriod, markPayPeriodPaid
+  - deletePayPeriod, listUnassignedCommissions
+  - listEarnedCommissions
+
+Frontend UI:
+- frontend/src/pages/Commissions.tsx: Extended with Pay Periods tab:
+  - Tab navigation: Rules, Artists, Earned, Pay Periods
+  - Pay Periods list view with status filtering (all, open, closed, paid)
+  - Status badges with color coding (amber=open, blue=closed, green=paid)
+  - Pay Period detail view showing assigned commissions
+  - Create Pay Period modal
+  - Settings modal for configuring pay period schedule
+  - Assign Commissions modal (multi-select unassigned commissions)
+  - Mark Paid modal with payout reference and notes
+  - Close pay period action
+  - Denormalized totals display (service total, studio share, artist payout, tips)
+
+Database:
+- Added pay_period_id column to earned_commissions table
+- Added pay_period_schedule, pay_period_start_day columns to studios table
+- pay_periods table created via SQLAlchemy create_all
+
+- Verified: Frontend build passes with no TypeScript errors
+- Verified: Backend imports successfully with all new models
+Status: COMPLETE
+Next: P5.5 - Commission reports/export
