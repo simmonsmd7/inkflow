@@ -21,6 +21,7 @@ import {
   StubCheckout,
   StudioSettings,
   Team,
+  TouchUpRequest,
 } from './pages';
 
 function App() {
@@ -33,6 +34,7 @@ function App() {
       <Route path="/pay-deposit/:token/success" element={<PaymentSuccess />} />
       <Route path="/sign/:studioSlug/:templateId" element={<ConsentSigning />} />
       <Route path="/consent/view/:accessToken" element={<ConsentView />} />
+      <Route path="/aftercare/:accessToken/touch-up" element={<TouchUpRequest />} />
 
       {/* Auth routes - no layout */}
       <Route path="/login" element={<Login />} />

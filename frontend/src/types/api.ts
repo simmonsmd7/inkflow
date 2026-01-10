@@ -1657,3 +1657,49 @@ export interface HealingIssueUpdate {
   resolution_notes?: string;
   touch_up_requested?: boolean;
 }
+
+// Touch-up Scheduling Types
+
+export interface TouchUpBookingInfo {
+  booking_id: string;
+  reference_id: string;
+  status: string;
+  scheduled_date: string | null;
+  artist_name: string | null;
+  is_free_touch_up: boolean;
+  created_at: string;
+}
+
+export interface HealingIssueWithTouchUp extends HealingIssueResponse {
+  touch_up_booking: TouchUpBookingInfo | null;
+}
+
+export interface TouchUpScheduleInput {
+  scheduled_date: string;
+  duration_hours?: number;
+  artist_id?: string;
+  notes?: string;
+  send_confirmation?: boolean;
+  is_free_touch_up?: boolean;
+}
+
+export interface TouchUpResponse {
+  healing_issue_id: string;
+  booking_id: string;
+  reference_id: string;
+  message: string;
+  client_notified: boolean;
+}
+
+export interface ClientTouchUpRequestInput {
+  reason: string;
+  preferred_dates?: string[];
+  additional_notes?: string;
+}
+
+export interface ClientTouchUpRequestResponse {
+  request_id: string;
+  message: string;
+  studio_name: string;
+  expected_contact_within: string;
+}

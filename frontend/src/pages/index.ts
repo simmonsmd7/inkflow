@@ -22,3 +22,4 @@ export { ResetPassword } from './ResetPassword';
 export { StubCheckout } from './StubCheckout';
 export { StudioSettings } from './StudioSettings';
 export { Team } from './Team';
+export { TouchUpRequest } from './TouchUpRequest';

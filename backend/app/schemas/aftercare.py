@@ -357,3 +357,73 @@ class FollowUpUpdate(BaseModel):
     message_html: str | None = None
     message_plain: str | None = None
     send_via: Literal["email", "sms"] | None = None
+
+
+# === Touch-up Scheduling Schemas ===
+
+class TouchUpRequestInput(BaseModel):
+    """Input for requesting a touch-up from a healing issue."""
+
+    preferred_dates: list[str] | None = Field(
+        default=None,
+        max_length=5,
+        description="List of preferred date strings"
+    )
+    notes: str | None = Field(default=None, max_length=1000)
+    contact_preference: Literal["email", "phone", "both"] = Field(default="email")
+
+
+class TouchUpScheduleInput(BaseModel):
+    """Input for staff to schedule a touch-up appointment."""
+
+    scheduled_date: datetime = Field(..., description="Date and time for the touch-up")
+    duration_hours: float = Field(default=1.0, ge=0.5, le=8.0)
+    artist_id: UUID | None = Field(default=None, description="Assign to specific artist")
+    notes: str | None = Field(default=None, max_length=2000)
+    send_confirmation: bool = Field(default=True)
+    is_free_touch_up: bool = Field(default=True, description="Whether this is a complimentary touch-up")
+
+
+class TouchUpBookingInfo(BaseModel):
+    """Information about a touch-up booking linked to a healing issue."""
+
+    booking_id: UUID
+    reference_id: str
+    status: str
+    scheduled_date: datetime | None
+    artist_name: str | None
+    is_free_touch_up: bool
+    created_at: datetime
+
+
+class TouchUpResponse(BaseModel):
+    """Response after creating/scheduling a touch-up."""
+
+    healing_issue_id: UUID
+    booking_id: UUID
+    reference_id: str
+    message: str
+    client_notified: bool
+
+
+class HealingIssueWithTouchUp(HealingIssueResponse):
+    """Healing issue with touch-up booking details."""
+
+    touch_up_booking: TouchUpBookingInfo | None = None
+
+
+class ClientTouchUpRequestInput(BaseModel):
+    """Client-facing input for requesting a touch-up."""
+
+    reason: str = Field(..., min_length=10, max_length=1000, description="Description of why touch-up is needed")
+    preferred_dates: list[str] | None = Field(default=None, max_length=5)
+    additional_notes: str | None = Field(default=None, max_length=500)
+
+
+class ClientTouchUpRequestResponse(BaseModel):
+    """Response to client's touch-up request."""
+
+    request_id: UUID
+    message: str
+    studio_name: str
+    expected_contact_within: str = Field(default="24-48 hours")

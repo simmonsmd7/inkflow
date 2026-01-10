@@ -32,6 +32,9 @@ import {
   getHealingIssueStatusLabel,
   getHealingIssueStatusColor,
   HEALING_ISSUE_SYMPTOMS,
+  getHealingIssueWithTouchUp,
+  scheduleTouchUp,
+  cancelTouchUp,
 } from '../services/aftercare';
 import type {
   AftercareTemplateSummary,
@@ -48,6 +51,8 @@ import type {
   HealingIssueResponse,
   HealingIssueSeverity,
   HealingIssueStatus,
+  HealingIssueWithTouchUp,
+  TouchUpScheduleInput,
 } from '../types/api';
 
 const TATTOO_TYPES: TattooType[] = [
@@ -102,6 +107,18 @@ export function Aftercare() {
   const [acknowledgeNotes, setAcknowledgeNotes] = useState('');
   const [resolveNotes, setResolveNotes] = useState('');
   const [requestTouchUp, setRequestTouchUp] = useState(false);
+
+  // Touch-up scheduling state
+  const [showTouchUpModal, setShowTouchUpModal] = useState(false);
+  const [selectedIssueWithTouchUp, setSelectedIssueWithTouchUp] = useState<HealingIssueWithTouchUp | null>(null);
+  const [touchUpForm, setTouchUpForm] = useState<TouchUpScheduleInput>({
+    scheduled_date: '',
+    duration_hours: 1.0,
+    notes: '',
+    send_confirmation: true,
+    is_free_touch_up: true,
+  });
+  const [schedulingTouchUp, setSchedulingTouchUp] = useState(false);
 
   // Edit form state
   const [editForm, setEditForm] = useState<AftercareTemplateCreate>({
@@ -282,6 +299,76 @@ export function Aftercare() {
   function getSymptomLabel(symptomId: string): string {
     const symptom = HEALING_ISSUE_SYMPTOMS.find((s) => s.id === symptomId);
     return symptom?.label || symptomId;
+  }
+
+  async function handleOpenTouchUpModal(issueId: string) {
+    try {
+      setLoadingIssues(true);
+      const issueWithTouchUp = await getHealingIssueWithTouchUp(issueId);
+      setSelectedIssueWithTouchUp(issueWithTouchUp);
+      // Set default date to tomorrow at 10am
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(10, 0, 0, 0);
+      setTouchUpForm({
+        scheduled_date: tomorrow.toISOString().slice(0, 16),
+        duration_hours: 1.0,
+        notes: `Touch-up for healing issue reported on ${new Date(issueWithTouchUp.created_at).toLocaleDateString()}`,
+        send_confirmation: true,
+        is_free_touch_up: true,
+      });
+      setShowTouchUpModal(true);
+    } catch (err) {
+      setError('Failed to load touch-up information');
+      console.error(err);
+    } finally {
+      setLoadingIssues(false);
+    }
+  }
+
+  async function handleScheduleTouchUp() {
+    if (!selectedIssueWithTouchUp || !touchUpForm.scheduled_date) {
+      setError('Please select a date and time for the touch-up');
+      return;
+    }
+
+    try {
+      setSchedulingTouchUp(true);
+      setError(null);
+      await scheduleTouchUp(selectedIssueWithTouchUp.id, touchUpForm);
+      setSuccess('Touch-up appointment scheduled successfully');
+      setShowTouchUpModal(false);
+      setSelectedIssueWithTouchUp(null);
+      setSelectedIssue(null);
+      loadHealingIssues();
+    } catch (err) {
+      setError('Failed to schedule touch-up appointment');
+      console.error(err);
+    } finally {
+      setSchedulingTouchUp(false);
+    }
+  }
+
+  async function handleCancelTouchUp(issueId: string) {
+    if (!confirm('Are you sure you want to unlink the touch-up booking from this issue?')) {
+      return;
+    }
+
+    try {
+      setProcessingIssue(issueId);
+      setError(null);
+      await cancelTouchUp(issueId);
+      setSuccess('Touch-up booking unlinked from issue');
+      // Refresh the issue with touch-up data
+      const issueWithTouchUp = await getHealingIssueWithTouchUp(issueId);
+      setSelectedIssueWithTouchUp(issueWithTouchUp);
+      loadHealingIssues();
+    } catch (err) {
+      setError('Failed to cancel touch-up');
+      console.error(err);
+    } finally {
+      setProcessingIssue(null);
+    }
   }
 
   async function loadTemplates() {
@@ -1083,8 +1170,36 @@ export function Aftercare() {
                   <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-3">
                     <p className="text-green-400 whitespace-pre-wrap">{selectedIssue.resolution_notes}</p>
                   </div>
-                  {selectedIssue.touch_up_requested && (
-                    <p className="text-sm text-yellow-400 mt-2">Touch-up recommended</p>
+                </div>
+              )}
+
+              {/* Touch-up Status */}
+              {selectedIssue.touch_up_requested && (
+                <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-medium text-yellow-400 mb-1">Touch-up Recommended</h3>
+                      <p className="text-sm text-ink-400">
+                        {selectedIssue.touch_up_booking_id
+                          ? 'A touch-up appointment has been scheduled for this issue.'
+                          : 'Schedule a touch-up appointment to help resolve this healing issue.'}
+                      </p>
+                    </div>
+                    {canEdit && !selectedIssue.touch_up_booking_id && (
+                      <button
+                        onClick={() => handleOpenTouchUpModal(selectedIssue.id)}
+                        className="px-4 py-2 bg-yellow-500/20 text-yellow-400 rounded-lg hover:bg-yellow-500/30 transition-colors text-sm font-medium whitespace-nowrap ml-4"
+                      >
+                        Schedule Touch-up
+                      </button>
+                    )}
+                  </div>
+                  {selectedIssue.touch_up_booking_id && (
+                    <div className="mt-3 pt-3 border-t border-yellow-500/20">
+                      <p className="text-xs text-ink-500">
+                        Booking ID: {selectedIssue.touch_up_booking_id}
+                      </p>
+                    </div>
                   )}
                 </div>
               )}
@@ -1600,6 +1715,133 @@ export function Aftercare() {
               >
                 {saving ? 'Deleting...' : 'Delete'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Touch-up Scheduling Modal */}
+      {showTouchUpModal && selectedIssueWithTouchUp && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4">
+          <div className="bg-ink-800 rounded-xl border border-ink-700 max-w-lg w-full p-6">
+            <h2 className="text-xl font-bold text-ink-100 mb-2">Schedule Touch-up Appointment</h2>
+            <p className="text-ink-400 mb-6">
+              Schedule a touch-up session for the healing issue reported by the client.
+            </p>
+
+            {/* Existing booking info */}
+            {selectedIssueWithTouchUp.touch_up_booking && (
+              <div className="mb-6 p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                <h3 className="text-sm font-medium text-blue-400 mb-2">Existing Touch-up Booking</h3>
+                <div className="text-sm text-ink-300 space-y-1">
+                  <p>Reference: {selectedIssueWithTouchUp.touch_up_booking.reference_id}</p>
+                  <p>Status: {selectedIssueWithTouchUp.touch_up_booking.status}</p>
+                  {selectedIssueWithTouchUp.touch_up_booking.scheduled_date && (
+                    <p>
+                      Scheduled: {new Date(selectedIssueWithTouchUp.touch_up_booking.scheduled_date).toLocaleString()}
+                    </p>
+                  )}
+                  {selectedIssueWithTouchUp.touch_up_booking.artist_name && (
+                    <p>Artist: {selectedIssueWithTouchUp.touch_up_booking.artist_name}</p>
+                  )}
+                </div>
+                <button
+                  onClick={() => handleCancelTouchUp(selectedIssueWithTouchUp.id)}
+                  disabled={processingIssue === selectedIssueWithTouchUp.id}
+                  className="mt-3 text-sm text-red-400 hover:text-red-300"
+                >
+                  Unlink this booking
+                </button>
+              </div>
+            )}
+
+            {/* Schedule form - only show if no existing booking */}
+            {!selectedIssueWithTouchUp.touch_up_booking && (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-ink-300 mb-2">
+                    Date & Time *
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={touchUpForm.scheduled_date}
+                    onChange={(e) => setTouchUpForm({ ...touchUpForm, scheduled_date: e.target.value })}
+                    className="w-full px-3 py-2 bg-ink-900 border border-ink-600 rounded-lg text-ink-100 focus:outline-none focus:border-accent-primary"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-ink-300 mb-2">
+                    Duration (hours)
+                  </label>
+                  <select
+                    value={touchUpForm.duration_hours}
+                    onChange={(e) => setTouchUpForm({ ...touchUpForm, duration_hours: parseFloat(e.target.value) })}
+                    className="w-full px-3 py-2 bg-ink-900 border border-ink-600 rounded-lg text-ink-100 focus:outline-none focus:border-accent-primary"
+                  >
+                    <option value={0.5}>30 minutes</option>
+                    <option value={1}>1 hour</option>
+                    <option value={1.5}>1.5 hours</option>
+                    <option value={2}>2 hours</option>
+                    <option value={3}>3 hours</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-ink-300 mb-2">
+                    Notes (optional)
+                  </label>
+                  <textarea
+                    value={touchUpForm.notes || ''}
+                    onChange={(e) => setTouchUpForm({ ...touchUpForm, notes: e.target.value })}
+                    className="w-full px-3 py-2 bg-ink-900 border border-ink-600 rounded-lg text-ink-100 focus:outline-none focus:border-accent-primary"
+                    rows={3}
+                    placeholder="Any notes about the touch-up session..."
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={touchUpForm.is_free_touch_up}
+                      onChange={(e) => setTouchUpForm({ ...touchUpForm, is_free_touch_up: e.target.checked })}
+                      className="w-4 h-4 rounded border-ink-600 bg-ink-900 text-accent-primary focus:ring-accent-primary"
+                    />
+                    <span className="text-sm text-ink-300">Free touch-up (no charge to client)</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={touchUpForm.send_confirmation}
+                      onChange={(e) => setTouchUpForm({ ...touchUpForm, send_confirmation: e.target.checked })}
+                      className="w-4 h-4 rounded border-ink-600 bg-ink-900 text-accent-primary focus:ring-accent-primary"
+                    />
+                    <span className="text-sm text-ink-300">Send confirmation email to client</span>
+                  </label>
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowTouchUpModal(false);
+                  setSelectedIssueWithTouchUp(null);
+                }}
+                className="px-4 py-2 text-ink-300 hover:bg-ink-700 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              {!selectedIssueWithTouchUp.touch_up_booking && (
+                <button
+                  onClick={handleScheduleTouchUp}
+                  disabled={schedulingTouchUp || !touchUpForm.scheduled_date}
+                  className="px-4 py-2 bg-accent-primary text-ink-900 rounded-lg hover:bg-accent-primary/90 transition-colors font-medium disabled:opacity-50"
+                >
+                  {schedulingTouchUp ? 'Scheduling...' : 'Schedule Touch-up'}
+                </button>
+              )}
             </div>
           </div>
         </div>

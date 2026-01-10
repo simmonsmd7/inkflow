@@ -2170,3 +2170,460 @@ async def get_issues_by_aftercare(
     issues = issues_result.scalars().all()
 
     return [healing_issue_to_summary(i) for i in issues]
+
+
+# === Touch-up Scheduling Endpoints ===
+
+from app.schemas.aftercare import (
+    ClientTouchUpRequestInput,
+    ClientTouchUpRequestResponse,
+    HealingIssueWithTouchUp,
+    TouchUpBookingInfo,
+    TouchUpRequestInput,
+    TouchUpResponse,
+    TouchUpScheduleInput,
+)
+from app.models.booking import BookingRequest, BookingRequestStatus, TattooSize
+
+
+def get_touch_up_booking_info(booking: BookingRequest, user: User | None = None) -> TouchUpBookingInfo:
+    """Convert booking to touch-up booking info."""
+    artist_name = None
+    if booking.assigned_artist:
+        artist_name = booking.assigned_artist.full_name
+    elif user:
+        artist_name = user.full_name
+
+    return TouchUpBookingInfo(
+        booking_id=booking.id,
+        reference_id=booking.reference_id,
+        status=booking.status.value,
+        scheduled_date=booking.scheduled_date,
+        artist_name=artist_name,
+        is_free_touch_up=booking.quoted_price == 0 or booking.quoted_price is None,
+        created_at=booking.created_at,
+    )
+
+
+@router.get("/healing-issues/{issue_id}/touch-up", response_model=HealingIssueWithTouchUp)
+async def get_healing_issue_with_touch_up(
+    issue_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Get a healing issue with its touch-up booking information.
+    """
+    studio = await get_user_studio(current_user, db)
+
+    stmt = select(HealingIssueReport).where(
+        HealingIssueReport.id == issue_id,
+        HealingIssueReport.studio_id == studio.id,
+    ).options(
+        selectinload(HealingIssueReport.touch_up_booking).selectinload(BookingRequest.assigned_artist),
+    )
+    result = await db.execute(stmt)
+    issue = result.scalar_one_or_none()
+
+    if not issue:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Healing issue not found"
+        )
+
+    # Build response
+    base_response = healing_issue_to_response(issue)
+    touch_up_booking = None
+
+    if issue.touch_up_booking:
+        touch_up_booking = get_touch_up_booking_info(issue.touch_up_booking)
+
+    return HealingIssueWithTouchUp(
+        **base_response.model_dump(),
+        touch_up_booking=touch_up_booking,
+    )
+
+
+@router.post("/healing-issues/{issue_id}/schedule-touch-up", response_model=TouchUpResponse)
+async def schedule_touch_up(
+    issue_id: str,
+    data: TouchUpScheduleInput,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role([UserRole.OWNER, UserRole.ARTIST])),
+):
+    """
+    Schedule a touch-up appointment for a healing issue.
+
+    Creates a new booking request linked to the healing issue.
+    """
+    from app.services.email import email_service
+    from app.services.calendar import generate_tattoo_appointment_ics
+    from app.config import get_settings
+
+    studio = await get_user_studio(current_user, db)
+    settings = get_settings()
+
+    # Get the healing issue with aftercare record
+    stmt = select(HealingIssueReport).where(
+        HealingIssueReport.id == issue_id,
+        HealingIssueReport.studio_id == studio.id,
+    ).options(
+        selectinload(HealingIssueReport.aftercare_sent),
+    )
+    result = await db.execute(stmt)
+    issue = result.scalar_one_or_none()
+
+    if not issue:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Healing issue not found"
+        )
+
+    if issue.touch_up_booking_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Touch-up already scheduled for this issue"
+        )
+
+    sent_record = issue.aftercare_sent
+    if not sent_record:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No aftercare record found for this issue"
+        )
+
+    # Get original booking for context if available
+    original_booking = None
+    if sent_record.booking_request_id:
+        original_stmt = select(BookingRequest).where(
+            BookingRequest.id == sent_record.booking_request_id
+        )
+        original_result = await db.execute(original_stmt)
+        original_booking = original_result.scalar_one_or_none()
+
+    # Determine artist
+    artist_id = data.artist_id
+    if not artist_id and sent_record.artist_id:
+        artist_id = sent_record.artist_id
+    if not artist_id:
+        artist_id = current_user.id
+
+    # Generate reference ID for touch-up
+    import secrets
+    reference_id = f"TU-{secrets.token_hex(4).upper()}"
+
+    # Create the touch-up booking request
+    touch_up_booking = BookingRequest(
+        studio_id=studio.id,
+        client_name=sent_record.client_name,
+        client_email=sent_record.client_email,
+        client_phone=sent_record.client_phone,
+        design_idea=f"Touch-up for healing issue (Original: {sent_record.tattoo_description or 'tattoo'})",
+        placement=original_booking.placement if original_booking else sent_record.placement.value if sent_record.placement else None,
+        size=TattooSize.TINY,  # Touch-ups are typically small
+        is_cover_up=False,
+        is_first_tattoo=False,
+        additional_notes=f"Touch-up scheduled from healing issue.\n\nHealing Issue Description:\n{issue.description}\n\nNotes: {data.notes or 'N/A'}",
+        preferred_artist_id=artist_id,
+        assigned_artist_id=artist_id,
+        status=BookingRequestStatus.CONFIRMED,
+        quoted_price=0 if data.is_free_touch_up else None,
+        deposit_amount=0,
+        estimated_hours=data.duration_hours,
+        scheduled_date=data.scheduled_date,
+        scheduled_duration_hours=data.duration_hours,
+        reference_id=reference_id,
+        internal_notes=f"Touch-up from healing issue {issue_id}. Free: {data.is_free_touch_up}",
+    )
+
+    db.add(touch_up_booking)
+    await db.flush()  # Get the ID
+
+    # Link healing issue to the booking
+    issue.touch_up_booking_id = touch_up_booking.id
+    issue.touch_up_requested = True
+
+    await db.commit()
+    await db.refresh(touch_up_booking)
+
+    # Send confirmation email if requested
+    client_notified = False
+    if data.send_confirmation:
+        # Get artist name
+        artist_name = current_user.full_name
+        if artist_id != current_user.id:
+            artist_stmt = select(User).where(User.id == artist_id)
+            artist_result = await db.execute(artist_stmt)
+            artist = artist_result.scalar_one_or_none()
+            if artist:
+                artist_name = artist.full_name
+
+        # Generate calendar invite
+        ics_content = generate_tattoo_appointment_ics(
+            client_name=sent_record.client_name,
+            client_email=sent_record.client_email,
+            artist_name=artist_name,
+            studio_name=studio.name,
+            studio_address=f"{studio.address_line1 or ''}, {studio.city or ''}, {studio.state or ''}" if studio.address_line1 else "See studio website for address",
+            scheduled_date=data.scheduled_date,
+            duration_hours=data.duration_hours,
+            design_description="Touch-up appointment",
+        )
+
+        touch_up_text = "complimentary touch-up" if data.is_free_touch_up else "touch-up"
+
+        email_sent = await email_service.send_email(
+            to_email=sent_record.client_email,
+            subject=f"Your Touch-up Appointment is Confirmed - {studio.name}",
+            html_content=f"""
+                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2 style="color: #10B981;">Touch-up Appointment Confirmed</h2>
+                    <p>Hi {sent_record.client_name},</p>
+                    <p>Great news! Your {touch_up_text} appointment has been scheduled.</p>
+
+                    <div style="background: #F3F4F6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                        <p><strong>Reference:</strong> {reference_id}</p>
+                        <p><strong>Date:</strong> {data.scheduled_date.strftime('%A, %B %d, %Y')}</p>
+                        <p><strong>Time:</strong> {data.scheduled_date.strftime('%I:%M %p')}</p>
+                        <p><strong>Duration:</strong> {data.duration_hours} hour(s)</p>
+                        <p><strong>Artist:</strong> {artist_name}</p>
+                        <p><strong>Studio:</strong> {studio.name}</p>
+                        {f'<p><strong>Price:</strong> Complimentary</p>' if data.is_free_touch_up else ''}
+                    </div>
+
+                    <p>A calendar invite is attached to this email.</p>
+
+                    <p><strong>Before your appointment:</strong></p>
+                    <ul>
+                        <li>Ensure your tattoo is fully healed before the touch-up</li>
+                        <li>Keep the area moisturized</li>
+                        <li>Avoid sun exposure on the tattoo</li>
+                    </ul>
+
+                    <p>If you need to reschedule, please contact us as soon as possible.</p>
+
+                    <p>See you soon!<br>{studio.name}</p>
+                </div>
+            """,
+            plain_content=f"""
+Touch-up Appointment Confirmed
+
+Hi {sent_record.client_name},
+
+Great news! Your {touch_up_text} appointment has been scheduled.
+
+Reference: {reference_id}
+Date: {data.scheduled_date.strftime('%A, %B %d, %Y')}
+Time: {data.scheduled_date.strftime('%I:%M %p')}
+Duration: {data.duration_hours} hour(s)
+Artist: {artist_name}
+Studio: {studio.name}
+{'Price: Complimentary' if data.is_free_touch_up else ''}
+
+Before your appointment:
+- Ensure your tattoo is fully healed before the touch-up
+- Keep the area moisturized
+- Avoid sun exposure on the tattoo
+
+If you need to reschedule, please contact us as soon as possible.
+
+See you soon!
+{studio.name}
+            """,
+            attachments=[{
+                "filename": "touch-up-appointment.ics",
+                "content": ics_content,
+                "content_type": "text/calendar",
+            }] if ics_content else None,
+        )
+        client_notified = email_sent
+
+    return TouchUpResponse(
+        healing_issue_id=issue.id,
+        booking_id=touch_up_booking.id,
+        reference_id=reference_id,
+        message="Touch-up appointment scheduled successfully",
+        client_notified=client_notified,
+    )
+
+
+@router.post("/touch-up/request/{access_token}", response_model=ClientTouchUpRequestResponse)
+async def client_request_touch_up(
+    access_token: str,
+    data: ClientTouchUpRequestInput,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Public endpoint for clients to request a touch-up via their aftercare access token.
+
+    This creates a healing issue marked for touch-up, which the studio can then schedule.
+    """
+    from app.services.email import email_service
+
+    # Find the aftercare record by token
+    stmt = select(AftercareSent).where(
+        AftercareSent.access_token == access_token,
+    ).options(
+        selectinload(AftercareSent.studio),
+        selectinload(AftercareSent.artist),
+    )
+    result = await db.execute(stmt)
+    sent_record = result.scalar_one_or_none()
+
+    if not sent_record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Aftercare record not found"
+        )
+
+    studio = sent_record.studio
+    if not studio:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Studio not found"
+        )
+
+    # Calculate days since appointment
+    now = datetime.utcnow()
+    days_since = (now - sent_record.appointment_date.replace(tzinfo=None)).days
+
+    # Create a healing issue marked for touch-up
+    issue = HealingIssueReport(
+        aftercare_sent_id=sent_record.id,
+        studio_id=sent_record.studio_id,
+        description=f"Touch-up Request: {data.reason}",
+        severity=HealingIssueSeverity.MINOR,  # Touch-up requests are not urgent
+        symptoms=["touch_up_needed"],
+        days_since_appointment=max(0, days_since),
+        status=HealingIssueStatus.REPORTED,
+        photo_urls=[],
+        touch_up_requested=True,
+        staff_notes=f"Preferred dates: {', '.join(data.preferred_dates) if data.preferred_dates else 'Not specified'}\nAdditional notes: {data.additional_notes or 'None'}",
+    )
+
+    db.add(issue)
+    await db.commit()
+    await db.refresh(issue)
+
+    # Notify studio
+    notify_email = sent_record.artist.email if sent_record.artist else None
+    if not notify_email and studio.owner_id:
+        owner_stmt = select(User).where(User.id == studio.owner_id)
+        owner_result = await db.execute(owner_stmt)
+        owner = owner_result.scalar_one_or_none()
+        if owner:
+            notify_email = owner.email
+
+    if notify_email:
+        await email_service.send_email(
+            to_email=notify_email,
+            subject=f"Touch-up Request - {sent_record.client_name}",
+            html_content=f"""
+                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2 style="color: #3B82F6;">Touch-up Request Received</h2>
+                    <p>A client has requested a touch-up appointment.</p>
+
+                    <div style="background: #F3F4F6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                        <p><strong>Client:</strong> {sent_record.client_name}</p>
+                        <p><strong>Email:</strong> {sent_record.client_email}</p>
+                        <p><strong>Phone:</strong> {sent_record.client_phone or 'Not provided'}</p>
+                        <p><strong>Original Appointment:</strong> {sent_record.appointment_date.strftime('%B %d, %Y')}</p>
+                        <p><strong>Days Since:</strong> {days_since} days</p>
+                    </div>
+
+                    <div style="background: #FEF3C7; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                        <p><strong>Reason for Touch-up:</strong></p>
+                        <p style="white-space: pre-wrap;">{data.reason}</p>
+                        <p><strong>Preferred Dates:</strong> {', '.join(data.preferred_dates) if data.preferred_dates else 'Flexible'}</p>
+                        {f'<p><strong>Additional Notes:</strong> {data.additional_notes}</p>' if data.additional_notes else ''}
+                    </div>
+
+                    <p>Please log in to InkFlow to schedule the touch-up appointment.</p>
+                </div>
+            """,
+            plain_content=f"""
+Touch-up Request Received
+
+A client has requested a touch-up appointment.
+
+Client: {sent_record.client_name}
+Email: {sent_record.client_email}
+Phone: {sent_record.client_phone or 'Not provided'}
+Original Appointment: {sent_record.appointment_date.strftime('%B %d, %Y')}
+Days Since: {days_since} days
+
+Reason for Touch-up:
+{data.reason}
+
+Preferred Dates: {', '.join(data.preferred_dates) if data.preferred_dates else 'Flexible'}
+Additional Notes: {data.additional_notes or 'None'}
+
+Please log in to InkFlow to schedule the touch-up appointment.
+            """,
+        )
+
+    return ClientTouchUpRequestResponse(
+        request_id=issue.id,
+        message="Your touch-up request has been submitted. The studio will contact you soon to schedule your appointment.",
+        studio_name=studio.name,
+        expected_contact_within="24-48 hours",
+    )
+
+
+@router.get("/touch-up/pending", response_model=list[HealingIssueSummary])
+async def get_pending_touch_ups(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Get all healing issues that need touch-ups but haven't been scheduled yet.
+    """
+    studio = await get_user_studio(current_user, db)
+
+    stmt = select(HealingIssueReport).where(
+        HealingIssueReport.studio_id == studio.id,
+        HealingIssueReport.touch_up_requested == True,
+        HealingIssueReport.touch_up_booking_id.is_(None),
+    ).order_by(HealingIssueReport.created_at.asc())
+
+    result = await db.execute(stmt)
+    issues = result.scalars().all()
+
+    return [healing_issue_to_summary(i) for i in issues]
+
+
+@router.delete("/healing-issues/{issue_id}/touch-up", status_code=status.HTTP_204_NO_CONTENT)
+async def cancel_touch_up(
+    issue_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role([UserRole.OWNER, UserRole.ARTIST])),
+):
+    """
+    Unlink a touch-up booking from a healing issue.
+
+    Does NOT delete the booking - just removes the association.
+    """
+    studio = await get_user_studio(current_user, db)
+
+    stmt = select(HealingIssueReport).where(
+        HealingIssueReport.id == issue_id,
+        HealingIssueReport.studio_id == studio.id,
+    )
+    result = await db.execute(stmt)
+    issue = result.scalar_one_or_none()
+
+    if not issue:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Healing issue not found"
+        )
+
+    if not issue.touch_up_booking_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No touch-up booking linked to this issue"
+        )
+
+    issue.touch_up_booking_id = None
+    # Keep touch_up_requested = True so it shows as needing scheduling
+    await db.commit()

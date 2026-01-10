@@ -26,9 +26,15 @@ import type {
   FollowUpType,
   HealingIssueListResponse,
   HealingIssueResponse,
+  HealingIssueSummary,
   HealingIssueUpdate,
   HealingIssueSeverity,
   HealingIssueStatus,
+  HealingIssueWithTouchUp,
+  TouchUpScheduleInput,
+  TouchUpResponse,
+  ClientTouchUpRequestInput,
+  ClientTouchUpRequestResponse,
 } from '../types/api';
 
 // === Pre-built Templates ===
@@ -379,3 +385,54 @@ export const HEALING_ISSUE_SYMPTOMS = [
   { id: 'bumps', label: 'Bumps or Raised Areas' },
   { id: 'bleeding', label: 'Bleeding' },
 ];
+
+// === Touch-up Scheduling ===
+
+/**
+ * Get a healing issue with its touch-up booking information.
+ */
+export async function getHealingIssueWithTouchUp(
+  issueId: string
+): Promise<HealingIssueWithTouchUp> {
+  return api.get<HealingIssueWithTouchUp>(`/aftercare/healing-issues/${issueId}/touch-up`);
+}
+
+/**
+ * Schedule a touch-up appointment for a healing issue.
+ */
+export async function scheduleTouchUp(
+  issueId: string,
+  data: TouchUpScheduleInput
+): Promise<TouchUpResponse> {
+  return api.post<TouchUpResponse>(
+    `/aftercare/healing-issues/${issueId}/schedule-touch-up`,
+    data
+  );
+}
+
+/**
+ * Get all healing issues that need touch-ups but haven't been scheduled yet.
+ */
+export async function getPendingTouchUps(): Promise<HealingIssueSummary[]> {
+  return api.get<HealingIssueSummary[]>('/aftercare/touch-up/pending');
+}
+
+/**
+ * Unlink a touch-up booking from a healing issue.
+ */
+export async function cancelTouchUp(issueId: string): Promise<void> {
+  return api.delete(`/aftercare/healing-issues/${issueId}/touch-up`);
+}
+
+/**
+ * Client-facing: Request a touch-up via aftercare access token (public endpoint).
+ */
+export async function clientRequestTouchUp(
+  accessToken: string,
+  data: ClientTouchUpRequestInput
+): Promise<ClientTouchUpRequestResponse> {
+  return api.post<ClientTouchUpRequestResponse>(
+    `/aftercare/touch-up/request/${accessToken}`,
+    data
+  );
+}
