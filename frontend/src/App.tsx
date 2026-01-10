@@ -49,6 +49,7 @@ function App() {
           <Layout>
             <Routes>
               <Route path="/" element={<Dashboard />} />
+              <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/inbox" element={<Inbox />} />
               <Route path="/bookings" element={<BookingQueue />} />
               <Route path="/profile" element={<ArtistProfile />} />

@@ -188,6 +188,24 @@ from app.schemas.user import (
     UserLogin,
     UserResponse,
 )
+from app.schemas.analytics import (
+    ArtistPerformanceSummary,
+    BookingAnalyticsResponse,
+    BookingMetrics,
+    BookingStatusBreakdown,
+    ClientRetentionMetrics,
+    DashboardResponse,
+    DashboardStats,
+    NoShowMetrics,
+    OccupancyMetrics,
+    PopularTimeSlot,
+    RecentActivity,
+    RevenueChartData,
+    RevenueChartResponse,
+    RevenueMetrics,
+    TimeSlotAnalyticsResponse,
+    UpcomingAppointment,
+)
 
 __all__ = [
     # Aftercare schemas
@@ -364,4 +382,21 @@ __all__ = [
     "UserDetailResponse",
     "UserLogin",
     "UserResponse",
+    # Analytics schemas
+    "ArtistPerformanceSummary",
+    "BookingAnalyticsResponse",
+    "BookingMetrics",
+    "BookingStatusBreakdown",
+    "ClientRetentionMetrics",
+    "DashboardResponse",
+    "DashboardStats",
+    "NoShowMetrics",
+    "OccupancyMetrics",
+    "PopularTimeSlot",
+    "RecentActivity",
+    "RevenueChartData",
+    "RevenueChartResponse",
+    "RevenueMetrics",
+    "TimeSlotAnalyticsResponse",
+    "UpcomingAppointment",
 ]
