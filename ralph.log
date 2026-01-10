@@ -654,3 +654,45 @@ Frontend:
 - Verified: All endpoints registered at /api/v1/messages/*
 Status: COMPLETE
 Next: P4.2 - Email integration for messaging
+
+=== ITERATION 22 ===
+Date: 2026-01-10
+Task: P4.2 - Email integration for messaging
+Changes:
+Backend:
+- backend/app/models/message.py: Added email threading fields to Message model
+  (email_message_id, email_in_reply_to, email_subject) and email_thread_token to Conversation
+- backend/app/config.py: Added inbound_email_domain setting for reply-to addresses
+- backend/app/services/email.py: Extended EmailMessage dataclass with RFC 5322 headers
+  (reply_to, message_id, in_reply_to, references); added send_conversation_message() method
+- backend/app/routers/messages.py: Updated send_message endpoint to actually send emails
+  when channel is "email"; generates email_message_id and thread_token for threading
+- backend/app/routers/webhooks.py: NEW - SendGrid Inbound Parse webhook endpoint
+  - POST /webhooks/inbound-email - Receive inbound emails and route to conversations
+  - POST /webhooks/inbound-email/test - Health check for webhook accessibility
+  - Extracts thread token from reply+{token}@domain format
+  - Strips quoted content from email replies
+  - Creates inbound Message record and updates Conversation
+- backend/app/database.py: Added get_db_context() async context manager for webhook usage
+- backend/app/routers/__init__.py: Export webhooks_router
+- backend/app/main.py: Include webhooks router
+
+Frontend:
+- frontend/src/types/api.ts: Added email fields to InboxMessage interface
+  (email_message_id, email_in_reply_to, email_subject)
+- frontend/src/pages/Inbox.tsx: Added:
+  - Channel selector (Internal/Email) for choosing message delivery method
+  - Channel badges on messages showing how they were sent (internal/email)
+  - CHANNEL_CONFIG with color styling for each channel type
+  - Updated sendMessage to include channel parameter
+
+Database:
+- Added 3 columns to messages table (email_message_id, email_in_reply_to, email_subject)
+- Added 1 column to conversations table (email_thread_token)
+- Added indexes on email_message_id and email_thread_token for lookups
+
+- Verified: Frontend build passes with no TypeScript errors
+- Verified: Backend health check passes
+- Verified: Webhook endpoints registered at /api/v1/webhooks/inbound-email
+Status: COMPLETE
+Next: P4.3 - SMS integration (Twilio)
