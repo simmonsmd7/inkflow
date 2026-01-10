@@ -885,3 +885,46 @@ Database:
 - Verified: All commission endpoints registered in OpenAPI spec
 Status: COMPLETE
 Next: P5.2 - Per-artist commission settings
+
+=== ITERATION 28 ===
+Date: 2026-01-10
+Task: P5.2 - Per-artist commission settings
+Changes:
+Frontend:
+- frontend/src/types/api.ts: Added TypeScript types for commission management
+  - CommissionType, CommissionTier, CommissionTierCreate
+  - CommissionRuleSummary, CommissionRule, CommissionRuleCreate, CommissionRuleUpdate
+  - CommissionRulesListResponse, ArtistCommissionInfo, ArtistsWithCommissionResponse
+  - AssignCommissionRuleInput, CommissionCalculationInput, CommissionCalculationResult
+- frontend/src/services/commissions.ts: NEW - Commission API service with:
+  - listCommissionRules(), getCommissionRule(), createCommissionRule()
+  - updateCommissionRule(), deleteCommissionRule()
+  - listArtistsWithCommission(), assignCommissionRule()
+  - calculateCommission(), calculateArtistCommission()
+  - formatCentsToDollars(), parseDollarsToCents() helpers
+- frontend/src/pages/Commissions.tsx: NEW - Full commission management page (~800 lines):
+  - Two tabs: Commission Rules and Artist Assignments
+  - Commission rules table with CRUD (create, edit, delete)
+  - Rule types: percentage, flat_fee, tiered with tier editor
+  - Default rule toggle and active status
+  - Artist assignments table with dropdown to assign rules
+  - Commission calculator modal for testing calculations
+  - TypeBadge component for styling commission types
+  - RBAC enforcement (owner only access)
+- frontend/src/pages/index.ts: Export Commissions page
+- frontend/src/App.tsx: Added /commissions route and Commissions import
+- frontend/src/components/layout/Sidebar.tsx: Added Commissions nav with roles: ['owner']
+
+Features:
+- Create/edit/delete commission rules with three types
+- Tiered rules support multiple revenue brackets
+- Assign rules to individual artists
+- Default studio rule that applies to unassigned artists
+- Calculator to preview commission calculations
+- Role-based access control (owner only)
+
+- Verified: Frontend build passes with no TypeScript errors
+- Verified: RBAC correctly enforces owner-only access
+- Verified: API endpoints work correctly via curl
+Status: COMPLETE
+Next: P5.3 - Automatic calculation on completed appointments
