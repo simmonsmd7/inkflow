@@ -244,3 +244,70 @@ export interface ArtistsListResponse {
   per_page: number;
   pages: number;
 }
+
+// Availability types
+export interface AvailabilitySlot {
+  id: string;
+  user_id: string;
+  day_of_week: number; // 0=Monday, 6=Sunday
+  start_time: string; // HH:MM:SS
+  end_time: string; // HH:MM:SS
+  is_available: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AvailabilitySlotCreate {
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+  is_available?: boolean;
+}
+
+export interface AvailabilitySlotUpdate {
+  start_time?: string;
+  end_time?: string;
+  is_available?: boolean;
+}
+
+export interface WeeklySchedule {
+  slots: AvailabilitySlot[];
+  user_id: string;
+}
+
+export interface BulkAvailabilityUpdate {
+  slots: AvailabilitySlotCreate[];
+}
+
+export interface TimeOff {
+  id: string;
+  user_id: string;
+  start_date: string; // YYYY-MM-DD
+  end_date: string; // YYYY-MM-DD
+  reason: string | null;
+  notes: string | null;
+  all_day: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TimeOffCreate {
+  start_date: string;
+  end_date: string;
+  reason?: string | null;
+  notes?: string | null;
+  all_day?: boolean;
+}
+
+export interface TimeOffUpdate {
+  start_date?: string;
+  end_date?: string;
+  reason?: string | null;
+  notes?: string | null;
+  all_day?: boolean;
+}
+
+export interface TimeOffListResponse {
+  time_off: TimeOff[];
+  total: number;
+}

@@ -11,7 +11,13 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
 from app.database import close_db, init_db
-from app.routers import artists_router, auth_router, studios_router, users_router
+from app.routers import (
+    artists_router,
+    auth_router,
+    availability_router,
+    studios_router,
+    users_router,
+)
 
 settings = get_settings()
 
@@ -48,6 +54,7 @@ app.add_middleware(
 # Include routers
 app.include_router(artists_router, prefix="/api/v1")
 app.include_router(auth_router, prefix="/api/v1")
+app.include_router(availability_router, prefix="/api/v1")
 app.include_router(studios_router, prefix="/api/v1")
 app.include_router(users_router, prefix="/api/v1")
 

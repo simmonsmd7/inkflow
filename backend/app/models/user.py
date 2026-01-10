@@ -12,6 +12,7 @@ from app.models.base import BaseModel, SoftDeleteMixin
 
 if TYPE_CHECKING:
     from app.models.artist import ArtistProfile
+    from app.models.availability import ArtistAvailability, ArtistTimeOff
     from app.models.studio import Studio
 
 
@@ -73,6 +74,12 @@ class User(BaseModel, SoftDeleteMixin):
     )
     artist_profile: Mapped["ArtistProfile | None"] = relationship(
         "ArtistProfile", back_populates="user", uselist=False, lazy="selectin"
+    )
+    availability_slots: Mapped[list["ArtistAvailability"]] = relationship(
+        "ArtistAvailability", back_populates="user", lazy="selectin", cascade="all, delete-orphan"
+    )
+    time_off_periods: Mapped[list["ArtistTimeOff"]] = relationship(
+        "ArtistTimeOff", back_populates="user", lazy="selectin", cascade="all, delete-orphan"
     )
 
     @property
