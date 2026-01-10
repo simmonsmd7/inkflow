@@ -1141,3 +1141,39 @@ Frontend UI:
 - Verified: Backend commission routes load correctly
 Status: COMPLETE
 Next: P6.1 - Dashboard analytics for studio
+=== ITERATION 37 ===
+Date: 2026-01-10
+Task: P5.7 - Export to CSV/PDF for accounting
+Changes:
+Backend:
+- backend/requirements.txt: Added reportlab==4.2.2 for PDF generation
+- backend/app/services/export_service.py: NEW - Export service with CSV/PDF generation
+  - generate_commissions_csv/pdf: Export earned commissions
+  - generate_pay_periods_csv/pdf: Export pay periods with totals
+  - generate_artist_payouts_csv/pdf: Export artist payout summaries
+  - generate_tips_report_csv/pdf: Export tips with card/cash breakdown
+  - Professional PDF styling with headers, tables, and summaries
+- backend/app/routers/commissions.py: Added 8 export endpoints (owner-only):
+  - GET /export/commissions.csv, /export/commissions.pdf
+  - GET /export/pay-periods.csv, /export/pay-periods.pdf
+  - GET /export/artist-payouts.csv, /export/artist-payouts.pdf
+  - GET /export/tips.csv, /export/tips.pdf
+
+Frontend Service:
+- frontend/src/services/commissions.ts: Added export functions with blob download:
+  - exportPayPeriodsCsv, exportPayPeriodsPdf
+  - exportArtistPayoutsCsv, exportArtistPayoutsPdf
+  - exportTipsCsv, exportTipsPdf
+  - Helper functions: buildExportUrl, downloadExport
+
+Frontend UI:
+- frontend/src/pages/Commissions.tsx: Added export dropdown buttons to:
+  - Pay Periods tab: Export pay periods as CSV/PDF
+  - Reports tab: Export artist payouts as CSV/PDF
+  - Tips tab: Export tips report as CSV/PDF
+  - Export dropdowns with loading state and success messages
+
+- Verified: Frontend build passes with no TypeScript errors
+- Verified: Backend starts correctly with new endpoints
+Status: COMPLETE
+Next: P6.1 - Dashboard analytics for studio
