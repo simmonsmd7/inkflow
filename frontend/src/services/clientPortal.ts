@@ -18,6 +18,9 @@ import type {
   ClientHealingIssueInput,
   ClientHealingIssueResponse,
   ClientHealingIssueSummary,
+  ClientRebookingData,
+  ClientRebookingSubmit,
+  ClientRebookingResponse,
 } from '../types/api';
 
 export interface GetBookingsParams {
@@ -177,6 +180,29 @@ export const clientPortalService = {
   async getHealingIssues(aftercareId: string): Promise<ClientHealingIssueSummary[]> {
     return api.get<ClientHealingIssueSummary[]>(
       `/api/v1/client/portal/aftercare/${aftercareId}/issues`,
+      { headers: getClientAuthHeaders() }
+    );
+  },
+
+  // ============ Rebooking Functions ============
+
+  /**
+   * Get rebooking data for a completed booking.
+   */
+  async getRebookingData(bookingId: string): Promise<ClientRebookingData> {
+    return api.get<ClientRebookingData>(
+      `/api/v1/client/portal/rebooking/${bookingId}`,
+      { headers: getClientAuthHeaders() }
+    );
+  },
+
+  /**
+   * Submit a rebooking request.
+   */
+  async submitRebooking(data: ClientRebookingSubmit): Promise<ClientRebookingResponse> {
+    return api.post<ClientRebookingResponse>(
+      '/api/v1/client/portal/rebooking/submit',
+      data,
       { headers: getClientAuthHeaders() }
     );
   },

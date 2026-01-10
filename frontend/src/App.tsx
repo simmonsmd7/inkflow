@@ -12,6 +12,7 @@ import {
   ClientConsentForms,
   ClientLogin,
   ClientPortal,
+  ClientRebooking,
   ClientRegister,
   ClientUpcomingAppointments,
   ClientRetention,
@@ -63,6 +64,7 @@ function App() {
       <Route path="/client/consent" element={<ClientConsentForms />} />
       <Route path="/client/aftercare" element={<ClientAftercareInstructions />} />
       <Route path="/client/aftercare/:aftercareId" element={<ClientAftercareInstructions />} />
+      <Route path="/client/rebook/:bookingId" element={<ClientRebooking />} />
 
       {/* App routes - with layout */}
       <Route

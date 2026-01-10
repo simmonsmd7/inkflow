@@ -14,6 +14,7 @@ export { ClientBookingHistory } from './ClientBookingHistory';
 export { ClientConsentForms } from './ClientConsentForms';
 export { ClientLogin } from './ClientLogin';
 export { ClientPortal } from './ClientPortal';
+export { ClientRebooking } from './ClientRebooking';
 export { ClientRegister } from './ClientRegister';
 export { ClientUpcomingAppointments } from './ClientUpcomingAppointments';
 export { Commissions } from './Commissions';

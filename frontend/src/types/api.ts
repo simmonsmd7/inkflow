@@ -2101,3 +2101,48 @@ export interface ClientHealingIssueSummary {
   staff_notes: string | null;
   created_at: string;
 }
+
+// ============ Client Portal Rebooking Types ============
+
+export interface ClientRebookingArtistInfo {
+  id: string;
+  name: string;
+  specialties: string[];
+}
+
+export interface ClientRebookingData {
+  original_booking_id: string;
+  original_design_idea: string;
+  original_placement: string;
+  original_size: string;
+  original_color_preference: string | null;
+  original_scheduled_date: string | null;
+  original_artist: ClientRebookingArtistInfo | null;
+  studio_id: string;
+  studio_name: string;
+  studio_slug: string;
+  available_artists: ClientRebookingArtistInfo[];
+  client_name: string;
+  client_email: string;
+  client_phone: string | null;
+}
+
+export interface ClientRebookingSubmit {
+  original_booking_id: string;
+  design_idea: string;
+  placement: string;
+  size: string;
+  is_cover_up?: boolean;
+  is_first_tattoo?: boolean;
+  color_preference?: string | null;
+  budget_range?: string | null;
+  additional_notes?: string | null;
+  preferred_artist_id?: string | null;
+  preferred_dates?: string | null;
+}
+
+export interface ClientRebookingResponse {
+  request_id: string;
+  message: string;
+  is_touch_up: boolean;
+}

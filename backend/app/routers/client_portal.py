@@ -1132,3 +1132,226 @@ async def get_my_healing_issues(
         )
         for issue in issues
     ]
+
+
+# ============ Rebooking Schemas ============
+
+
+class ClientRebookingArtistInfo(BaseModel):
+    """Artist info for rebooking form."""
+
+    id: UUID
+    name: str
+    specialties: list[str] = []
+
+
+class ClientRebookingData(BaseModel):
+    """Data to pre-fill a rebooking form."""
+
+    original_booking_id: UUID
+    original_design_idea: str
+    original_placement: str
+    original_size: str
+    original_color_preference: str | None
+    original_scheduled_date: datetime | None
+    original_artist: ClientRebookingArtistInfo | None
+    studio_id: UUID
+    studio_name: str
+    studio_slug: str
+    available_artists: list[ClientRebookingArtistInfo]
+    client_name: str
+    client_email: str
+    client_phone: str | None
+
+
+class ClientRebookingSubmit(BaseModel):
+    """Input for submitting a rebooking request."""
+
+    original_booking_id: UUID
+    design_idea: str = Field(..., min_length=10, max_length=2000)
+    placement: str = Field(..., min_length=1, max_length=200)
+    size: str
+    is_cover_up: bool = False
+    is_first_tattoo: bool = False
+    color_preference: str | None = None
+    budget_range: str | None = None
+    additional_notes: str | None = None
+    preferred_artist_id: UUID | None = None
+    preferred_dates: str | None = None
+
+
+class ClientRebookingResponse(BaseModel):
+    """Response after submitting a rebooking request."""
+
+    request_id: UUID
+    message: str
+    is_touch_up: bool
+
+
+# ============ Rebooking Endpoints ============
+
+
+@router.get("/rebooking/{booking_id}", response_model=ClientRebookingData)
+async def get_rebooking_data(
+    booking_id: UUID,
+    current_client: Client = Depends(get_current_client),
+    db: AsyncSession = Depends(get_db),
+) -> ClientRebookingData:
+    """
+    Get data to pre-fill a rebooking form based on a previous booking.
+
+    Can be used for touch-ups or booking a new tattoo with the same artist.
+    Only allows rebooking from completed bookings.
+    """
+    # Find the original booking
+    query = (
+        select(BookingRequest)
+        .where(
+            BookingRequest.id == booking_id,
+            BookingRequest.client_email == current_client.email,
+            BookingRequest.deleted_at.is_(None),
+        )
+        .options(
+            selectinload(BookingRequest.assigned_artist),
+            selectinload(BookingRequest.studio),
+        )
+    )
+    result = await db.execute(query)
+    booking = result.scalar_one_or_none()
+
+    if not booking:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Booking not found",
+        )
+
+    # Only allow rebooking from completed bookings
+    if booking.status.value != "completed":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Can only rebook from completed appointments",
+        )
+
+    # Get available artists from the studio
+    artists_query = (
+        select(User)
+        .where(
+            User.studio_id == booking.studio_id,
+            User.is_active.is_(True),
+            User.deleted_at.is_(None),
+        )
+    )
+    artists_result = await db.execute(artists_query)
+    artists = artists_result.scalars().all()
+
+    available_artists = [
+        ClientRebookingArtistInfo(
+            id=artist.id,
+            name=artist.full_name,
+            specialties=artist.specialties or [],
+        )
+        for artist in artists
+    ]
+
+    # Build original artist info
+    original_artist = None
+    if booking.assigned_artist:
+        original_artist = ClientRebookingArtistInfo(
+            id=booking.assigned_artist.id,
+            name=booking.assigned_artist.full_name,
+            specialties=booking.assigned_artist.specialties or [],
+        )
+
+    return ClientRebookingData(
+        original_booking_id=booking.id,
+        original_design_idea=booking.design_idea,
+        original_placement=booking.placement,
+        original_size=booking.size.value,
+        original_color_preference=booking.color_preference,
+        original_scheduled_date=booking.scheduled_date,
+        original_artist=original_artist,
+        studio_id=booking.studio_id,
+        studio_name=booking.studio.name if booking.studio else "Unknown Studio",
+        studio_slug=booking.studio.slug if booking.studio else "",
+        available_artists=available_artists,
+        client_name=booking.client_name,
+        client_email=booking.client_email,
+        client_phone=booking.client_phone,
+    )
+
+
+@router.post("/rebooking/submit", response_model=ClientRebookingResponse)
+async def submit_rebooking(
+    data: ClientRebookingSubmit,
+    current_client: Client = Depends(get_current_client),
+    db: AsyncSession = Depends(get_db),
+) -> ClientRebookingResponse:
+    """
+    Submit a rebooking request based on a previous booking.
+
+    Creates a new booking request linked to the original.
+    """
+    from app.models.booking import TattooSize, BookingRequestStatus
+
+    # Verify the original booking exists and belongs to client
+    query = (
+        select(BookingRequest)
+        .where(
+            BookingRequest.id == data.original_booking_id,
+            BookingRequest.client_email == current_client.email,
+            BookingRequest.status == "completed",
+            BookingRequest.deleted_at.is_(None),
+        )
+    )
+    result = await db.execute(query)
+    original_booking = result.scalar_one_or_none()
+
+    if not original_booking:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Original booking not found or not eligible for rebooking",
+        )
+
+    # Validate size enum
+    try:
+        size_enum = TattooSize(data.size)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid size: {data.size}",
+        )
+
+    # Check if this is likely a touch-up (same design and placement)
+    is_touch_up = (
+        data.design_idea.lower().strip() == original_booking.design_idea.lower().strip()
+        and data.placement.lower().strip() == original_booking.placement.lower().strip()
+    )
+
+    # Create the new booking request
+    new_booking = BookingRequest(
+        studio_id=original_booking.studio_id,
+        client_name=current_client.full_name or original_booking.client_name,
+        client_email=current_client.email,
+        client_phone=data.additional_notes if not current_client.phone else current_client.phone,
+        design_idea=data.design_idea,
+        placement=data.placement,
+        size=size_enum,
+        is_cover_up=data.is_cover_up,
+        is_first_tattoo=False,  # Rebooking means they've had at least one
+        color_preference=data.color_preference,
+        budget_range=data.budget_range,
+        additional_notes=f"[Rebooking from #{str(original_booking.id)[:8]}] {data.additional_notes or ''}".strip(),
+        preferred_artist_id=data.preferred_artist_id,
+        preferred_dates=data.preferred_dates,
+        status=BookingRequestStatus.PENDING,
+    )
+
+    db.add(new_booking)
+    await db.commit()
+    await db.refresh(new_booking)
+
+    return ClientRebookingResponse(
+        request_id=new_booking.id,
+        message="Touch-up request submitted successfully!" if is_touch_up else "Rebooking request submitted successfully!",
+        is_touch_up=is_touch_up,
+    )
