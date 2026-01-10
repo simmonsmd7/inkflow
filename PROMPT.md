@@ -188,12 +188,18 @@ If there are uncommitted changes from a previous crashed/interrupted iteration:
 - If build passes, commit the changes and continue
 - Log what you recovered in ralph.log
 
-**Option B: Changes are broken or incomplete**
+**Option B: Changes are incomplete but salvageable**
+- Review what was started
+- Finish the implementation
+- Run build check, then commit and continue
+- Log in ralph.log: "Recovered and completed work from crashed iteration"
+
+**Option C: Changes are broken beyond repair**
 - Reset to remote: `git reset --hard origin/main`
 - Log the reset in ralph.log: "Reset due to broken uncommitted changes"
 - Start fresh on the task
 
-**Option C: No uncommitted changes**
+**Option D: No uncommitted changes**
 - Proceed normally to step 1
 
 ### 1. Read Progress Log
