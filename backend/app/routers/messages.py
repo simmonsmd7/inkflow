@@ -243,7 +243,7 @@ async def get_conversation(
         booking = conversation.booking_request
         booking_brief = BookingBrief(
             id=booking.id,
-            reference_id=booking.reference_id,
+            reference_id=f"BK-{str(booking.id)[:8].upper()}",
             status=booking.status.value,
             client_name=booking.client_name,
             design_idea=booking.design_idea,
@@ -716,7 +716,7 @@ async def create_conversation_from_booking(
         # Return the existing conversation
         booking_brief = BookingBrief(
             id=booking.id,
-            reference_id=booking.reference_id,
+            reference_id=f"BK-{str(booking.id)[:8].upper()}",
             status=booking.status.value,
             client_name=booking.client_name,
             design_idea=booking.design_idea,
@@ -796,7 +796,7 @@ async def create_conversation_from_booking(
     # Build booking brief
     booking_brief = BookingBrief(
         id=booking.id,
-        reference_id=booking.reference_id,
+        reference_id=f"BK-{str(booking.id)[:8].upper()}",
         status=booking.status.value,
         client_name=booking.client_name,
         design_idea=booking.design_idea,

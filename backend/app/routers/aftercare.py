@@ -2195,7 +2195,7 @@ def get_touch_up_booking_info(booking: BookingRequest, user: User | None = None)
 
     return TouchUpBookingInfo(
         booking_id=booking.id,
-        reference_id=booking.reference_id,
+        reference_id=f"BK-{str(booking.id)[:8].upper()}",
         status=booking.status.value,
         scheduled_date=booking.scheduled_date,
         artist_name=artist_name,

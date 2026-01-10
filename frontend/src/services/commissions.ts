@@ -50,14 +50,14 @@ export async function listCommissionRules(
   if (isActive !== undefined) {
     params.append('is_active', isActive.toString());
   }
-  return api.get<CommissionRulesListResponse>(`/commissions?${params.toString()}`);
+  return api.get<CommissionRulesListResponse>(`/api/v1/commissions?${params.toString()}`);
 }
 
 /**
  * Get a commission rule by ID.
  */
 export async function getCommissionRule(ruleId: string): Promise<CommissionRule> {
-  return api.get<CommissionRule>(`/commissions/${ruleId}`);
+  return api.get<CommissionRule>(`/api/v1/commissions/${ruleId}`);
 }
 
 /**
@@ -66,7 +66,7 @@ export async function getCommissionRule(ruleId: string): Promise<CommissionRule>
 export async function createCommissionRule(
   data: CommissionRuleCreate
 ): Promise<CommissionRule> {
-  return api.post<CommissionRule>('/commissions', data);
+  return api.post<CommissionRule>('/api/v1/commissions', data);
 }
 
 /**
@@ -76,21 +76,21 @@ export async function updateCommissionRule(
   ruleId: string,
   data: CommissionRuleUpdate
 ): Promise<CommissionRule> {
-  return api.put<CommissionRule>(`/commissions/${ruleId}`, data);
+  return api.put<CommissionRule>(`/api/v1/commissions/${ruleId}`, data);
 }
 
 /**
  * Delete a commission rule.
  */
 export async function deleteCommissionRule(ruleId: string): Promise<MessageResponse> {
-  return api.delete<MessageResponse>(`/commissions/${ruleId}`);
+  return api.delete<MessageResponse>(`/api/v1/commissions/${ruleId}`);
 }
 
 /**
  * List all artists with their commission rule assignments.
  */
 export async function listArtistsWithCommission(): Promise<ArtistsWithCommissionResponse> {
-  return api.get<ArtistsWithCommissionResponse>('/commissions/artists/assignments');
+  return api.get<ArtistsWithCommissionResponse>('/api/v1/commissions/artists/assignments');
 }
 
 /**
@@ -100,7 +100,7 @@ export async function assignCommissionRule(
   artistId: string,
   data: AssignCommissionRuleInput
 ): Promise<ArtistCommissionInfo> {
-  return api.put<ArtistCommissionInfo>(`/commissions/artists/${artistId}/assignment`, data);
+  return api.put<ArtistCommissionInfo>(`/api/v1/commissions/artists/${artistId}/assignment`, data);
 }
 
 /**
@@ -110,7 +110,7 @@ export async function calculateCommission(
   ruleId: string,
   data: CommissionCalculationInput
 ): Promise<CommissionCalculationResult> {
-  return api.post<CommissionCalculationResult>(`/commissions/${ruleId}/calculate`, data);
+  return api.post<CommissionCalculationResult>(`/api/v1/commissions/${ruleId}/calculate`, data);
 }
 
 /**
@@ -121,7 +121,7 @@ export async function calculateArtistCommission(
   data: CommissionCalculationInput
 ): Promise<CommissionCalculationResult> {
   return api.post<CommissionCalculationResult>(
-    `/commissions/artists/${artistId}/calculate`,
+    `/api/v1/commissions/artists/${artistId}/calculate`,
     data
   );
 }
@@ -148,7 +148,7 @@ export function parseDollarsToCents(dollars: string): number {
  * Get pay period settings for the studio.
  */
 export async function getPayPeriodSettings(): Promise<PayPeriodSettings> {
-  return api.get<PayPeriodSettings>('/commissions/pay-periods/settings');
+  return api.get<PayPeriodSettings>('/api/v1/commissions/pay-periods/settings');
 }
 
 /**
@@ -157,7 +157,7 @@ export async function getPayPeriodSettings(): Promise<PayPeriodSettings> {
 export async function updatePayPeriodSettings(
   data: PayPeriodSettingsUpdate
 ): Promise<PayPeriodSettings> {
-  return api.put<PayPeriodSettings>('/commissions/pay-periods/settings', data);
+  return api.put<PayPeriodSettings>('/api/v1/commissions/pay-periods/settings', data);
 }
 
 // ============ Pay Periods CRUD ============
@@ -177,21 +177,21 @@ export async function listPayPeriods(
   if (status) {
     params.append('status', status);
   }
-  return api.get<PayPeriodsListResponse>(`/commissions/pay-periods?${params.toString()}`);
+  return api.get<PayPeriodsListResponse>(`/api/v1/commissions/pay-periods?${params.toString()}`);
 }
 
 /**
  * Create a new pay period.
  */
 export async function createPayPeriod(data: PayPeriodCreate): Promise<PayPeriod> {
-  return api.post<PayPeriod>('/commissions/pay-periods', data);
+  return api.post<PayPeriod>('/api/v1/commissions/pay-periods', data);
 }
 
 /**
  * Get a pay period by ID with its commissions.
  */
 export async function getPayPeriod(payPeriodId: string): Promise<PayPeriodWithCommissions> {
-  return api.get<PayPeriodWithCommissions>(`/commissions/pay-periods/${payPeriodId}`);
+  return api.get<PayPeriodWithCommissions>(`/api/v1/commissions/pay-periods/${payPeriodId}`);
 }
 
 /**
@@ -202,7 +202,7 @@ export async function assignToPayPeriod(
   data: AssignToPayPeriodInput
 ): Promise<AssignToPayPeriodResponse> {
   return api.post<AssignToPayPeriodResponse>(
-    `/commissions/pay-periods/${payPeriodId}/assign`,
+    `/api/v1/commissions/pay-periods/${payPeriodId}/assign`,
     data
   );
 }
@@ -215,7 +215,7 @@ export async function closePayPeriod(
   data: ClosePayPeriodInput
 ): Promise<ClosePayPeriodResponse> {
   return api.post<ClosePayPeriodResponse>(
-    `/commissions/pay-periods/${payPeriodId}/close`,
+    `/api/v1/commissions/pay-periods/${payPeriodId}/close`,
     data
   );
 }
@@ -228,7 +228,7 @@ export async function markPayPeriodPaid(
   data: MarkPayPeriodPaidInput
 ): Promise<MarkPayPeriodPaidResponse> {
   return api.post<MarkPayPeriodPaidResponse>(
-    `/commissions/pay-periods/${payPeriodId}/mark-paid`,
+    `/api/v1/commissions/pay-periods/${payPeriodId}/mark-paid`,
     data
   );
 }
@@ -237,7 +237,7 @@ export async function markPayPeriodPaid(
  * Delete a pay period.
  */
 export async function deletePayPeriod(payPeriodId: string): Promise<MessageResponse> {
-  return api.delete<MessageResponse>(`/commissions/pay-periods/${payPeriodId}`);
+  return api.delete<MessageResponse>(`/api/v1/commissions/pay-periods/${payPeriodId}`);
 }
 
 /**
@@ -252,7 +252,7 @@ export async function listUnassignedCommissions(
     page_size: pageSize.toString(),
   });
   return api.get<EarnedCommissionsListResponse>(
-    `/commissions/pay-periods/unassigned?${params.toString()}`
+    `/api/v1/commissions/pay-periods/unassigned?${params.toString()}`
   );
 }
 
@@ -285,7 +285,7 @@ export async function listEarnedCommissions(
   if (options?.unpaidOnly) {
     params.append('unpaid_only', 'true');
   }
-  return api.get<EarnedCommissionsListResponse>(`/commissions/earned?${params.toString()}`);
+  return api.get<EarnedCommissionsListResponse>(`/api/v1/commissions/earned?${params.toString()}`);
 }
 
 // ============ Payout Reports ============
@@ -311,7 +311,7 @@ export async function getPayoutHistory(
   if (options?.endDate) {
     params.append('end_date', options.endDate);
   }
-  return api.get<PayoutHistoryResponse>(`/commissions/reports/payout-history?${params.toString()}`);
+  return api.get<PayoutHistoryResponse>(`/api/v1/commissions/reports/payout-history?${params.toString()}`);
 }
 
 /**
@@ -332,7 +332,7 @@ export async function getArtistPayoutsReport(options?: {
   if (options?.paidOnly !== undefined) {
     params.append('paid_only', options.paidOnly.toString());
   }
-  return api.get<ArtistPayoutReportResponse>(`/commissions/reports/artist-payouts?${params.toString()}`);
+  return api.get<ArtistPayoutReportResponse>(`/api/v1/commissions/reports/artist-payouts?${params.toString()}`);
 }
 
 // ============ Tip Distribution ============
@@ -341,14 +341,14 @@ export async function getArtistPayoutsReport(options?: {
  * Get tip distribution settings for the studio.
  */
 export async function getTipSettings(): Promise<TipSettings> {
-  return api.get<TipSettings>('/commissions/tips/settings');
+  return api.get<TipSettings>('/api/v1/commissions/tips/settings');
 }
 
 /**
  * Update tip distribution settings for the studio.
  */
 export async function updateTipSettings(data: TipSettingsUpdate): Promise<TipSettings> {
-  return api.put<TipSettings>('/commissions/tips/settings', data);
+  return api.put<TipSettings>('/api/v1/commissions/tips/settings', data);
 }
 
 /**
@@ -365,7 +365,7 @@ export async function getTipReport(options?: {
   if (options?.endDate) {
     params.append('end_date', options.endDate);
   }
-  return api.get<TipReportResponse>(`/commissions/tips/report?${params.toString()}`);
+  return api.get<TipReportResponse>(`/api/v1/commissions/tips/report?${params.toString()}`);
 }
 
 // ============ Export Functions (CSV/PDF) ============
@@ -442,7 +442,7 @@ export async function exportCommissionsCsv(options?: {
   if (options?.endDate) params.end_date = options.endDate;
   if (options?.unpaidOnly) params.unpaid_only = 'true';
 
-  return downloadExport('/commissions/export/commissions.csv', params);
+  return downloadExport('/api/v1/commissions/export/commissions.csv', params);
 }
 
 /**
@@ -460,7 +460,7 @@ export async function exportCommissionsPdf(options?: {
   if (options?.endDate) params.end_date = options.endDate;
   if (options?.unpaidOnly) params.unpaid_only = 'true';
 
-  return downloadExport('/commissions/export/commissions.pdf', params);
+  return downloadExport('/api/v1/commissions/export/commissions.pdf', params);
 }
 
 /**
@@ -470,7 +470,7 @@ export async function exportPayPeriodsCsv(status?: PayPeriodStatus): Promise<voi
   const params: Record<string, string> = {};
   if (status) params.status = status;
 
-  return downloadExport('/commissions/export/pay-periods.csv', params);
+  return downloadExport('/api/v1/commissions/export/pay-periods.csv', params);
 }
 
 /**
@@ -480,7 +480,7 @@ export async function exportPayPeriodsPdf(status?: PayPeriodStatus): Promise<voi
   const params: Record<string, string> = {};
   if (status) params.status = status;
 
-  return downloadExport('/commissions/export/pay-periods.pdf', params);
+  return downloadExport('/api/v1/commissions/export/pay-periods.pdf', params);
 }
 
 /**
@@ -496,7 +496,7 @@ export async function exportArtistPayoutsCsv(options?: {
   if (options?.endDate) params.end_date = options.endDate;
   if (options?.paidOnly !== undefined) params.paid_only = options.paidOnly.toString();
 
-  return downloadExport('/commissions/export/artist-payouts.csv', params);
+  return downloadExport('/api/v1/commissions/export/artist-payouts.csv', params);
 }
 
 /**
@@ -512,7 +512,7 @@ export async function exportArtistPayoutsPdf(options?: {
   if (options?.endDate) params.end_date = options.endDate;
   if (options?.paidOnly !== undefined) params.paid_only = options.paidOnly.toString();
 
-  return downloadExport('/commissions/export/artist-payouts.pdf', params);
+  return downloadExport('/api/v1/commissions/export/artist-payouts.pdf', params);
 }
 
 /**
@@ -526,7 +526,7 @@ export async function exportTipsCsv(options?: {
   if (options?.startDate) params.start_date = options.startDate;
   if (options?.endDate) params.end_date = options.endDate;
 
-  return downloadExport('/commissions/export/tips.csv', params);
+  return downloadExport('/api/v1/commissions/export/tips.csv', params);
 }
 
 /**
@@ -540,5 +540,5 @@ export async function exportTipsPdf(options?: {
   if (options?.startDate) params.start_date = options.startDate;
   if (options?.endDate) params.end_date = options.endDate;
 
-  return downloadExport('/commissions/export/tips.pdf', params);
+  return downloadExport('/api/v1/commissions/export/tips.pdf', params);
 }

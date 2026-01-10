@@ -29,13 +29,13 @@ import type {
 // === Pre-built Templates ===
 
 export async function listPrebuiltTemplates(): Promise<PrebuiltTemplatesListResponse> {
-  return api.get<PrebuiltTemplatesListResponse>('/consent/prebuilt');
+  return api.get<PrebuiltTemplatesListResponse>('/api/v1/consent/prebuilt');
 }
 
 export async function createFromPrebuilt(
   data: CreateFromPrebuiltInput
 ): Promise<ConsentFormTemplate> {
-  return api.post<ConsentFormTemplate>('/consent/templates/from-prebuilt', data);
+  return api.post<ConsentFormTemplate>('/api/v1/consent/templates/from-prebuilt', data);
 }
 
 // === Template CRUD ===
@@ -51,26 +51,26 @@ export async function listTemplates(params?: {
   if (params?.active_only !== undefined) searchParams.set('active_only', params.active_only.toString());
 
   const query = searchParams.toString();
-  return api.get<ConsentFormTemplatesListResponse>(`/consent/templates${query ? `?${query}` : ''}`);
+  return api.get<ConsentFormTemplatesListResponse>(`/api/v1/consent/templates${query ? `?${query}` : ''}`);
 }
 
 export async function getTemplate(templateId: string): Promise<ConsentFormTemplate> {
-  return api.get<ConsentFormTemplate>(`/consent/templates/${templateId}`);
+  return api.get<ConsentFormTemplate>(`/api/v1/consent/templates/${templateId}`);
 }
 
 export async function createTemplate(data: ConsentFormTemplateCreate): Promise<ConsentFormTemplate> {
-  return api.post<ConsentFormTemplate>('/consent/templates', data);
+  return api.post<ConsentFormTemplate>('/api/v1/consent/templates', data);
 }
 
 export async function updateTemplate(
   templateId: string,
   data: ConsentFormTemplateUpdate
 ): Promise<ConsentFormTemplate> {
-  return api.put<ConsentFormTemplate>(`/consent/templates/${templateId}`, data);
+  return api.put<ConsentFormTemplate>(`/api/v1/consent/templates/${templateId}`, data);
 }
 
 export async function deleteTemplate(templateId: string): Promise<void> {
-  return api.delete(`/consent/templates/${templateId}`);
+  return api.delete(`/api/v1/consent/templates/${templateId}`);
 }
 
 // === Submissions ===
@@ -90,11 +90,11 @@ export async function listSubmissions(params?: {
   if (params?.include_voided !== undefined) searchParams.set('include_voided', params.include_voided.toString());
 
   const query = searchParams.toString();
-  return api.get<ConsentSubmissionsListResponse>(`/consent/submissions${query ? `?${query}` : ''}`);
+  return api.get<ConsentSubmissionsListResponse>(`/api/v1/consent/submissions${query ? `?${query}` : ''}`);
 }
 
 export async function getSubmission(submissionId: string): Promise<ConsentSubmission> {
-  return api.get<ConsentSubmission>(`/consent/submissions/${submissionId}`);
+  return api.get<ConsentSubmission>(`/api/v1/consent/submissions/${submissionId}`);
 }
 
 export async function verifyPhotoId(
@@ -102,7 +102,7 @@ export async function verifyPhotoId(
   data: VerifyPhotoIdInput
 ): Promise<VerifyPhotoIdResponse> {
   return api.post<VerifyPhotoIdResponse>(
-    `/consent/submissions/${submissionId}/verify-photo-id`,
+    `/api/v1/consent/submissions/${submissionId}/verify-photo-id`,
     data
   );
 }
@@ -113,7 +113,7 @@ export async function getAgeVerificationStatus(
   submissionId: string
 ): Promise<AgeVerificationStatus> {
   return api.get<AgeVerificationStatus>(
-    `/consent/submissions/${submissionId}/age-status`
+    `/api/v1/consent/submissions/${submissionId}/age-status`
   );
 }
 
@@ -122,7 +122,7 @@ export async function verifyAge(
   data: VerifyAgeInput
 ): Promise<VerifyAgeResponse> {
   return api.post<VerifyAgeResponse>(
-    `/consent/submissions/${submissionId}/verify-age`,
+    `/api/v1/consent/submissions/${submissionId}/verify-age`,
     data
   );
 }
@@ -132,7 +132,7 @@ export async function addGuardianConsent(
   data: GuardianConsentInput
 ): Promise<GuardianConsentResponse> {
   return api.post<GuardianConsentResponse>(
-    `/consent/submissions/${submissionId}/guardian-consent`,
+    `/api/v1/consent/submissions/${submissionId}/guardian-consent`,
     data
   );
 }
@@ -141,7 +141,7 @@ export async function voidSubmission(
   submissionId: string,
   data: VoidConsentInput
 ): Promise<VoidConsentResponse> {
-  return api.post<VoidConsentResponse>(`/consent/submissions/${submissionId}/void`, data);
+  return api.post<VoidConsentResponse>(`/api/v1/consent/submissions/${submissionId}/void`, data);
 }
 
 export async function getSubmissionAuditLog(
@@ -154,7 +154,7 @@ export async function getSubmissionAuditLog(
 
   const query = searchParams.toString();
   return api.get<ConsentAuditLogsListResponse>(
-    `/consent/submissions/${submissionId}/audit-log${query ? `?${query}` : ''}`
+    `/api/v1/consent/submissions/${submissionId}/audit-log${query ? `?${query}` : ''}`
   );
 }
 
@@ -164,14 +164,14 @@ export async function getTemplateForSigning(
   studioSlug: string,
   templateId: string
 ): Promise<ConsentFormTemplate> {
-  return api.get<ConsentFormTemplate>(`/consent/sign/${studioSlug}/${templateId}`);
+  return api.get<ConsentFormTemplate>(`/api/v1/consent/sign/${studioSlug}/${templateId}`);
 }
 
 export async function submitSignedConsent(
   studioSlug: string,
   data: SubmitSigningInput
 ): Promise<SubmitSigningResponse> {
-  return api.post<SubmitSigningResponse>(`/consent/sign/${studioSlug}`, data);
+  return api.post<SubmitSigningResponse>(`/api/v1/consent/sign/${studioSlug}`, data);
 }
 
 export async function uploadPhotoIdForSubmission(
@@ -227,7 +227,7 @@ export async function getDecryptedSignature(
   submissionId: string
 ): Promise<{ signature_data: string }> {
   return api.get<{ signature_data: string }>(
-    `/consent/submissions/${submissionId}/signature/decrypt`
+    `/api/v1/consent/submissions/${submissionId}/signature/decrypt`
   );
 }
 

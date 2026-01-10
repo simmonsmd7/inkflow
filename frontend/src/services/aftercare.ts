@@ -40,11 +40,11 @@ import type {
 // === Pre-built Templates ===
 
 export async function listPrebuiltTemplates(): Promise<PrebuiltAftercareTemplatesResponse> {
-  return api.get<PrebuiltAftercareTemplatesResponse>('/aftercare/prebuilt');
+  return api.get<PrebuiltAftercareTemplatesResponse>('/api/v1/aftercare/prebuilt');
 }
 
 export async function createFromPrebuilt(templateId: string): Promise<AftercareTemplateResponse> {
-  return api.post<AftercareTemplateResponse>(`/aftercare/prebuilt/${templateId}/create`, {});
+  return api.post<AftercareTemplateResponse>(`/api/v1/aftercare/prebuilt/${templateId}/create`, {});
 }
 
 // === Template CRUD ===
@@ -64,36 +64,36 @@ export async function listTemplates(params?: {
   if (params?.placement) searchParams.set('placement', params.placement);
 
   const query = searchParams.toString();
-  return api.get<AftercareTemplateListResponse>(`/aftercare/templates${query ? `?${query}` : ''}`);
+  return api.get<AftercareTemplateListResponse>(`/api/v1/aftercare/templates${query ? `?${query}` : ''}`);
 }
 
 export async function getTemplate(templateId: string): Promise<AftercareTemplateResponse> {
-  return api.get<AftercareTemplateResponse>(`/aftercare/templates/${templateId}`);
+  return api.get<AftercareTemplateResponse>(`/api/v1/aftercare/templates/${templateId}`);
 }
 
 export async function createTemplate(data: AftercareTemplateCreate): Promise<AftercareTemplateResponse> {
-  return api.post<AftercareTemplateResponse>('/aftercare/templates', data);
+  return api.post<AftercareTemplateResponse>('/api/v1/aftercare/templates', data);
 }
 
 export async function updateTemplate(
   templateId: string,
   data: AftercareTemplateUpdate
 ): Promise<AftercareTemplateResponse> {
-  return api.patch<AftercareTemplateResponse>(`/aftercare/templates/${templateId}`, data);
+  return api.patch<AftercareTemplateResponse>(`/api/v1/aftercare/templates/${templateId}`, data);
 }
 
 export async function deleteTemplate(templateId: string): Promise<void> {
-  return api.delete(`/aftercare/templates/${templateId}`);
+  return api.delete(`/api/v1/aftercare/templates/${templateId}`);
 }
 
 // === Enum Lists ===
 
 export async function listTattooTypes(): Promise<{ types: TattooType[] }> {
-  return api.get<{ types: TattooType[] }>('/aftercare/tattoo-types');
+  return api.get<{ types: TattooType[] }>('/api/v1/aftercare/tattoo-types');
 }
 
 export async function listPlacements(): Promise<{ placements: TattooPlacement[] }> {
-  return api.get<{ placements: TattooPlacement[] }>('/aftercare/placements');
+  return api.get<{ placements: TattooPlacement[] }>('/api/v1/aftercare/placements');
 }
 
 // === Helper functions ===
@@ -156,15 +156,15 @@ export async function listSentAftercare(params?: {
   if (params?.client_email) searchParams.set('client_email', params.client_email);
 
   const query = searchParams.toString();
-  return api.get<AftercareSentListResponse>(`/aftercare/sent${query ? `?${query}` : ''}`);
+  return api.get<AftercareSentListResponse>(`/api/v1/aftercare/sent${query ? `?${query}` : ''}`);
 }
 
 export async function getSentAftercare(sentId: string): Promise<AftercareSentResponse> {
-  return api.get<AftercareSentResponse>(`/aftercare/sent/${sentId}`);
+  return api.get<AftercareSentResponse>(`/api/v1/aftercare/sent/${sentId}`);
 }
 
 export async function sendAftercare(data: AftercareSendInput): Promise<AftercareSentResponse> {
-  return api.post<AftercareSentResponse>('/aftercare/send', data);
+  return api.post<AftercareSentResponse>('/api/v1/aftercare/send', data);
 }
 
 export function getStatusLabel(status: string): string {
@@ -204,28 +204,28 @@ export async function listFollowUps(params?: {
   if (params?.aftercare_sent_id) searchParams.set('aftercare_sent_id', params.aftercare_sent_id);
 
   const query = searchParams.toString();
-  return api.get<FollowUpListResponse>(`/aftercare/follow-ups${query ? `?${query}` : ''}`);
+  return api.get<FollowUpListResponse>(`/api/v1/aftercare/follow-ups${query ? `?${query}` : ''}`);
 }
 
 export async function getPendingFollowUps(limit?: number): Promise<PendingFollowUpsResponse> {
   const query = limit ? `?limit=${limit}` : '';
-  return api.get<PendingFollowUpsResponse>(`/aftercare/follow-ups/pending${query}`);
+  return api.get<PendingFollowUpsResponse>(`/api/v1/aftercare/follow-ups/pending${query}`);
 }
 
 export async function processFollowUps(limit?: number): Promise<ProcessFollowUpsResult> {
   const query = limit ? `?limit=${limit}` : '';
-  return api.post<ProcessFollowUpsResult>(`/aftercare/follow-ups/process${query}`, {});
+  return api.post<ProcessFollowUpsResult>(`/api/v1/aftercare/follow-ups/process${query}`, {});
 }
 
 export async function getFollowUp(followUpId: string): Promise<FollowUpResponse> {
-  return api.get<FollowUpResponse>(`/aftercare/follow-ups/${followUpId}`);
+  return api.get<FollowUpResponse>(`/api/v1/aftercare/follow-ups/${followUpId}`);
 }
 
 export async function updateFollowUp(
   followUpId: string,
   data: FollowUpUpdate
 ): Promise<FollowUpResponse> {
-  return api.patch<FollowUpResponse>(`/aftercare/follow-ups/${followUpId}`, data);
+  return api.patch<FollowUpResponse>(`/api/v1/aftercare/follow-ups/${followUpId}`, data);
 }
 
 export async function sendFollowUpNow(
@@ -233,13 +233,13 @@ export async function sendFollowUpNow(
   data?: SendFollowUpInput
 ): Promise<SendFollowUpResponse> {
   return api.post<SendFollowUpResponse>(
-    `/aftercare/follow-ups/${followUpId}/send`,
+    `/api/v1/aftercare/follow-ups/${followUpId}/send`,
     data || {}
   );
 }
 
 export async function cancelFollowUp(followUpId: string): Promise<CancelFollowUpResponse> {
-  return api.post<CancelFollowUpResponse>(`/aftercare/follow-ups/${followUpId}/cancel`, {});
+  return api.post<CancelFollowUpResponse>(`/api/v1/aftercare/follow-ups/${followUpId}/cancel`, {});
 }
 
 // === Follow-Up Helper Functions ===
@@ -292,18 +292,18 @@ export async function listHealingIssues(params?: {
   if (params?.severity) searchParams.set('severity', params.severity);
 
   const query = searchParams.toString();
-  return api.get<HealingIssueListResponse>(`/aftercare/healing-issues${query ? `?${query}` : ''}`);
+  return api.get<HealingIssueListResponse>(`/api/v1/aftercare/healing-issues${query ? `?${query}` : ''}`);
 }
 
 export async function getHealingIssue(issueId: string): Promise<HealingIssueResponse> {
-  return api.get<HealingIssueResponse>(`/aftercare/healing-issues/${issueId}`);
+  return api.get<HealingIssueResponse>(`/api/v1/aftercare/healing-issues/${issueId}`);
 }
 
 export async function updateHealingIssue(
   issueId: string,
   data: HealingIssueUpdate
 ): Promise<HealingIssueResponse> {
-  return api.patch<HealingIssueResponse>(`/aftercare/healing-issues/${issueId}`, data);
+  return api.patch<HealingIssueResponse>(`/api/v1/aftercare/healing-issues/${issueId}`, data);
 }
 
 export async function acknowledgeHealingIssue(
@@ -311,7 +311,7 @@ export async function acknowledgeHealingIssue(
   staffNotes?: string
 ): Promise<HealingIssueResponse> {
   const query = staffNotes ? `?staff_notes=${encodeURIComponent(staffNotes)}` : '';
-  return api.post<HealingIssueResponse>(`/aftercare/healing-issues/${issueId}/acknowledge${query}`, {});
+  return api.post<HealingIssueResponse>(`/api/v1/aftercare/healing-issues/${issueId}/acknowledge${query}`, {});
 }
 
 export async function resolveHealingIssue(
@@ -323,7 +323,7 @@ export async function resolveHealingIssue(
   params.set('resolution_notes', resolutionNotes);
   params.set('request_touch_up', requestTouchUp.toString());
   return api.post<HealingIssueResponse>(
-    `/aftercare/healing-issues/${issueId}/resolve?${params.toString()}`,
+    `/api/v1/aftercare/healing-issues/${issueId}/resolve?${params.toString()}`,
     {}
   );
 }
@@ -394,7 +394,7 @@ export const HEALING_ISSUE_SYMPTOMS = [
 export async function getHealingIssueWithTouchUp(
   issueId: string
 ): Promise<HealingIssueWithTouchUp> {
-  return api.get<HealingIssueWithTouchUp>(`/aftercare/healing-issues/${issueId}/touch-up`);
+  return api.get<HealingIssueWithTouchUp>(`/api/v1/aftercare/healing-issues/${issueId}/touch-up`);
 }
 
 /**
@@ -405,7 +405,7 @@ export async function scheduleTouchUp(
   data: TouchUpScheduleInput
 ): Promise<TouchUpResponse> {
   return api.post<TouchUpResponse>(
-    `/aftercare/healing-issues/${issueId}/schedule-touch-up`,
+    `/api/v1/aftercare/healing-issues/${issueId}/schedule-touch-up`,
     data
   );
 }
@@ -414,14 +414,14 @@ export async function scheduleTouchUp(
  * Get all healing issues that need touch-ups but haven't been scheduled yet.
  */
 export async function getPendingTouchUps(): Promise<HealingIssueSummary[]> {
-  return api.get<HealingIssueSummary[]>('/aftercare/touch-up/pending');
+  return api.get<HealingIssueSummary[]>('/api/v1/aftercare/touch-up/pending');
 }
 
 /**
  * Unlink a touch-up booking from a healing issue.
  */
 export async function cancelTouchUp(issueId: string): Promise<void> {
-  return api.delete(`/aftercare/healing-issues/${issueId}/touch-up`);
+  return api.delete(`/api/v1/aftercare/healing-issues/${issueId}/touch-up`);
 }
 
 /**
@@ -432,7 +432,7 @@ export async function clientRequestTouchUp(
   data: ClientTouchUpRequestInput
 ): Promise<ClientTouchUpRequestResponse> {
   return api.post<ClientTouchUpRequestResponse>(
-    `/aftercare/touch-up/request/${accessToken}`,
+    `/api/v1/aftercare/touch-up/request/${accessToken}`,
     data
   );
 }

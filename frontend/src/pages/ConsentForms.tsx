@@ -129,9 +129,11 @@ export function ConsentForms() {
     }
   };
 
+  const hasAccess = user && ['owner', 'artist', 'receptionist'].includes(user.role);
+
   useEffect(() => {
     // Only load data if user has permission
-    if (!user || !['owner', 'artist', 'receptionist'].includes(user.role)) {
+    if (!hasAccess) {
       setLoading(false);
       return;
     }
@@ -140,19 +142,7 @@ export function ConsentForms() {
     } else {
       loadSubmissions();
     }
-  }, [activeTab, user]);
-
-  // RBAC check - must be after all hooks
-  if (!user || !['owner', 'artist', 'receptionist'].includes(user.role)) {
-    return (
-      <div className="p-8">
-        <div className="bg-red-900/20 border border-red-500/50 rounded-lg p-6 text-center">
-          <h2 className="text-xl font-semibold text-red-400">Access Denied</h2>
-          <p className="text-ink-400 mt-2">You don't have permission to view consent forms.</p>
-        </div>
-      </div>
-    );
-  }
+  }, [activeTab, hasAccess]);
 
   // Load prebuilt templates
   const loadPrebuiltTemplates = async () => {
@@ -449,6 +439,18 @@ export function ConsentForms() {
     setEditingTemplateId(null);
     setShowTemplateModal(true);
   };
+
+  // RBAC check - render access denied if no permission
+  if (!hasAccess) {
+    return (
+      <div className="p-8">
+        <div className="bg-red-900/20 border border-red-500/50 rounded-lg p-6 text-center">
+          <h2 className="text-xl font-semibold text-red-400">Access Denied</h2>
+          <p className="text-ink-400 mt-2">You don't have permission to view consent forms.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-8 max-w-7xl mx-auto">

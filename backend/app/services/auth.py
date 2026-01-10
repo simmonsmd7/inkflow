@@ -254,18 +254,38 @@ def require_role(*allowed_roles: str):
         @router.get("/settings")
         async def settings(user: User = Depends(require_role("owner", "artist"))):
             ...
+
+        # Also accepts a list for convenience:
+        @router.get("/any")
+        async def any_endpoint(user: User = Depends(require_role(["owner", "artist"]))):
+            ...
     """
     from app.models.user import UserRole
+
+    # Normalize allowed_roles: if a single list was passed, flatten it
+    normalized_roles: list[str] = []
+    for role in allowed_roles:
+        if isinstance(role, (list, tuple)):
+            # Handle list/tuple of roles
+            for r in role:
+                if isinstance(r, UserRole):
+                    normalized_roles.append(r.value)
+                else:
+                    normalized_roles.append(str(r))
+        elif isinstance(role, UserRole):
+            normalized_roles.append(role.value)
+        else:
+            normalized_roles.append(str(role))
 
     async def role_checker(
         current_user: Annotated[User, Depends(get_current_user)],
     ) -> User:
         # Normalize role values for comparison
         user_role = current_user.role.value if isinstance(current_user.role, UserRole) else current_user.role
-        if user_role not in allowed_roles:
+        if user_role not in normalized_roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Access denied. Required role(s): {', '.join(allowed_roles)}",
+                detail=f"Access denied. Required role(s): {', '.join(normalized_roles)}",
             )
         return current_user
 

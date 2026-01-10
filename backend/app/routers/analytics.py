@@ -239,11 +239,15 @@ async def get_dashboard(
     pending_deposits = pending_deposits_result.scalar() or 0
 
     # Pending consent forms (bookings without consent)
+    # Use a subquery to find bookings that have no consent submission
+    consent_exists_subquery = select(ConsentFormSubmission.id).where(
+        ConsentFormSubmission.booking_request_id == BookingRequest.id
+    ).exists()
     pending_consent_result = await db.execute(
         select(func.count(BookingRequest.id)).where(
             and_(
                 BookingRequest.status == BookingRequestStatus.CONFIRMED,
-                BookingRequest.consent_submission_id.is_(None),
+                ~consent_exists_subquery,
                 *base_filter,
             )
         )
