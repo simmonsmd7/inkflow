@@ -3276,3 +3276,52 @@ Tasks:
 - P11.9: Final cleanup decision
 Next: P11.1 - Create seed script with realistic test data
 
+
+=== ITERATION 67 - P11.1 SEED DATA SCRIPT ===
+Date: 2026-01-10 21:02
+Task: P11.1 - Create seed script with realistic test data
+
+Implementation:
+- Created backend/scripts/__init__.py (package file)
+- Created backend/scripts/seed_data.py (1122 lines)
+
+Seed Data Created:
+- 2 studios (InkFlow Main Studio, InkFlow Satellite)
+- 12 users: 2 owners, 8 artists, 2 receptionists
+- 8 artist profiles with portfolio images and specialties
+- 45 availability slots across all artists
+- 60 clients with varied profiles and histories
+- 6 commission rules (tiered and flat rates)
+- 120 bookings across all statuses:
+  * PENDING, REVIEWING, QUOTED, DEPOSIT_REQUESTED
+  * DEPOSIT_PAID, CONFIRMED, COMPLETED, CANCELLED, NO_SHOW
+- 31 earned commissions from completed bookings
+- 10 pay periods (5 per studio, spanning 2+ months)
+- 2 consent form templates (standard + detailed)
+- 50 consent form submissions
+- 2 aftercare templates
+- 31 aftercare sent records with follow-ups
+- 60 conversations with realistic messages
+- 10 reply templates
+
+Issues Fixed During Development:
+1. Added NO_SHOW value to PostgreSQL booking_request_status enum
+2. Fixed time field types (datetime.time vs strings)
+3. Fixed portfolio image foreign key order (flush profiles first)
+4. Fixed SQL delete statements (wrapped in text())
+
+Default Test Password: TestPass123!
+
+Test Accounts:
+- owner@inkflow-main.com (owner, Studio 1)
+- owner@inkflow-satellite.com (owner, Studio 2)
+- artist1@inkflow-main.com through artist4@inkflow-main.com (artists)
+
+Verification:
+- Login tested successfully with owner@inkflow-main.com
+- All data created without errors
+- Frontend build passes
+
+Commit: 012cdb1 - feat(backend): add comprehensive seed data script for P11.1
+Status: COMPLETE
+Next: P11.2 - Simulate complete new client journey
