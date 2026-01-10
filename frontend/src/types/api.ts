@@ -1471,3 +1471,54 @@ export interface PrebuiltAftercareTemplate {
 export interface PrebuiltAftercareTemplatesResponse {
   templates: PrebuiltAftercareTemplate[];
 }
+
+// === Sent Aftercare Types ===
+
+export interface AftercareSentSummary {
+  id: string;
+  template_name: string;
+  client_name: string;
+  client_email: string;
+  appointment_date: string;
+  status: AftercareSentStatus;
+  sent_at: string | null;
+  delivered_at: string | null;
+  view_count: number;
+  created_at: string;
+}
+
+export interface AftercareSentResponse extends AftercareSentSummary {
+  template_id: string | null;
+  instructions_snapshot: string;
+  booking_request_id: string | null;
+  artist_id: string | null;
+  client_phone: string | null;
+  tattoo_type: TattooType | null;
+  placement: TattooPlacement | null;
+  tattoo_description: string | null;
+  sent_via: string;
+  first_viewed_at: string | null;
+  access_token: string;
+}
+
+export interface AftercareSentListResponse {
+  items: AftercareSentSummary[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
+export interface AftercareSendInput {
+  template_id: string;
+  booking_request_id?: string | null;
+  client_name: string;
+  client_email: string;
+  client_phone?: string | null;
+  tattoo_type?: TattooType | null;
+  placement?: TattooPlacement | null;
+  tattoo_description?: string | null;
+  appointment_date: string;
+  send_via?: 'email' | 'sms' | 'both';
+  schedule_follow_ups?: boolean;
+}

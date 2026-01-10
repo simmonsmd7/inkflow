@@ -1166,6 +1166,145 @@ To reply, simply respond to this email.
 
         return success, message_id
 
+    async def send_aftercare_email(
+        self,
+        to_email: str,
+        client_name: str,
+        studio_name: str,
+        artist_name: str | None,
+        instructions_html: str,
+        instructions_plain: str,
+        view_url: str,
+        extra_data: dict | None = None,
+    ) -> bool:
+        """
+        Send aftercare instructions email to client after their tattoo appointment.
+        """
+        # Build key points section if available
+        key_points_html = ""
+        key_points_text = ""
+        if extra_data and extra_data.get("key_points"):
+            points = extra_data["key_points"]
+            key_points_html = """
+            <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0;">
+                <h3 style="margin: 0 0 10px 0; color: #92400e;">Quick Reminders</h3>
+                <ul style="margin: 0; padding-left: 20px; color: #78350f;">
+            """ + "".join(f"<li>{point}</li>" for point in points) + """
+                </ul>
+            </div>
+            """
+            key_points_text = "\nQUICK REMINDERS:\n" + "\n".join(f"- {point}" for point in points) + "\n"
+
+        # Build products section if available
+        products_html = ""
+        products_text = ""
+        if extra_data:
+            recommended = extra_data.get("products_recommended", [])
+            avoid = extra_data.get("products_to_avoid", [])
+            if recommended or avoid:
+                products_html = '<div style="display: flex; gap: 20px; margin: 20px 0;">'
+                if recommended:
+                    products_html += """
+                    <div style="flex: 1; background-color: #d1fae5; padding: 15px; border-radius: 8px;">
+                        <h4 style="margin: 0 0 10px 0; color: #065f46;">Recommended Products</h4>
+                        <ul style="margin: 0; padding-left: 20px; color: #047857;">
+                    """ + "".join(f"<li>{p}</li>" for p in recommended) + "</ul></div>"
+                    products_text += "\nRECOMMENDED PRODUCTS:\n" + "\n".join(f"- {p}" for p in recommended)
+                if avoid:
+                    products_html += """
+                    <div style="flex: 1; background-color: #fee2e2; padding: 15px; border-radius: 8px;">
+                        <h4 style="margin: 0 0 10px 0; color: #991b1b;">Products to Avoid</h4>
+                        <ul style="margin: 0; padding-left: 20px; color: #b91c1c;">
+                    """ + "".join(f"<li>{p}</li>" for p in avoid) + "</ul></div>"
+                    products_text += "\n\nPRODUCTS TO AVOID:\n" + "\n".join(f"- {p}" for p in avoid)
+                products_html += "</div>"
+
+        body_text = f"""Hi {client_name},
+
+Congratulations on your new tattoo! Here are your aftercare instructions to ensure the best healing results.
+
+{instructions_plain}
+{key_points_text}
+{products_text}
+
+View your full aftercare instructions anytime: {view_url}
+
+{"Your artist: " + artist_name if artist_name else ""}
+
+If you have any questions or concerns during healing, don't hesitate to reach out!
+
+Best,
+{studio_name}
+Powered by InkFlow
+"""
+
+        body_html = f"""
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+    <div style="background-color: #1a1a1a; padding: 30px; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 28px;">Your Aftercare Instructions</h1>
+        <p style="color: #e11d48; margin: 10px 0 0 0; font-size: 16px;">
+            Congratulations on your new tattoo!
+        </p>
+    </div>
+
+    <div style="padding: 30px;">
+        <p>Hi {client_name},</p>
+        <p>Great to see you today! Here are your aftercare instructions to ensure the best healing results.</p>
+
+        {key_points_html}
+
+        <div style="background-color: #f8f8f8; padding: 25px; border-radius: 8px; margin: 25px 0;">
+            {instructions_html}
+        </div>
+
+        {products_html}
+
+        <p style="text-align: center; margin: 30px 0;">
+            <a href="{view_url}"
+               style="background-color: #e11d48; color: white; padding: 14px 28px;
+                      text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                View Full Aftercare Instructions
+            </a>
+        </p>
+
+        <p style="color: #666; font-size: 14px; text-align: center;">
+            Bookmark this link to access your instructions anytime during healing.
+        </p>
+
+        <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+
+        {"<p style='color: #666;'><strong>Your Artist:</strong> " + artist_name + "</p>" if artist_name else ""}
+
+        <p style="color: #666;">
+            If you have any questions or concerns during healing, don't hesitate to reach out!
+        </p>
+
+        <p style="color: #666;">
+            Best,<br>
+            <strong>{studio_name}</strong>
+        </p>
+    </div>
+
+    <div style="background-color: #f5f5f5; padding: 20px; text-align: center;">
+        <p style="color: #999; font-size: 12px; margin: 0 0 10px 0;">
+            We'll send you follow-up check-ins during your healing journey.
+        </p>
+        <p style="color: #999; font-size: 12px; margin: 0;">
+            {studio_name} - Powered by <a href="https://inkflow.io" style="color: #e11d48;">InkFlow</a>
+        </p>
+    </div>
+</div>
+"""
+
+        return await self.send(
+            EmailMessage(
+                to_email=to_email,
+                subject=f"Your Aftercare Instructions from {studio_name}",
+                body_text=body_text,
+                body_html=body_html,
+            )
+        )
+
 
 # Singleton instance
 email_service = EmailService()

@@ -8,6 +8,9 @@ import type {
   AftercareTemplateListResponse,
   AftercareTemplateResponse,
   AftercareTemplateUpdate,
+  AftercareSentListResponse,
+  AftercareSentResponse,
+  AftercareSendInput,
   PrebuiltAftercareTemplatesResponse,
   TattooPlacement,
   TattooType,
@@ -115,4 +118,50 @@ export function getPlacementLabel(placement: TattooPlacement): string {
     other: 'Other',
   };
   return labels[placement] || placement;
+}
+
+// === Sent Aftercare ===
+
+export async function listSentAftercare(params?: {
+  page?: number;
+  page_size?: number;
+  status?: string;
+  client_email?: string;
+}): Promise<AftercareSentListResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.page) searchParams.set('page', params.page.toString());
+  if (params?.page_size) searchParams.set('page_size', params.page_size.toString());
+  if (params?.status) searchParams.set('status', params.status);
+  if (params?.client_email) searchParams.set('client_email', params.client_email);
+
+  const query = searchParams.toString();
+  return api.get<AftercareSentListResponse>(`/aftercare/sent${query ? `?${query}` : ''}`);
+}
+
+export async function getSentAftercare(sentId: string): Promise<AftercareSentResponse> {
+  return api.get<AftercareSentResponse>(`/aftercare/sent/${sentId}`);
+}
+
+export async function sendAftercare(data: AftercareSendInput): Promise<AftercareSentResponse> {
+  return api.post<AftercareSentResponse>('/aftercare/send', data);
+}
+
+export function getStatusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    pending: 'Pending',
+    sent: 'Sent',
+    delivered: 'Viewed',
+    failed: 'Failed',
+  };
+  return labels[status] || status;
+}
+
+export function getStatusColor(status: string): string {
+  const colors: Record<string, string> = {
+    pending: 'bg-yellow-500/10 text-yellow-400',
+    sent: 'bg-blue-500/10 text-blue-400',
+    delivered: 'bg-green-500/10 text-green-400',
+    failed: 'bg-red-500/10 text-red-400',
+  };
+  return colors[status] || 'bg-ink-600 text-ink-400';
 }

@@ -53,6 +53,7 @@ from app.schemas.commission import (
 )
 from app.schemas.booking import BookingRequestStatus as SchemaStatus
 from app.schemas.booking import TattooSize as SchemaSize
+from app.services.aftercare_service import aftercare_service
 from app.services.auth import get_current_user, require_role
 from app.services.calendar import calendar_service
 from app.services.commission_service import calculate_and_record_commission
@@ -1049,6 +1050,27 @@ async def complete_booking(
         )
 
     await db.commit()
+
+    # Automatically send aftercare instructions (P7.2)
+    # This runs asynchronously and doesn't block the response
+    # If no template is found, it gracefully logs and continues
+    try:
+        aftercare_sent = await aftercare_service.send_for_booking(
+            db=db,
+            booking_id=booking.id,
+            send_via="email",
+            schedule_follow_ups=True,
+        )
+        if aftercare_sent:
+            # Log success (would show in stub mode)
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Aftercare instructions sent for booking {booking.id} to {booking.client_email}")
+    except Exception as e:
+        # Don't fail the completion if aftercare sending fails
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Failed to send aftercare for booking {booking.id}: {e}")
 
     return CompleteBookingWithCommissionResponse(
         message="Booking completed and commission calculated",

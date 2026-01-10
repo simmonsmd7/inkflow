@@ -722,3 +722,335 @@ async def list_tattoo_types():
 async def list_placements():
     """List available body placements."""
     return {"placements": [p.value for p in TattooPlacement]}
+
+
+# === Send Aftercare Endpoints ===
+
+def sent_to_summary(sent: AftercareSent) -> AftercareSentSummary:
+    """Convert sent model to summary schema."""
+    return AftercareSentSummary(
+        id=sent.id,
+        template_name=sent.template_name,
+        client_name=sent.client_name,
+        client_email=sent.client_email,
+        appointment_date=sent.appointment_date,
+        status=sent.status.value,
+        sent_at=sent.sent_at,
+        delivered_at=sent.delivered_at,
+        view_count=sent.view_count,
+        created_at=sent.created_at,
+    )
+
+
+def sent_to_response(sent: AftercareSent) -> AftercareSentResponse:
+    """Convert sent model to full response schema."""
+    return AftercareSentResponse(
+        id=sent.id,
+        template_name=sent.template_name,
+        client_name=sent.client_name,
+        client_email=sent.client_email,
+        appointment_date=sent.appointment_date,
+        status=sent.status.value,
+        sent_at=sent.sent_at,
+        delivered_at=sent.delivered_at,
+        view_count=sent.view_count,
+        created_at=sent.created_at,
+        template_id=sent.template_id,
+        instructions_snapshot=sent.instructions_snapshot,
+        booking_request_id=sent.booking_request_id,
+        artist_id=sent.artist_id,
+        client_phone=sent.client_phone,
+        tattoo_type=sent.tattoo_type.value if sent.tattoo_type else None,
+        placement=sent.placement.value if sent.placement else None,
+        tattoo_description=sent.tattoo_description,
+        sent_via=sent.sent_via,
+        first_viewed_at=sent.first_viewed_at,
+        access_token=sent.access_token,
+    )
+
+
+@router.post("/send", response_model=AftercareSentResponse, status_code=status.HTTP_201_CREATED)
+async def send_aftercare_instructions(
+    data: AftercareSendInput,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role([UserRole.OWNER, UserRole.ARTIST])),
+):
+    """
+    Manually send aftercare instructions to a client.
+
+    Can be linked to a booking request or sent independently.
+    """
+    from app.services.aftercare_service import send_aftercare_for_booking, find_best_template, send_aftercare
+    from app.config import get_settings
+
+    studio = await get_user_studio(current_user, db)
+    settings = get_settings()
+
+    # Get the template
+    stmt = select(AftercareTemplate).where(
+        AftercareTemplate.id == data.template_id,
+        AftercareTemplate.studio_id == studio.id,
+        AftercareTemplate.deleted_at.is_(None),
+    )
+    result = await db.execute(stmt)
+    template = result.scalar_one_or_none()
+
+    if not template:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Template not found"
+        )
+
+    # If linked to a booking, use that flow
+    if data.booking_request_id:
+        sent = await send_aftercare_for_booking(
+            db=db,
+            booking_id=data.booking_request_id,
+            template_id=data.template_id,
+            send_via=data.send_via,
+            schedule_follow_ups=data.schedule_follow_ups,
+        )
+        if not sent:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Could not send aftercare for this booking"
+            )
+        return sent_to_response(sent)
+
+    # Otherwise, create a manual send record
+    access_token = secrets.token_urlsafe(32)
+
+    sent_record = AftercareSent(
+        template_id=template.id,
+        template_name=template.name,
+        instructions_snapshot=template.instructions_html,
+        studio_id=studio.id,
+        booking_request_id=None,
+        artist_id=current_user.id,
+        client_name=data.client_name,
+        client_email=data.client_email,
+        client_phone=data.client_phone,
+        tattoo_type=TattooType(data.tattoo_type) if data.tattoo_type else None,
+        placement=TattooPlacement(data.placement) if data.placement else None,
+        tattoo_description=data.tattoo_description,
+        appointment_date=data.appointment_date,
+        status=AftercareSentStatus.PENDING,
+        sent_via=data.send_via,
+        access_token=access_token,
+    )
+
+    db.add(sent_record)
+
+    # Update template usage
+    template.use_count += 1
+    template.last_used_at = datetime.utcnow()
+
+    await db.commit()
+    await db.refresh(sent_record)
+
+    # Send the email/SMS
+    from app.services.email import email_service
+    from app.services.sms import sms_service
+
+    view_url = f"{settings.frontend_url}/aftercare/{access_token}"
+
+    email_sent = False
+    sms_sent = False
+
+    if data.send_via in ("email", "both"):
+        email_sent = await email_service.send_aftercare_email(
+            to_email=data.client_email,
+            client_name=data.client_name,
+            studio_name=studio.name,
+            artist_name=current_user.full_name,
+            instructions_html=template.instructions_html,
+            instructions_plain=template.instructions_plain,
+            view_url=view_url,
+            extra_data=template.extra_data,
+        )
+
+    if data.send_via in ("sms", "both") and data.client_phone:
+        sms_message = f"Hi {data.client_name}! Your aftercare instructions from {studio.name} are ready. View them here: {view_url}"
+        sms_sent = await sms_service.send_sms(data.client_phone, sms_message)
+
+    # Update status
+    now = datetime.utcnow()
+    if (data.send_via == "email" and email_sent) or \
+       (data.send_via == "sms" and sms_sent) or \
+       (data.send_via == "both" and (email_sent or sms_sent)):
+        sent_record.status = AftercareSentStatus.SENT
+        sent_record.sent_at = now
+    else:
+        sent_record.status = AftercareSentStatus.FAILED
+        sent_record.failure_reason = f"Failed to send via {data.send_via}"
+
+    # Schedule follow-ups if requested and send succeeded
+    if data.schedule_follow_ups and sent_record.status == AftercareSentStatus.SENT:
+        from app.services.aftercare_service import generate_follow_up_messages
+
+        follow_up_messages = generate_follow_up_messages(
+            client_name=data.client_name,
+            studio_name=studio.name,
+            artist_name=current_user.full_name,
+            appointment_date=sent_record.appointment_date,
+            view_url=view_url,
+        )
+
+        for msg in follow_up_messages:
+            follow_up = AftercareFollowUp(
+                aftercare_sent_id=sent_record.id,
+                follow_up_type=msg["type"],
+                scheduled_for=msg["scheduled_for"],
+                subject=msg["subject"],
+                message_html=msg["message_html"],
+                message_plain=msg["message_plain"],
+                status=FollowUpStatus.SCHEDULED,
+                send_via="email",
+            )
+            db.add(follow_up)
+
+    await db.commit()
+    await db.refresh(sent_record)
+
+    return sent_to_response(sent_record)
+
+
+@router.get("/sent", response_model=AftercareSentListResponse)
+async def list_sent_aftercare(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    status_filter: Optional[str] = Query(default=None, alias="status"),
+    client_email: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """List sent aftercare records for the studio."""
+    studio = await get_user_studio(current_user, db)
+
+    stmt = select(AftercareSent).where(
+        AftercareSent.studio_id == studio.id,
+    )
+
+    if status_filter:
+        stmt = stmt.where(AftercareSent.status == AftercareSentStatus(status_filter))
+
+    if client_email:
+        stmt = stmt.where(AftercareSent.client_email.ilike(f"%{client_email}%"))
+
+    # Count
+    count_stmt = select(func.count()).select_from(stmt.subquery())
+    total = (await db.execute(count_stmt)).scalar() or 0
+
+    # Paginate
+    stmt = stmt.order_by(AftercareSent.created_at.desc())
+    stmt = stmt.offset((page - 1) * page_size).limit(page_size)
+
+    result = await db.execute(stmt)
+    sent_records = result.scalars().all()
+
+    return AftercareSentListResponse(
+        items=[sent_to_summary(s) for s in sent_records],
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=(total + page_size - 1) // page_size,
+    )
+
+
+@router.get("/sent/{sent_id}", response_model=AftercareSentResponse)
+async def get_sent_aftercare(
+    sent_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get a specific sent aftercare record."""
+    studio = await get_user_studio(current_user, db)
+
+    stmt = select(AftercareSent).where(
+        AftercareSent.id == sent_id,
+        AftercareSent.studio_id == studio.id,
+    )
+    result = await db.execute(stmt)
+    sent_record = result.scalar_one_or_none()
+
+    if not sent_record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Sent aftercare record not found"
+        )
+
+    return sent_to_response(sent_record)
+
+
+# === Public Client View Endpoints ===
+
+@router.get("/view/{access_token}", response_model=ClientAftercareView)
+async def view_aftercare_instructions(
+    access_token: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Public endpoint for clients to view their aftercare instructions.
+
+    No authentication required - access is via secure token.
+    """
+    stmt = select(AftercareSent).where(
+        AftercareSent.access_token == access_token,
+    ).options(
+        selectinload(AftercareSent.follow_ups),
+    )
+    result = await db.execute(stmt)
+    sent_record = result.scalar_one_or_none()
+
+    if not sent_record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Aftercare instructions not found"
+        )
+
+    # Track view
+    if sent_record.first_viewed_at is None:
+        sent_record.first_viewed_at = datetime.utcnow()
+        if sent_record.status == AftercareSentStatus.SENT:
+            sent_record.status = AftercareSentStatus.DELIVERED
+            sent_record.delivered_at = datetime.utcnow()
+    sent_record.view_count += 1
+    await db.commit()
+
+    # Build follow-ups list
+    follow_ups = [
+        FollowUpSummary(
+            id=fu.id,
+            aftercare_sent_id=fu.aftercare_sent_id,
+            follow_up_type=fu.follow_up_type.value,
+            scheduled_for=fu.scheduled_for,
+            status=fu.status.value,
+            sent_at=fu.sent_at,
+            created_at=fu.created_at,
+        )
+        for fu in sent_record.follow_ups
+    ]
+
+    # Parse extra_data from instructions if available (stored in template)
+    extra_data = None
+    if sent_record.template_id:
+        template_stmt = select(AftercareTemplate).where(
+            AftercareTemplate.id == sent_record.template_id,
+        )
+        template_result = await db.execute(template_stmt)
+        template = template_result.scalar_one_or_none()
+        if template and template.extra_data:
+            extra_data = AftercareExtraData(**template.extra_data)
+
+    return ClientAftercareView(
+        id=sent_record.id,
+        client_name=sent_record.client_name,
+        appointment_date=sent_record.appointment_date,
+        tattoo_type=sent_record.tattoo_type.value if sent_record.tattoo_type else None,
+        placement=sent_record.placement.value if sent_record.placement else None,
+        tattoo_description=sent_record.tattoo_description,
+        instructions_html=sent_record.instructions_snapshot,
+        extra_data=extra_data,
+        follow_ups=follow_ups,
+        can_report_issue=True,
+    )

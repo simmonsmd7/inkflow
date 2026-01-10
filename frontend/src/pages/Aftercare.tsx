@@ -1,5 +1,5 @@
 /**
- * Aftercare page - manage aftercare instruction templates.
+ * Aftercare page - manage aftercare instruction templates and sent instructions.
  */
 
 import { useEffect, useState } from 'react';
@@ -12,14 +12,18 @@ import {
   deleteTemplate,
   listPrebuiltTemplates,
   createFromPrebuilt,
+  listSentAftercare,
   getTattooTypeLabel,
   getPlacementLabel,
+  getStatusLabel,
+  getStatusColor,
 } from '../services/aftercare';
 import type {
   AftercareTemplateSummary,
   AftercareTemplateResponse,
   AftercareTemplateCreate,
   AftercareTemplateUpdate,
+  AftercareSentSummary,
   PrebuiltAftercareTemplate,
   TattooType,
   TattooPlacement,
@@ -37,8 +41,11 @@ const PLACEMENTS: TattooPlacement[] = [
   'stomach', 'neck', 'face', 'head', 'shoulder', 'hip', 'other',
 ];
 
+type TabType = 'templates' | 'sent';
+
 export function Aftercare() {
   const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState<TabType>('templates');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -51,6 +58,10 @@ export function Aftercare() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [prebuiltTemplates, setPrebuiltTemplates] = useState<PrebuiltAftercareTemplate[]>([]);
   const [loadingPrebuilt, setLoadingPrebuilt] = useState(false);
+
+  // Sent aftercare state
+  const [sentAftercare, setSentAftercare] = useState<AftercareSentSummary[]>([]);
+  const [loadingSent, setLoadingSent] = useState(false);
 
   // Edit form state
   const [editForm, setEditForm] = useState<AftercareTemplateCreate>({
@@ -79,10 +90,28 @@ export function Aftercare() {
   const canEdit = user.role === 'owner' || user.role === 'artist';
   const canDelete = user.role === 'owner';
 
-  // Load templates
+  // Load data based on active tab
   useEffect(() => {
-    loadTemplates();
-  }, []);
+    if (activeTab === 'templates') {
+      loadTemplates();
+    } else {
+      loadSentAftercare();
+    }
+  }, [activeTab]);
+
+  async function loadSentAftercare() {
+    try {
+      setLoadingSent(true);
+      setError(null);
+      const response = await listSentAftercare({ page_size: 50 });
+      setSentAftercare(response.items);
+    } catch (err) {
+      setError('Failed to load sent aftercare records');
+      console.error(err);
+    } finally {
+      setLoadingSent(false);
+    }
+  }
 
   async function loadTemplates() {
     try {
@@ -242,15 +271,15 @@ export function Aftercare() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header with Tabs */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-ink-100">Aftercare Templates</h1>
+          <h1 className="text-2xl font-bold text-ink-100">Aftercare</h1>
           <p className="text-ink-400 mt-1">
-            Manage aftercare instruction templates for different tattoo types and placements
+            Manage aftercare templates and track sent instructions
           </p>
         </div>
-        {canEdit && (
+        {activeTab === 'templates' && canEdit && (
           <div className="flex items-center gap-3">
             <button
               onClick={() => {
@@ -271,6 +300,32 @@ export function Aftercare() {
         )}
       </div>
 
+      {/* Tabs */}
+      <div className="border-b border-ink-700">
+        <nav className="flex gap-4">
+          <button
+            onClick={() => setActiveTab('templates')}
+            className={`py-3 px-1 border-b-2 transition-colors ${
+              activeTab === 'templates'
+                ? 'border-accent-primary text-ink-100 font-medium'
+                : 'border-transparent text-ink-400 hover:text-ink-300'
+            }`}
+          >
+            Templates
+          </button>
+          <button
+            onClick={() => setActiveTab('sent')}
+            className={`py-3 px-1 border-b-2 transition-colors ${
+              activeTab === 'sent'
+                ? 'border-accent-primary text-ink-100 font-medium'
+                : 'border-transparent text-ink-400 hover:text-ink-300'
+            }`}
+          >
+            Sent Instructions
+          </button>
+        </nav>
+      </div>
+
       {/* Messages */}
       {error && (
         <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400">
@@ -283,15 +338,18 @@ export function Aftercare() {
         </div>
       )}
 
-      {/* Loading */}
-      {loading && templates.length === 0 && (
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-primary"></div>
-        </div>
-      )}
+      {/* Templates Tab Content */}
+      {activeTab === 'templates' && (
+        <>
+          {/* Loading */}
+          {loading && templates.length === 0 && (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-primary"></div>
+            </div>
+          )}
 
-      {/* Empty state */}
-      {!loading && templates.length === 0 && (
+          {/* Empty state */}
+          {!loading && templates.length === 0 && (
         <div className="text-center py-12 bg-ink-800 rounded-xl border border-ink-700">
           <svg
             className="w-12 h-12 mx-auto text-ink-500 mb-4"
@@ -391,6 +449,99 @@ export function Aftercare() {
             </div>
           ))}
         </div>
+      )}
+        </>
+      )}
+
+      {/* Sent Instructions Tab Content */}
+      {activeTab === 'sent' && (
+        <>
+          {/* Loading */}
+          {loadingSent && (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-primary"></div>
+            </div>
+          )}
+
+          {/* Empty state */}
+          {!loadingSent && sentAftercare.length === 0 && (
+            <div className="text-center py-12 bg-ink-800 rounded-xl border border-ink-700">
+              <svg
+                className="w-12 h-12 mx-auto text-ink-500 mb-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                />
+              </svg>
+              <h3 className="text-lg font-medium text-ink-200 mb-2">No Sent Instructions</h3>
+              <p className="text-ink-400">
+                Aftercare instructions will appear here after completing appointments.
+              </p>
+            </div>
+          )}
+
+          {/* Sent Aftercare Table */}
+          {sentAftercare.length > 0 && (
+            <div className="bg-ink-800 rounded-xl border border-ink-700 overflow-hidden">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-ink-700">
+                    <th className="text-left text-xs font-medium text-ink-400 px-4 py-3">Client</th>
+                    <th className="text-left text-xs font-medium text-ink-400 px-4 py-3">Template</th>
+                    <th className="text-left text-xs font-medium text-ink-400 px-4 py-3">Appointment</th>
+                    <th className="text-left text-xs font-medium text-ink-400 px-4 py-3">Status</th>
+                    <th className="text-left text-xs font-medium text-ink-400 px-4 py-3">Views</th>
+                    <th className="text-left text-xs font-medium text-ink-400 px-4 py-3">Sent</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sentAftercare.map((sent) => (
+                    <tr
+                      key={sent.id}
+                      className="border-b border-ink-700/50 last:border-0 hover:bg-ink-700/30"
+                    >
+                      <td className="px-4 py-3">
+                        <div>
+                          <p className="text-sm font-medium text-ink-100">{sent.client_name}</p>
+                          <p className="text-xs text-ink-400">{sent.client_email}</p>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-sm text-ink-300">{sent.template_name}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-sm text-ink-300">
+                          {new Date(sent.appointment_date).toLocaleDateString()}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`text-xs px-2 py-1 rounded-full ${getStatusColor(sent.status)}`}>
+                          {getStatusLabel(sent.status)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-sm text-ink-400">{sent.view_count}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-sm text-ink-400">
+                          {sent.sent_at
+                            ? new Date(sent.sent_at).toLocaleDateString()
+                            : '-'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
 
       {/* Template Detail Modal */}
