@@ -52,6 +52,30 @@ Changes:
 Status: COMPLETE
 Next: P1.4 - Create base UI layout (sidebar nav, header, main content area)
 
+=== ITERATION 4 ===
+Date: 2026-01-10
+Task: P1.4 - Create base UI layout (sidebar nav, header, main content area)
+Changes:
+- frontend/src/components/layout/Sidebar.tsx: Navigation with icons, badges, collapsible state, user section
+- frontend/src/components/layout/Header.tsx: Search bar, API status indicator, notifications, quick actions
+- frontend/src/components/layout/Layout.tsx: Main layout wrapper with sidebar and header
+- frontend/src/components/layout/index.ts: Export barrel file
+- frontend/src/App.tsx: Dashboard page with stats cards, schedule, and activity feed
+- Verified: Sidebar collapse/expand works, API status shows "Online", dark theme consistent
+Status: COMPLETE
+Next: P1.5 - Implement dark/light theme toggle
+
+=== ITERATION 5 ===
+Date: 2026-01-10
+Task: P1.5 - Implement dark/light theme toggle
+Changes:
+- frontend/src/hooks/useTheme.ts: Theme hook with localStorage persistence, system preference detection
+- frontend/src/components/layout/Header.tsx: Added theme toggle button with sun/moon icons
+- frontend/src/index.css: Light mode CSS variables that invert the ink color palette, smooth transitions
+- Verified: Toggle switches themes, persists after refresh, smooth transition animations
+Status: COMPLETE
+Next: P2.1 - User registration (stub email verification)
+
 ---
 PROJECT: InkFlow - Tattoo Studio Management Platform
 TARGET: Solo artists and 2-5 artist studios at $29-69/month
