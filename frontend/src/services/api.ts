@@ -56,13 +56,22 @@ async function request<T>(
 
   if (!response.ok) {
     const errorData = isJson ? await response.json() : await response.text();
-    throw new ApiError(
-      typeof errorData === 'object' && errorData.detail
-        ? errorData.detail
-        : 'An error occurred',
-      response.status,
-      errorData
-    );
+    let errorMessage = 'An error occurred';
+
+    if (typeof errorData === 'object' && errorData !== null) {
+      if (typeof errorData.detail === 'string') {
+        errorMessage = errorData.detail;
+      } else if (Array.isArray(errorData.detail) && errorData.detail.length > 0) {
+        // Handle FastAPI validation errors (array of {loc, msg, type})
+        errorMessage = errorData.detail.map((err: { msg?: string }) => err.msg || 'Validation error').join(', ');
+      } else if (typeof errorData.message === 'string') {
+        errorMessage = errorData.message;
+      }
+    } else if (typeof errorData === 'string') {
+      errorMessage = errorData;
+    }
+
+    throw new ApiError(errorMessage, response.status, errorData);
   }
 
   if (!isJson) {
@@ -83,7 +92,7 @@ export const api = {
     request<T>(endpoint, {
       ...options,
       method: 'POST',
-      body: data ? JSON.stringify(data) : undefined,
+      body: data ? JSON.stringify(data) : options?.body,
     }),
 
   put: <T>(endpoint: string, data?: unknown, options?: RequestOptions) =>

@@ -1,0 +1,150 @@
+"""Authentication service for password hashing and JWT tokens."""
+
+import uuid
+from datetime import datetime, timedelta
+
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.config import get_settings
+from app.models.user import User
+from app.schemas.user import UserCreate
+
+settings = get_settings()
+
+# Password hashing context - using argon2 (more secure and Python 3.13 compatible)
+pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
+
+
+def hash_password(password: str) -> str:
+    """Hash a plain text password."""
+    return pwd_context.hash(password)
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verify a password against a hash."""
+    return pwd_context.verify(plain_password, hashed_password)
+
+
+def create_access_token(
+    user_id: uuid.UUID,
+    expires_delta: timedelta | None = None,
+) -> str:
+    """Create a JWT access token."""
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(
+            minutes=settings.access_token_expire_minutes
+        )
+
+    to_encode = {
+        "sub": str(user_id),
+        "exp": expire,
+        "iat": datetime.utcnow(),
+        "type": "access",
+    }
+
+    return jwt.encode(
+        to_encode,
+        settings.jwt_secret,
+        algorithm=settings.jwt_algorithm,
+    )
+
+
+def decode_access_token(token: str) -> dict | None:
+    """Decode and verify a JWT access token."""
+    try:
+        payload = jwt.decode(
+            token,
+            settings.jwt_secret,
+            algorithms=[settings.jwt_algorithm],
+        )
+        return payload
+    except JWTError:
+        return None
+
+
+async def get_user_by_email(db: AsyncSession, email: str) -> User | None:
+    """Get a user by email address."""
+    result = await db.execute(
+        select(User).where(User.email == email, User.deleted_at.is_(None))
+    )
+    return result.scalar_one_or_none()
+
+
+async def get_user_by_id(db: AsyncSession, user_id: uuid.UUID) -> User | None:
+    """Get a user by ID."""
+    result = await db.execute(
+        select(User).where(User.id == user_id, User.deleted_at.is_(None))
+    )
+    return result.scalar_one_or_none()
+
+
+async def get_user_by_verification_token(
+    db: AsyncSession, token: str
+) -> User | None:
+    """Get a user by email verification token."""
+    result = await db.execute(
+        select(User).where(
+            User.verification_token == token,
+            User.deleted_at.is_(None),
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def get_user_by_reset_token(
+    db: AsyncSession, token: str
+) -> User | None:
+    """Get a user by password reset token."""
+    result = await db.execute(
+        select(User).where(
+            User.password_reset_token == token,
+            User.deleted_at.is_(None),
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def create_user(
+    db: AsyncSession,
+    user_data: UserCreate,
+    auto_verify: bool = False,
+) -> User:
+    """Create a new user."""
+    user = User(
+        email=user_data.email,
+        hashed_password=hash_password(user_data.password),
+        first_name=user_data.first_name,
+        last_name=user_data.last_name,
+        phone=user_data.phone,
+        role=user_data.role,
+        is_verified=auto_verify,
+    )
+
+    if not auto_verify:
+        user.generate_verification_token()
+
+    db.add(user)
+    await db.flush()
+    await db.refresh(user)
+    return user
+
+
+async def authenticate_user(
+    db: AsyncSession,
+    email: str,
+    password: str,
+) -> User | None:
+    """Authenticate a user by email and password."""
+    user = await get_user_by_email(db, email)
+    if not user:
+        return None
+    if not verify_password(password, user.hashed_password):
+        return None
+    if not user.is_active:
+        return None
+    return user
