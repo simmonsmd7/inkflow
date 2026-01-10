@@ -2045,3 +2045,53 @@ Frontend Routes (App.tsx):
 - Verified: Logout functionality works
 Status: COMPLETE
 Next: P9.2 - Booking history view
+
+=== ITERATION 46 ===
+Date: 2026-01-10
+Task: P9.2 - Booking history view
+
+Changes:
+Backend Router (client_portal.py - NEW):
+- GET /api/v1/client/portal/bookings - paginated booking list with status filter
+- GET /api/v1/client/portal/bookings/{booking_id} - booking detail view
+- GET /api/v1/client/portal/bookings/stats/summary - booking statistics
+- Helper functions to build ClientBookingSummary and ClientBookingDetail
+- Authentication via get_current_client dependency
+
+Backend Schemas (client.py):
+- ClientBookingArtistInfo: Artist name and ID for booking view
+- ClientBookingStudioInfo: Studio name and ID for booking view
+- ClientBookingSummary: Booking summary for list views
+- ClientBookingDetail: Full booking details for detail view
+- ClientBookingsListResponse: Paginated response wrapper
+
+Frontend Types (api.ts):
+- ClientBookingArtist, ClientBookingStudio interfaces
+- ClientBookingSummary, ClientBookingDetail interfaces
+- ClientBookingsListResponse, ClientBookingStats interfaces
+
+Frontend Service (clientPortal.ts - NEW):
+- getBookings(): Paginated booking list with filters
+- getBookingDetail(): Single booking details
+- getBookingStats(): Booking statistics summary
+- Uses separate client token for authentication
+
+Frontend Page (ClientBookingHistory.tsx - NEW):
+- Stats cards: Total, Completed, Upcoming, Total Spent
+- Status filter dropdown with clear option
+- Booking cards with status badges (color-coded)
+- Displays placement, size, artist, studio info
+- Shows quote price, scheduled date, deposit status
+- Pagination controls for large lists
+- Loading skeleton and error states
+- Dark theme styling consistent with portal
+
+Navigation & Routes:
+- frontend/src/App.tsx: Added /client/bookings route
+- frontend/src/pages/ClientPortal.tsx: Updated History card to be a Link
+- frontend/src/pages/index.ts: Exported ClientBookingHistory
+
+- Verified: Frontend build passes with no TypeScript errors
+- Verified: Routes work correctly (redirects to login when unauthenticated)
+Status: COMPLETE
+Next: P9.3 - Upcoming appointments
