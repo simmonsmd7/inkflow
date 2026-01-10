@@ -34,7 +34,31 @@ body {
   min-height: 100vh;
 }
 
-/* Dark mode is default, light mode via class */
-.light body {
-  @apply bg-ink-50 text-ink-900;
+/* Dark mode is default, light mode via class on html */
+html.light {
+  /* Invert the ink color palette for light mode */
+  --color-ink-900: #f5f5f5;
+  --color-ink-800: #e8e8e8;
+  --color-ink-700: #d4d4d4;
+  --color-ink-600: #c0c0c0;
+  --color-ink-500: #909090;
+  --color-ink-400: #707070;
+  --color-ink-300: #505050;
+  --color-ink-200: #303030;
+  --color-ink-100: #1a1a1a;
+  --color-ink-50: #0a0a0a;
+}
+
+/* Light mode body styles */
+html.light body {
+  @apply bg-ink-900 text-ink-100;
+}
+
+/* Smooth theme transition */
+html {
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+html * {
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
