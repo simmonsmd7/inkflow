@@ -928,3 +928,50 @@ Features:
 - Verified: API endpoints work correctly via curl
 Status: COMPLETE
 Next: P5.3 - Automatic calculation on completed appointments
+
+=== ITERATION 29 ===
+Date: 2026-01-10
+Task: P5.3 - Automatic calculation on completed appointments
+Changes:
+Backend:
+- backend/app/models/commission.py: Added EarnedCommission model with:
+  - booking_request_id (unique, one-to-one with booking)
+  - artist_id, studio_id, commission_rule_id
+  - commission_rule_name, commission_type (snapshot at time of calculation)
+  - service_total, studio_commission, artist_payout, tips_amount
+  - calculation_details (human-readable breakdown)
+  - completed_at, created_at
+  - Pay period fields for future P5.4: pay_period_start, pay_period_end, paid_at, payout_reference
+- backend/app/models/booking.py: Added earned_commission relationship (one-to-one)
+- backend/app/models/user.py: Added earned_commissions relationship
+- backend/app/models/studio.py: Added earned_commissions relationship
+- backend/app/models/__init__.py: Export EarnedCommission model
+- backend/app/schemas/commission.py: Added new schemas:
+  - EarnedCommissionBase, EarnedCommissionResponse, EarnedCommissionWithDetails
+  - EarnedCommissionsListResponse with summary totals
+  - CompleteBookingWithCommissionInput, CompleteBookingWithCommissionResponse
+- backend/app/schemas/__init__.py: Export new schemas
+- backend/app/services/commission_service.py: NEW - Commission calculation service:
+  - calculate_commission_from_rule() - Handles percentage, flat_fee, tiered calculations
+  - get_artist_commission_rule() - Gets artist's rule or falls back to studio default
+  - calculate_and_record_commission() - Creates EarnedCommission record
+  - get_earned_commissions() - Query earned commissions with filters and summary totals
+- backend/app/routers/bookings.py: Added complete_booking endpoint:
+  - POST /requests/{id}/complete - Mark booking as completed and calculate commission
+  - Validates booking has assigned artist and quoted price
+  - Supports optional final_price override and tips
+- backend/app/routers/commissions.py: Added earned commissions endpoints:
+  - GET /earned - List earned commissions for studio (owner only)
+  - GET /earned/me - List earned commissions for current artist
+  - Both support filtering by artist, date range, and payment status
+
+Database:
+- Created earned_commissions table with all tracking fields
+- Unique constraint on booking_request_id (one commission per booking)
+- Indexes for efficient querying by artist, studio, date, and payment status
+
+- Verified: Frontend build passes with no TypeScript errors
+- Verified: Backend starts successfully with all new endpoints
+- Verified: All commission endpoints registered in OpenAPI spec
+Status: COMPLETE
+Next: P5.4 - Pay period tracking (weekly/bi-weekly)
