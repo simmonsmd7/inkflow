@@ -19,17 +19,23 @@ from app.models.message import (
     MessageDirection,
 )
 from app.models.user import User
+from app.models.booking import BookingRequest
 from app.schemas.message import (
     AssignConversationResponse,
+    BookingBrief,
     ConversationCreate,
     ConversationResponse,
     ConversationsListResponse,
     ConversationStatus as ConversationStatusSchema,
     ConversationSummary,
     ConversationUpdate,
+    ConversationWithBooking,
+    CreateConversationFromBookingInput,
     MarkReadResponse,
     MessageCreate,
     MessageResponse,
+    TeamMember,
+    TeamMembersResponse,
 )
 from app.services.auth import get_current_user
 from app.services.email import email_service
@@ -199,20 +205,21 @@ async def create_conversation(
     )
 
 
-@router.get("/conversations/{conversation_id}", response_model=ConversationResponse)
+@router.get("/conversations/{conversation_id}", response_model=ConversationWithBooking)
 async def get_conversation(
     conversation_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> ConversationResponse:
+) -> ConversationWithBooking:
     """
-    Get a conversation with all its messages.
+    Get a conversation with all its messages and booking details.
     """
     query = (
         select(Conversation)
         .options(
             selectinload(Conversation.messages),
             selectinload(Conversation.assigned_to),
+            selectinload(Conversation.booking_request),
         )
         .where(Conversation.id == conversation_id)
     )
@@ -225,7 +232,23 @@ async def get_conversation(
             detail="Conversation not found",
         )
 
-    return ConversationResponse(
+    # Build booking brief if linked
+    booking_brief = None
+    if conversation.booking_request:
+        booking = conversation.booking_request
+        booking_brief = BookingBrief(
+            id=booking.id,
+            reference_id=booking.reference_id,
+            status=booking.status.value,
+            client_name=booking.client_name,
+            design_idea=booking.design_idea,
+            placement=booking.placement,
+            size=booking.size.value if booking.size else None,
+            scheduled_date=booking.scheduled_date,
+            quoted_price=float(booking.quoted_price) if booking.quoted_price else None,
+        )
+
+    return ConversationWithBooking(
         id=conversation.id,
         client_name=conversation.client_name,
         client_email=conversation.client_email,
@@ -238,6 +261,7 @@ async def get_conversation(
         assigned_to_name=conversation.assigned_to.full_name if conversation.assigned_to else None,
         studio_id=conversation.studio_id,
         booking_request_id=conversation.booking_request_id,
+        booking=booking_brief,
         messages=[MessageResponse.model_validate(m) for m in conversation.messages],
         created_at=conversation.created_at,
         updated_at=conversation.updated_at,
@@ -609,3 +633,189 @@ async def get_inbox_stats(
         "total_unread": total_unread,
         "total_conversations": sum(status_counts.values()),
     }
+
+
+# ============ Team Assignment ============
+
+
+@router.get("/team-members", response_model=TeamMembersResponse)
+async def list_team_members(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> TeamMembersResponse:
+    """
+    List team members available for conversation assignment.
+
+    Returns all active users that can be assigned to conversations.
+    """
+    query = (
+        select(User)
+        .where(User.is_active.is_(True))
+        .order_by(User.first_name, User.last_name)
+    )
+    result = await db.execute(query)
+    users = result.scalars().all()
+
+    members = [
+        TeamMember(
+            id=user.id,
+            full_name=user.full_name,
+            email=user.email,
+            role=user.role.value,
+        )
+        for user in users
+    ]
+
+    return TeamMembersResponse(members=members)
+
+
+# ============ Booking Integration ============
+
+
+@router.post("/from-booking", response_model=ConversationWithBooking, status_code=status.HTTP_201_CREATED)
+async def create_conversation_from_booking(
+    data: CreateConversationFromBookingInput,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ConversationWithBooking:
+    """
+    Create a new conversation linked to a booking request.
+
+    Automatically populates client info from the booking.
+    If a conversation already exists for this booking, returns the existing one.
+    """
+    # Get the booking request
+    booking_query = select(BookingRequest).where(BookingRequest.id == data.booking_request_id)
+    booking_result = await db.execute(booking_query)
+    booking = booking_result.scalar_one_or_none()
+
+    if not booking:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Booking request not found",
+        )
+
+    # Check if a conversation already exists for this booking
+    existing_query = (
+        select(Conversation)
+        .options(
+            selectinload(Conversation.messages),
+            selectinload(Conversation.assigned_to),
+        )
+        .where(Conversation.booking_request_id == data.booking_request_id)
+    )
+    existing_result = await db.execute(existing_query)
+    existing_conv = existing_result.scalar_one_or_none()
+
+    if existing_conv:
+        # Return the existing conversation
+        booking_brief = BookingBrief(
+            id=booking.id,
+            reference_id=booking.reference_id,
+            status=booking.status.value,
+            client_name=booking.client_name,
+            design_idea=booking.design_idea,
+            placement=booking.placement,
+            size=booking.size.value if booking.size else None,
+            scheduled_date=booking.scheduled_date,
+            quoted_price=float(booking.quoted_price) if booking.quoted_price else None,
+        )
+
+        return ConversationWithBooking(
+            id=existing_conv.id,
+            client_name=existing_conv.client_name,
+            client_email=existing_conv.client_email,
+            client_phone=existing_conv.client_phone,
+            status=ConversationStatusSchema(existing_conv.status.value),
+            subject=existing_conv.subject,
+            last_message_at=existing_conv.last_message_at,
+            unread_count=existing_conv.unread_count,
+            assigned_to_id=existing_conv.assigned_to_id,
+            assigned_to_name=existing_conv.assigned_to.full_name if existing_conv.assigned_to else None,
+            studio_id=existing_conv.studio_id,
+            booking_request_id=existing_conv.booking_request_id,
+            booking=booking_brief,
+            messages=[MessageResponse.model_validate(m) for m in existing_conv.messages],
+            created_at=existing_conv.created_at,
+            updated_at=existing_conv.updated_at,
+        )
+
+    now = datetime.now(timezone.utc)
+
+    # Create subject from booking if not provided
+    subject = data.subject
+    if not subject:
+        subject = f"Booking Request: {booking.design_idea[:50]}..." if booking.design_idea and len(booking.design_idea) > 50 else f"Booking Request: {booking.design_idea or 'Tattoo inquiry'}"
+
+    # Create new conversation linked to booking
+    conversation = Conversation(
+        client_name=booking.client_name,
+        client_email=booking.client_email,
+        client_phone=booking.client_phone,
+        subject=subject,
+        studio_id=booking.studio_id,
+        booking_request_id=booking.id,
+        status=ConversationStatus.UNREAD,
+        assigned_to_id=booking.assigned_artist_id or current_user.id,  # Assign to booking's artist or creator
+    )
+    db.add(conversation)
+    await db.flush()
+
+    messages = []
+
+    # Add initial message if provided
+    if data.initial_message:
+        message = Message(
+            conversation_id=conversation.id,
+            content=data.initial_message,
+            channel=MessageChannel.INTERNAL,
+            direction=MessageDirection.OUTBOUND,
+            sender_id=current_user.id,
+            sender_name=current_user.full_name,
+            is_read=True,
+            read_at=now,
+            read_by_id=current_user.id,
+        )
+        db.add(message)
+        await db.flush()
+
+        conversation.last_message_at = now
+        conversation.last_message_preview = data.initial_message[:200]
+        conversation.status = ConversationStatus.PENDING
+
+        messages = [MessageResponse.model_validate(message)]
+
+    await db.flush()
+    await db.refresh(conversation, ["assigned_to"])
+
+    # Build booking brief
+    booking_brief = BookingBrief(
+        id=booking.id,
+        reference_id=booking.reference_id,
+        status=booking.status.value,
+        client_name=booking.client_name,
+        design_idea=booking.design_idea,
+        placement=booking.placement,
+        size=booking.size.value if booking.size else None,
+        scheduled_date=booking.scheduled_date,
+        quoted_price=float(booking.quoted_price) if booking.quoted_price else None,
+    )
+
+    return ConversationWithBooking(
+        id=conversation.id,
+        client_name=conversation.client_name,
+        client_email=conversation.client_email,
+        client_phone=conversation.client_phone,
+        status=ConversationStatusSchema(conversation.status.value),
+        subject=conversation.subject,
+        last_message_at=conversation.last_message_at,
+        unread_count=conversation.unread_count,
+        assigned_to_id=conversation.assigned_to_id,
+        assigned_to_name=conversation.assigned_to.full_name if conversation.assigned_to else None,
+        studio_id=conversation.studio_id,
+        booking_request_id=conversation.booking_request_id,
+        booking=booking_brief,
+        messages=messages,
+        created_at=conversation.created_at,
+        updated_at=conversation.updated_at,
+    )

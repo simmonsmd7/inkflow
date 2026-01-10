@@ -194,3 +194,76 @@ class AssignConversationResponse(BaseModel):
     assigned_to_id: uuid.UUID | None
     assigned_to_name: str | None
     success: bool = True
+
+
+# ============ Team Assignment ============
+
+
+class TeamMember(BaseModel):
+    """Team member for assignment dropdown."""
+
+    id: uuid.UUID
+    full_name: str
+    email: str
+    role: str
+
+    class Config:
+        from_attributes = True
+
+
+class TeamMembersResponse(BaseModel):
+    """Response for team members list."""
+
+    members: list[TeamMember]
+
+
+# ============ Booking Integration ============
+
+
+class BookingBrief(BaseModel):
+    """Brief booking info for conversation context."""
+
+    id: uuid.UUID
+    reference_id: str
+    status: str
+    client_name: str
+    design_idea: str | None
+    placement: str | None
+    size: str | None
+    scheduled_date: datetime | None
+    quoted_price: float | None
+
+    class Config:
+        from_attributes = True
+
+
+class ConversationWithBooking(BaseModel):
+    """Conversation response with booking details."""
+
+    id: uuid.UUID
+    client_name: str
+    client_email: str | None
+    client_phone: str | None
+    status: ConversationStatus
+    subject: str | None
+    last_message_at: datetime | None
+    unread_count: int
+    assigned_to_id: uuid.UUID | None
+    assigned_to_name: str | None = None
+    studio_id: uuid.UUID | None
+    booking_request_id: uuid.UUID | None
+    booking: BookingBrief | None = None
+    messages: list[MessageResponse]
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class CreateConversationFromBookingInput(BaseModel):
+    """Input for creating a conversation from a booking request."""
+
+    booking_request_id: uuid.UUID
+    subject: str | None = Field(None, max_length=500)
+    initial_message: str | None = Field(None, min_length=1, max_length=10000)

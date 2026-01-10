@@ -10,11 +10,14 @@ import type {
   ConversationStatus,
   ConversationSummary,
   ConversationUpdate,
+  ConversationWithBooking,
+  CreateConversationFromBookingInput,
   InboxMessage,
   InboxStats,
   MarkReadResponse,
   MessageCreate,
   AssignConversationResponse,
+  TeamMembersResponse,
 } from '../types/api';
 
 const BASE_URL = '/api/v1/messages';
@@ -57,10 +60,10 @@ export async function createConversation(
 }
 
 /**
- * Get a conversation with all its messages.
+ * Get a conversation with all its messages and booking details.
  */
-export async function getConversation(conversationId: string): Promise<Conversation> {
-  return api.get<Conversation>(`${BASE_URL}/conversations/${conversationId}`);
+export async function getConversation(conversationId: string): Promise<ConversationWithBooking> {
+  return api.get<ConversationWithBooking>(`${BASE_URL}/conversations/${conversationId}`);
 }
 
 /**
@@ -110,4 +113,20 @@ export async function markConversationRead(
  */
 export async function getInboxStats(): Promise<InboxStats> {
   return api.get<InboxStats>(`${BASE_URL}/stats`);
+}
+
+/**
+ * Get team members for assignment dropdown.
+ */
+export async function getTeamMembers(): Promise<TeamMembersResponse> {
+  return api.get<TeamMembersResponse>(`${BASE_URL}/team-members`);
+}
+
+/**
+ * Create a conversation from a booking request.
+ */
+export async function createConversationFromBooking(
+  data: CreateConversationFromBookingInput
+): Promise<ConversationWithBooking> {
+  return api.post<ConversationWithBooking>(`${BASE_URL}/from-booking`, data);
 }

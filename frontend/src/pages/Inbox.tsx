@@ -12,13 +12,16 @@ import {
   markConversationRead,
   createConversation,
   getInboxStats,
+  getTeamMembers,
+  assignConversation,
 } from '../services/messages';
 import type {
-  Conversation,
+  ConversationWithBooking,
   ConversationStatus,
   ConversationSummary,
   InboxStats,
   MessageChannel,
+  TeamMember,
 } from '../types/api';
 
 // Status configuration for badges and labels
@@ -60,8 +63,12 @@ export function Inbox() {
   const [stats, setStats] = useState<InboxStats | null>(null);
 
   // Selected conversation
-  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
+  const [selectedConversation, setSelectedConversation] = useState<ConversationWithBooking | null>(null);
   const [conversationLoading, setConversationLoading] = useState(false);
+
+  // Team members for assignment
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [assigningTo, setAssigningTo] = useState(false);
 
   // New message form
   const [newMessage, setNewMessage] = useState('');
@@ -109,6 +116,19 @@ export function Inbox() {
 
     loadConversations();
   }, [statusFilter, assignedToMe, searchQuery]);
+
+  // Load team members for assignment dropdown
+  useEffect(() => {
+    async function loadTeamMembers() {
+      try {
+        const data = await getTeamMembers();
+        setTeamMembers(data.members);
+      } catch (err) {
+        console.error('Failed to load team members:', err);
+      }
+    }
+    loadTeamMembers();
+  }, []);
 
   // Load selected conversation
   async function loadConversation(id: string) {
@@ -188,6 +208,44 @@ export function Inbox() {
     }
   }
 
+  // Change conversation assignment
+  async function handleAssignmentChange(assigneeId: string | null) {
+    if (!selectedConversation) return;
+
+    try {
+      setAssigningTo(true);
+      const result = await assignConversation(selectedConversation.id, assigneeId);
+
+      // Update selected conversation
+      setSelectedConversation((prev) =>
+        prev
+          ? {
+              ...prev,
+              assigned_to_id: result.assigned_to_id,
+              assigned_to_name: result.assigned_to_name,
+            }
+          : null
+      );
+
+      // Update conversation in list
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === selectedConversation.id
+            ? {
+                ...c,
+                assigned_to_id: result.assigned_to_id,
+                assigned_to_name: result.assigned_to_name,
+              }
+            : c
+        )
+      );
+    } catch (err) {
+      console.error('Failed to assign conversation:', err);
+    } finally {
+      setAssigningTo(false);
+    }
+  }
+
   // Create new conversation
   async function handleCreateConversation(e: React.FormEvent) {
     e.preventDefault();
@@ -205,7 +263,8 @@ export function Inbox() {
 
       // Add to list and select it
       setConversations((prev) => [conversation, ...prev]);
-      setSelectedConversation(conversation);
+      // Extend with booking: null for type compatibility
+      setSelectedConversation({ ...conversation, booking: null });
       setShowNewConversation(false);
       setNewConversationData({
         client_name: '',
@@ -353,6 +412,11 @@ export function Inbox() {
                         {conv.unread_count}
                       </span>
                     )}
+                    {conv.assigned_to_name && (
+                      <span className="text-xs text-ink-500" title={`Assigned to ${conv.assigned_to_name}`}>
+                        → {conv.assigned_to_name.split(' ')[0]}
+                      </span>
+                    )}
                   </div>
                   {conv.subject && (
                     <p className="text-sm text-ink-300 truncate">{conv.subject}</p>
@@ -392,7 +456,28 @@ export function Inbox() {
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
+                    {/* Assignment dropdown */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-ink-500">Assigned to:</span>
+                      <select
+                        value={selectedConversation.assigned_to_id || ''}
+                        onChange={(e) =>
+                          handleAssignmentChange(e.target.value || null)
+                        }
+                        disabled={assigningTo}
+                        className="px-3 py-1.5 bg-ink-700 border border-ink-600 rounded-lg text-sm focus:outline-none focus:border-accent-500 disabled:opacity-50"
+                      >
+                        <option value="">Unassigned</option>
+                        {teamMembers.map((member) => (
+                          <option key={member.id} value={member.id}>
+                            {member.full_name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Status dropdown */}
                     <select
                       value={selectedConversation.status}
                       onChange={(e) =>
@@ -408,6 +493,68 @@ export function Inbox() {
                 </div>
                 {selectedConversation.subject && (
                   <p className="mt-2 text-ink-300">{selectedConversation.subject}</p>
+                )}
+
+                {/* Linked booking context */}
+                {selectedConversation.booking && (
+                  <div className="mt-3 p-3 bg-ink-700/50 rounded-lg border border-ink-600">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-accent-400">
+                          Linked Booking
+                        </span>
+                        <span className="text-xs px-1.5 py-0.5 bg-ink-600 rounded text-ink-300">
+                          {selectedConversation.booking.reference_id}
+                        </span>
+                        <span
+                          className={`text-xs px-1.5 py-0.5 rounded ${
+                            selectedConversation.booking.status === 'confirmed'
+                              ? 'bg-green-400/10 text-green-400'
+                              : selectedConversation.booking.status === 'pending'
+                              ? 'bg-yellow-400/10 text-yellow-400'
+                              : 'bg-ink-600 text-ink-300'
+                          }`}
+                        >
+                          {selectedConversation.booking.status}
+                        </span>
+                      </div>
+                      {selectedConversation.booking.quoted_price && (
+                        <span className="text-sm font-medium text-green-400">
+                          ${selectedConversation.booking.quoted_price.toFixed(2)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-2 text-sm text-ink-300">
+                      {selectedConversation.booking.design_idea && (
+                        <p className="truncate">
+                          <span className="text-ink-500">Design:</span>{' '}
+                          {selectedConversation.booking.design_idea}
+                        </p>
+                      )}
+                      <div className="flex gap-4 text-xs text-ink-400 mt-1">
+                        {selectedConversation.booking.placement && (
+                          <span>Placement: {selectedConversation.booking.placement}</span>
+                        )}
+                        {selectedConversation.booking.size && (
+                          <span>Size: {selectedConversation.booking.size}</span>
+                        )}
+                        {selectedConversation.booking.scheduled_date && (
+                          <span>
+                            Scheduled:{' '}
+                            {new Date(
+                              selectedConversation.booking.scheduled_date
+                            ).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <a
+                      href={`/bookings?view=${selectedConversation.booking.id}`}
+                      className="mt-2 inline-block text-xs text-accent-400 hover:text-accent-300"
+                    >
+                      View Full Booking →
+                    </a>
+                  </div>
                 )}
               </div>
 

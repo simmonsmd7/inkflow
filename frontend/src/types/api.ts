@@ -659,3 +659,42 @@ export interface InboxStats {
   total_unread: number;
   total_conversations: number;
 }
+
+// Team assignment types
+export interface TeamMember {
+  id: string;
+  full_name: string;
+  email: string;
+  role: UserRole;
+}
+
+export interface TeamMembersResponse {
+  members: TeamMember[];
+}
+
+// Booking brief for conversation context
+export interface BookingBrief {
+  id: string;
+  reference_id: string;
+  status: string;
+  client_name: string;
+  design_idea: string | null;
+  placement: string | null;
+  size: string | null;
+  scheduled_date: string | null;
+  quoted_price: number | null;
+}
+
+// Extended conversation with booking details
+export interface ConversationWithBooking extends ConversationSummary {
+  studio_id: string | null;
+  booking: BookingBrief | null;
+  messages: InboxMessage[];
+}
+
+// Create conversation from booking request
+export interface CreateConversationFromBookingInput {
+  booking_request_id: string;
+  subject?: string | null;
+  initial_message?: string | null;
+}
