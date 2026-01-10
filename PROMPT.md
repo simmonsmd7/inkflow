@@ -4,9 +4,9 @@
 Make InkFlow production-ready for real paying customers. This is a CONTINUOUS improvement loop. You are NEVER done. Even if everything looks perfect, find something to improve. Real customers will use this software - it must be bulletproof.
 
 **CRITICAL RULES:**
-1. DO NOT implement new features
-2. DO NOT add functionality that doesn't exist
-3. ONLY fix bugs, polish UI, improve error handling, and verify existing features work
+1. If UI exists but doesn't work → COMPLETE IT (no "Coming Soon" or dead buttons)
+2. DO NOT add brand new pages/features that don't exist in the UI
+3. Fix bugs, polish UI, improve error handling, complete incomplete features
 4. Run forever until manually stopped
 5. Every iteration must make the product better
 
@@ -211,15 +211,31 @@ There is ALWAYS something to improve. Real production software requires continuo
 
 ---
 
+## Complete Incomplete Features
+
+If you find UI that exists but doesn't work, COMPLETE IT:
+
+**Examples of what to COMPLETE:**
+- "Coming Soon" placeholders → implement the feature
+- Buttons that do nothing → make them work
+- Forms that don't submit → connect to API
+- Pages that show "Not implemented" → implement them
+- Stub functions that return mock data → make them real
+- Empty modal dialogs → add the actual content/functionality
+
+**Rule: If the UI exists, make it work. No dead ends for users.**
+
+---
+
 ## What NOT To Do
 
-- DO NOT add new features or functionality
-- DO NOT refactor code that's working
-- DO NOT change the database schema
-- DO NOT add new dependencies
+- DO NOT add brand new pages/features that don't exist in the UI
+- DO NOT refactor code that's already working
+- DO NOT change the database schema unless required to complete a feature
+- DO NOT add unnecessary dependencies
 - DO NOT change the tech stack
-- DO NOT implement Phase 13 items (Instagram, etc.)
-- DO NOT create documentation (focus on code quality)
+- DO NOT implement external integrations (Instagram, WhatsApp, etc.)
+- DO NOT create documentation files (focus on code quality)
 
 ---
 
