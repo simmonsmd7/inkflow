@@ -1,4 +1,6 @@
+import { useNavigate } from 'react-router-dom';
 import { useApiHealth } from '../../hooks/useApiHealth';
+import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '../../hooks/useTheme';
 
 interface HeaderProps {
@@ -6,8 +8,15 @@ interface HeaderProps {
 }
 
 export function Header({ sidebarCollapsed }: HeaderProps) {
+  const navigate = useNavigate();
   const { health, isLoading, error } = useApiHealth();
+  const { user, logout } = useAuth();
   const { isDark, toggleTheme } = useTheme();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   return (
     <header
@@ -112,6 +121,32 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
           </svg>
           <span>New Booking</span>
         </button>
+
+        {/* User Menu / Logout */}
+        {user && (
+          <div className="flex items-center gap-3 pl-4 border-l border-ink-600">
+            <div className="text-right">
+              <p className="text-sm font-medium text-ink-100">
+                {user.first_name} {user.last_name}
+              </p>
+              <p className="text-xs text-ink-400 capitalize">{user.role}</p>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="p-2 rounded-lg text-ink-400 hover:text-red-400 hover:bg-ink-700 transition-colors"
+              title="Log out"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                />
+              </svg>
+            </button>
+          </div>
+        )}
       </div>
     </header>
   );

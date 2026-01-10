@@ -3,7 +3,7 @@
  */
 
 import api from './api';
-import type { AuthResponse, MessageResponse, RegisterRequest } from '../types/api';
+import type { AuthResponse, MessageResponse, RegisterRequest, UserDetailResponse } from '../types/api';
 
 const TOKEN_KEY = 'inkflow_token';
 
@@ -45,14 +45,8 @@ export const authService = {
   async login(email: string, password: string): Promise<AuthResponse> {
     const response = await api.post<AuthResponse>(
       '/api/v1/auth/login',
-      null,
-      {
-        skipAuth: true,
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({ email, password }).toString(),
-      }
+      { email, password },
+      { skipAuth: true }
     );
 
     // Store token
@@ -66,6 +60,13 @@ export const authService = {
    */
   logout(): void {
     localStorage.removeItem(TOKEN_KEY);
+  },
+
+  /**
+   * Get the current user's profile.
+   */
+  async getMe(): Promise<UserDetailResponse> {
+    return api.get<UserDetailResponse>('/api/v1/auth/me');
   },
 
   /**

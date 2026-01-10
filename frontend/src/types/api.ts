@@ -41,6 +41,12 @@ export interface User {
   created_at: string;
 }
 
+export interface UserDetailResponse extends User {
+  last_login_at: string | null;
+  verified_at: string | null;
+  updated_at: string;
+}
+
 // Auth request types
 export interface RegisterRequest {
   email: string;

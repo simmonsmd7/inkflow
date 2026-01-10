@@ -12,15 +12,19 @@ from app.schemas.user import (
     EmailVerification,
     MessageResponse,
     UserCreate,
+    UserDetailResponse,
+    UserLogin,
     UserResponse,
 )
 from app.services.auth import (
     authenticate_user,
     create_access_token,
     create_user,
+    get_current_user,
     get_user_by_email,
     get_user_by_verification_token,
 )
+from app.models.user import User
 from app.services.email import email_service
 
 settings = get_settings()
@@ -146,16 +150,13 @@ async def resend_verification(
 
 @router.post("/login", response_model=AuthResponse)
 async def login(
-    email: str,
-    password: str,
+    credentials: UserLogin,
     db: AsyncSession = Depends(get_db),
 ) -> AuthResponse:
     """
     Authenticate a user and return an access token.
-
-    Note: This is a placeholder for P2.2 - Login/logout with JWT tokens.
     """
-    user = await authenticate_user(db, email, password)
+    user = await authenticate_user(db, credentials.email, credentials.password)
 
     if not user:
         raise HTTPException(
@@ -180,4 +181,28 @@ async def login(
     return AuthResponse(
         access_token=access_token,
         user=UserResponse.model_validate(user),
+    )
+
+
+@router.get("/me", response_model=UserDetailResponse)
+async def get_me(
+    current_user: User = Depends(get_current_user),
+) -> UserDetailResponse:
+    """
+    Get the current authenticated user's profile.
+    """
+    return UserDetailResponse.model_validate(current_user)
+
+
+@router.post("/logout", response_model=MessageResponse)
+async def logout() -> MessageResponse:
+    """
+    Log out the current user.
+
+    Note: Since we use stateless JWTs, logout is handled client-side
+    by removing the token. This endpoint is for API completeness.
+    """
+    return MessageResponse(
+        message="Successfully logged out",
+        success=True,
     )
