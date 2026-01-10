@@ -1582,3 +1582,68 @@ Features Implemented:
 - Verified: All backend imports successful
 Status: COMPLETE
 Next: P7.3 - Follow-up check-in scheduling
+
+=== ITERATION [P7.3] ===
+Date: 2026-01-10
+Task: P7.3 - Follow-up check-in messages (day 3, week 1, week 4)
+Changes:
+
+Backend Schemas (aftercare.py):
+- FollowUpListResponse: Paginated list of follow-ups
+- FollowUpWithClientInfo: Follow-up with aftercare context
+- PendingFollowUpsResponse: List of due follow-ups
+- ProcessFollowUpsResult: Result of batch processing
+- SendFollowUpInput: Manual send options
+- SendFollowUpResponse: Send result
+- CancelFollowUpResponse: Cancel result
+- FollowUpUpdate: Update scheduled follow-up fields
+
+Backend Router (aftercare.py):
+- GET /follow-ups - List follow-ups with filters (status, type, aftercare_sent_id)
+- GET /follow-ups/pending - Get follow-ups ready to send (scheduled_for <= now)
+- POST /follow-ups/process - Batch process and send due follow-ups (cron endpoint)
+- GET /follow-ups/{id} - Get single follow-up details
+- PATCH /follow-ups/{id} - Update scheduled follow-up
+- POST /follow-ups/{id}/send - Manually send follow-up immediately
+- POST /follow-ups/{id}/cancel - Cancel scheduled follow-up
+
+Frontend Types (api.ts):
+- FollowUpSummary: List view for follow-ups
+- FollowUpResponse: Full follow-up details with message content
+- FollowUpWithClientInfo: Extended with client context
+- FollowUpListResponse: Paginated list response
+- PendingFollowUpsResponse: Pending follow-ups response
+- ProcessFollowUpsResult: Batch processing result
+- SendFollowUpInput/Response: Manual send types
+- CancelFollowUpResponse: Cancel result
+- FollowUpUpdate/Create: Update and create schemas
+
+Frontend Service (aftercare.ts):
+- listFollowUps() - Paginated list with status/type filters
+- getPendingFollowUps() - Get due follow-ups
+- processFollowUps() - Trigger batch send
+- getFollowUp() - Get single follow-up
+- updateFollowUp() - Update scheduled follow-up
+- sendFollowUpNow() - Send immediately
+- cancelFollowUp() - Cancel scheduled follow-up
+- getFollowUpTypeLabel() - Labels for day_3, week_1, week_4, custom
+- getFollowUpStatusLabel() - Status labels
+- getFollowUpStatusColor() - Tailwind color classes
+
+Frontend UI (Aftercare.tsx):
+- Added "Follow-ups" tab (third tab)
+- Status filter dropdown (all/scheduled/sent/delivered/cancelled/failed)
+- Follow-ups table with columns:
+  - Type (Day 3 Check-in, Week 1 Check-in, etc.)
+  - Scheduled For (date and time)
+  - Status badge with color coding
+  - Sent At timestamp
+  - Actions column with Send Now/Cancel/Retry buttons
+- Loading and empty states
+- Processing state for individual follow-up actions
+- Success/error messages for actions
+
+- Verified: Frontend build passes with no TypeScript errors
+- Verified: All backend imports resolve correctly
+Status: COMPLETE
+Next: P7.4 - Healing issue reporting from clients
