@@ -17,6 +17,9 @@ import {
   getSubmissionAuditLog,
   getDecryptedSignature,
   getDecryptedPhotoId,
+  getAgeVerificationStatus,
+  verifyAge,
+  addGuardianConsent,
 } from '../services/consent';
 import type {
   ConsentFormTemplateSummary,
@@ -28,6 +31,8 @@ import type {
   ConsentSubmissionSummary,
   ConsentSubmission,
   ConsentAuditLog,
+  AgeVerificationStatus,
+  GuardianConsentInput,
 } from '../types/api';
 
 type TabType = 'templates' | 'submissions';
@@ -76,6 +81,20 @@ export function ConsentForms() {
   const [decryptedSignature, setDecryptedSignature] = useState<string | null>(null);
   const [decryptedPhotoId, setDecryptedPhotoId] = useState<string | null>(null);
   const [loadingDecryption, setLoadingDecryption] = useState(false);
+
+  // Age verification state
+  const [ageStatus, setAgeStatus] = useState<AgeVerificationStatus | null>(null);
+  const [showAgeVerifyModal, setShowAgeVerifyModal] = useState(false);
+  const [showGuardianModal, setShowGuardianModal] = useState(false);
+  const [ageVerifyNotes, setAgeVerifyNotes] = useState('');
+  const [guardianData, setGuardianData] = useState<Omit<GuardianConsentInput, 'guardian_signature_data'>>({
+    guardian_name: '',
+    guardian_relationship: '',
+    guardian_phone: '',
+    guardian_email: '',
+    notes: '',
+  });
+  const [guardianSignature, setGuardianSignature] = useState('');
 
   // RBAC check
   if (!user || !['owner', 'artist', 'receptionist'].includes(user.role)) {
@@ -213,10 +232,19 @@ export function ConsentForms() {
       setDecryptedPhotoId(null);
       setAuditLogs([]);
       setShowAuditLog(false);
+      setAgeStatus(null);
 
       const fullSubmission = await getSubmission(submission.id);
       setSelectedSubmission(fullSubmission);
       setShowSubmissionModal(true);
+
+      // Load age status
+      try {
+        const status = await getAgeVerificationStatus(submission.id);
+        setAgeStatus(status);
+      } catch {
+        // Age status may not be available for older submissions
+      }
     } catch (err) {
       setError('Failed to load submission details');
     }
@@ -289,6 +317,63 @@ export function ConsentForms() {
       setError('Failed to decrypt photo ID');
     } finally {
       setLoadingDecryption(false);
+    }
+  };
+
+  // Handle manual age verification
+  const handleVerifyAge = async (verified: boolean) => {
+    if (!selectedSubmission) return;
+
+    try {
+      await verifyAge(selectedSubmission.id, {
+        age_verified: verified,
+        notes: ageVerifyNotes || undefined,
+      });
+      setShowAgeVerifyModal(false);
+      setAgeVerifyNotes('');
+
+      // Refresh submission and age status
+      const updated = await getSubmission(selectedSubmission.id);
+      setSelectedSubmission(updated);
+      const status = await getAgeVerificationStatus(selectedSubmission.id);
+      setAgeStatus(status);
+      await loadSubmissions();
+    } catch (err) {
+      setError('Failed to verify age');
+    }
+  };
+
+  // Handle guardian consent submission
+  const handleGuardianConsent = async () => {
+    if (!selectedSubmission || !guardianSignature) return;
+
+    try {
+      await addGuardianConsent(selectedSubmission.id, {
+        guardian_name: guardianData.guardian_name,
+        guardian_relationship: guardianData.guardian_relationship,
+        guardian_phone: guardianData.guardian_phone || undefined,
+        guardian_email: guardianData.guardian_email || undefined,
+        guardian_signature_data: guardianSignature,
+        notes: guardianData.notes || undefined,
+      });
+      setShowGuardianModal(false);
+      setGuardianData({
+        guardian_name: '',
+        guardian_relationship: '',
+        guardian_phone: '',
+        guardian_email: '',
+        notes: '',
+      });
+      setGuardianSignature('');
+
+      // Refresh submission and age status
+      const updated = await getSubmission(selectedSubmission.id);
+      setSelectedSubmission(updated);
+      const status = await getAgeVerificationStatus(selectedSubmission.id);
+      setAgeStatus(status);
+      await loadSubmissions();
+    } catch (err) {
+      setError('Failed to add guardian consent');
     }
   };
 
@@ -567,9 +652,18 @@ export function ConsentForms() {
                                   {submission.photo_id_verified ? 'ID Verified' : 'ID Pending'}
                                 </span>
                               )}
-                              {submission.age_verified && (
+                              {submission.age_verified ? (
                                 <span className="px-2 py-0.5 text-xs bg-blue-900/30 text-blue-400 rounded">
-                                  Age OK
+                                  Age OK{submission.age_at_signing !== null ? ` (${submission.age_at_signing})` : ''}
+                                </span>
+                              ) : submission.age_at_signing !== null && submission.age_at_signing < 18 ? (
+                                <span className="px-2 py-0.5 text-xs bg-orange-900/30 text-orange-400 rounded">
+                                  Underage ({submission.age_at_signing})
+                                </span>
+                              ) : null}
+                              {submission.has_guardian_consent && (
+                                <span className="px-2 py-0.5 text-xs bg-purple-900/30 text-purple-400 rounded">
+                                  Guardian OK
                                 </span>
                               )}
                             </>
@@ -1141,6 +1235,117 @@ export function ConsentForms() {
                 </div>
               )}
 
+              {/* Age Verification */}
+              {ageStatus && (
+                <div className="bg-ink-700/50 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-medium text-ink-100">Age Verification</h3>
+                    {!selectedSubmission.is_voided && (isOwner || user?.role === 'artist') && (
+                      <div className="flex items-center space-x-2">
+                        {!ageStatus.age_verified && (
+                          <button
+                            onClick={() => setShowAgeVerifyModal(true)}
+                            className="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors"
+                          >
+                            Verify Age
+                          </button>
+                        )}
+                        {ageStatus.needs_guardian_consent && !selectedSubmission.has_guardian_consent && (
+                          <button
+                            onClick={() => setShowGuardianModal(true)}
+                            className="px-3 py-1.5 text-sm bg-orange-600 hover:bg-orange-500 text-white rounded transition-colors"
+                          >
+                            Add Guardian Consent
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center">
+                      <span className="text-ink-500 w-32">Age Requirement:</span>
+                      <span className="text-ink-200">{ageStatus.age_requirement} years</span>
+                    </div>
+                    {ageStatus.age_at_signing !== null && (
+                      <div className="flex items-center">
+                        <span className="text-ink-500 w-32">Age at Signing:</span>
+                        <span className={`${ageStatus.is_underage ? 'text-orange-400' : 'text-ink-200'}`}>
+                          {ageStatus.age_at_signing} years
+                          {ageStatus.is_underage && ' (under requirement)'}
+                        </span>
+                      </div>
+                    )}
+                    {ageStatus.client_date_of_birth && (
+                      <div className="flex items-center">
+                        <span className="text-ink-500 w-32">Date of Birth:</span>
+                        <span className="text-ink-200">
+                          {new Date(ageStatus.client_date_of_birth).toLocaleDateString()}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex items-center">
+                      <span className="text-ink-500 w-32">Status:</span>
+                      {ageStatus.age_verified ? (
+                        <span className="text-green-400">Verified</span>
+                      ) : ageStatus.is_underage ? (
+                        <span className="text-orange-400">Underage - Requires Review</span>
+                      ) : (
+                        <span className="text-yellow-400">Pending Verification</span>
+                      )}
+                    </div>
+
+                    {/* Guardian consent info */}
+                    {selectedSubmission.has_guardian_consent && (
+                      <div className="mt-3 p-3 bg-ink-800/50 rounded border border-ink-600">
+                        <p className="text-ink-300 font-medium mb-2">Guardian Consent</p>
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div>
+                            <span className="text-ink-500">Guardian:</span>
+                            <span className="ml-2 text-ink-200">{selectedSubmission.guardian_name}</span>
+                          </div>
+                          <div>
+                            <span className="text-ink-500">Relationship:</span>
+                            <span className="ml-2 text-ink-200">{selectedSubmission.guardian_relationship}</span>
+                          </div>
+                          {selectedSubmission.guardian_phone && (
+                            <div>
+                              <span className="text-ink-500">Phone:</span>
+                              <span className="ml-2 text-ink-200">{selectedSubmission.guardian_phone}</span>
+                            </div>
+                          )}
+                          {selectedSubmission.guardian_email && (
+                            <div>
+                              <span className="text-ink-500">Email:</span>
+                              <span className="ml-2 text-ink-200">{selectedSubmission.guardian_email}</span>
+                            </div>
+                          )}
+                          <div className="col-span-2">
+                            <span className="text-ink-500">Consented at:</span>
+                            <span className="ml-2 text-green-400">
+                              {new Date(selectedSubmission.guardian_consent_at!).toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Age verification notes */}
+                    {selectedSubmission.age_verification_notes && (
+                      <div className="mt-2">
+                        <span className="text-ink-500">Notes:</span>
+                        <span className="ml-2 text-ink-300">{selectedSubmission.age_verification_notes}</span>
+                      </div>
+                    )}
+                    {selectedSubmission.age_verified_at && (
+                      <p className="text-green-400 text-sm mt-2">
+                        Verified at: {new Date(selectedSubmission.age_verified_at).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Metadata */}
               <div className="bg-ink-700/50 rounded-lg p-4">
                 <h3 className="font-medium text-ink-100 mb-3">Submission Details</h3>
@@ -1275,6 +1480,167 @@ export function ConsentForms() {
                 className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Void Form
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Age Verify Modal */}
+      {showAgeVerifyModal && selectedSubmission && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-ink-800 rounded-lg border border-ink-600 max-w-md w-full p-6">
+            <h2 className="text-xl font-semibold text-ink-100 mb-4">Verify Client Age</h2>
+            <p className="text-ink-400 mb-4">
+              Confirm the client's age has been verified via photo ID or other means.
+            </p>
+            {ageStatus && (
+              <div className="mb-4 p-3 bg-ink-700/50 rounded text-sm">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-ink-400">Age Requirement:</span>
+                  <span className="text-ink-200">{ageStatus.age_requirement} years</span>
+                </div>
+                {ageStatus.age_at_signing !== null && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-ink-400">Age at Signing:</span>
+                    <span className={ageStatus.is_underage ? 'text-orange-400' : 'text-green-400'}>
+                      {ageStatus.age_at_signing} years
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="mb-4">
+              <label className="block text-sm text-ink-400 mb-1">Notes (optional)</label>
+              <textarea
+                value={ageVerifyNotes}
+                onChange={(e) => setAgeVerifyNotes(e.target.value)}
+                className="w-full px-3 py-2 bg-ink-700 border border-ink-600 rounded text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-500"
+                rows={2}
+                placeholder="Any notes about age verification..."
+              />
+            </div>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowAgeVerifyModal(false);
+                  setAgeVerifyNotes('');
+                }}
+                className="px-4 py-2 text-ink-400 hover:text-ink-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleVerifyAge(true)}
+                className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg transition-colors"
+              >
+                Confirm Age Verified
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Guardian Consent Modal */}
+      {showGuardianModal && selectedSubmission && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-ink-800 rounded-lg border border-ink-600 max-w-md w-full p-6 my-8">
+            <h2 className="text-xl font-semibold text-ink-100 mb-4">Guardian Consent</h2>
+            <p className="text-ink-400 mb-4">
+              The client is under the age requirement. A parent or legal guardian must provide consent.
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-ink-400 mb-1">Guardian Name *</label>
+                <input
+                  type="text"
+                  value={guardianData.guardian_name}
+                  onChange={(e) => setGuardianData({ ...guardianData, guardian_name: e.target.value })}
+                  className="w-full px-3 py-2 bg-ink-700 border border-ink-600 rounded text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-500"
+                  placeholder="Full legal name"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-ink-400 mb-1">Relationship *</label>
+                <select
+                  value={guardianData.guardian_relationship}
+                  onChange={(e) => setGuardianData({ ...guardianData, guardian_relationship: e.target.value })}
+                  className="w-full px-3 py-2 bg-ink-700 border border-ink-600 rounded text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-500"
+                >
+                  <option value="">Select relationship</option>
+                  <option value="Parent">Parent</option>
+                  <option value="Legal Guardian">Legal Guardian</option>
+                  <option value="Step-Parent">Step-Parent</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm text-ink-400 mb-1">Phone</label>
+                <input
+                  type="tel"
+                  value={guardianData.guardian_phone || ''}
+                  onChange={(e) => setGuardianData({ ...guardianData, guardian_phone: e.target.value })}
+                  className="w-full px-3 py-2 bg-ink-700 border border-ink-600 rounded text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-500"
+                  placeholder="(555) 123-4567"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-ink-400 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={guardianData.guardian_email || ''}
+                  onChange={(e) => setGuardianData({ ...guardianData, guardian_email: e.target.value })}
+                  className="w-full px-3 py-2 bg-ink-700 border border-ink-600 rounded text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-500"
+                  placeholder="guardian@example.com"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-ink-400 mb-1">Guardian Signature *</label>
+                <p className="text-ink-500 text-xs mb-2">
+                  Have the guardian sign below or enter their signature confirmation.
+                </p>
+                <input
+                  type="text"
+                  value={guardianSignature}
+                  onChange={(e) => setGuardianSignature(e.target.value)}
+                  className="w-full px-3 py-2 bg-ink-700 border border-ink-600 rounded text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-500"
+                  placeholder="Type guardian's full name as signature"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-ink-400 mb-1">Notes</label>
+                <textarea
+                  value={guardianData.notes || ''}
+                  onChange={(e) => setGuardianData({ ...guardianData, notes: e.target.value })}
+                  className="w-full px-3 py-2 bg-ink-700 border border-ink-600 rounded text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-500"
+                  rows={2}
+                  placeholder="Any additional notes..."
+                />
+              </div>
+            </div>
+            <div className="flex justify-end space-x-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowGuardianModal(false);
+                  setGuardianData({
+                    guardian_name: '',
+                    guardian_relationship: '',
+                    guardian_phone: '',
+                    guardian_email: '',
+                    notes: '',
+                  });
+                  setGuardianSignature('');
+                }}
+                className="px-4 py-2 text-ink-400 hover:text-ink-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleGuardianConsent}
+                disabled={!guardianData.guardian_name || !guardianData.guardian_relationship || !guardianSignature}
+                className="px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Save Guardian Consent
               </button>
             </div>
           </div>

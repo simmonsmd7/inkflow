@@ -182,6 +182,28 @@ class ConsentFormSubmission(BaseModel):
     # Age verification
     age_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     age_at_signing: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    age_verified_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    age_verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    age_verification_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Guardian consent for minors
+    has_guardian_consent: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    guardian_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    guardian_relationship: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    guardian_phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    guardian_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    guardian_signature_data: Mapped[str | None] = mapped_column(Text, nullable=True)  # Encrypted
+    guardian_consent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
 
     # Submission metadata
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)  # IPv6 max
@@ -227,6 +249,11 @@ class ConsentFormSubmission(BaseModel):
         foreign_keys=[voided_by_id],
         back_populates="voided_consent_forms",
     )
+    age_verified_by = relationship(
+        "User",
+        foreign_keys=[age_verified_by_id],
+        back_populates="age_verified_consent_forms",
+    )
     audit_logs = relationship(
         "ConsentAuditLog",
         back_populates="submission",
@@ -240,7 +267,9 @@ class ConsentAuditAction(str, enum.Enum):
     CREATED = "created"
     VIEWED = "viewed"
     DOWNLOADED = "downloaded"
-    VERIFIED = "verified"
+    VERIFIED = "verified"  # Photo ID verified
+    AGE_VERIFIED = "age_verified"  # Age manually verified
+    GUARDIAN_CONSENT = "guardian_consent"  # Guardian consent added
     VOIDED = "voided"
     EXPORTED = "exported"
 

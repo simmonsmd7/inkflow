@@ -14,7 +14,7 @@ ConsentFieldType = Literal[
 
 # Audit actions literal
 ConsentAuditAction = Literal[
-    "created", "viewed", "downloaded", "verified", "voided", "exported"
+    "created", "viewed", "downloaded", "verified", "age_verified", "guardian_consent", "voided", "exported"
 ]
 
 
@@ -204,6 +204,8 @@ class ConsentSubmissionSummary(BaseModel):
     has_photo_id: bool
     photo_id_verified: bool
     age_verified: bool
+    age_at_signing: int | None
+    has_guardian_consent: bool
     is_voided: bool
     booking_request_id: UUID | None
     created_at: datetime
@@ -242,6 +244,17 @@ class ConsentSubmissionResponse(BaseModel):
     # Age verification
     age_verified: bool
     age_at_signing: int | None
+    age_verified_at: datetime | None
+    age_verified_by_id: UUID | None
+    age_verification_notes: str | None
+
+    # Guardian consent (for minors)
+    has_guardian_consent: bool
+    guardian_name: str | None
+    guardian_relationship: str | None
+    guardian_phone: str | None
+    guardian_email: str | None
+    guardian_consent_at: datetime | None
 
     # Submission metadata
     ip_address: str | None
@@ -370,4 +383,58 @@ class SubmitSigningResponse(BaseModel):
 
     submission_id: UUID
     access_token: str
+    message: str
+
+
+# === Age Verification Schemas ===
+
+class VerifyAgeInput(BaseModel):
+    """Input for manually verifying or updating age verification status."""
+
+    age_verified: bool = Field(..., description="Whether age has been verified")
+    age_at_signing: int | None = Field(default=None, ge=0, le=120, description="Corrected age if applicable")
+    client_date_of_birth: datetime | None = Field(default=None, description="Corrected date of birth if applicable")
+    notes: str | None = Field(default=None, max_length=500, description="Notes about the verification")
+
+
+class VerifyAgeResponse(BaseModel):
+    """Response after verifying age."""
+
+    age_verified: bool
+    age_at_signing: int | None
+    verified_at: datetime
+    verified_by_id: UUID
+    verified_by_name: str
+    notes: str | None
+
+
+class AgeVerificationStatus(BaseModel):
+    """Age verification status for a submission."""
+
+    age_verified: bool
+    age_at_signing: int | None
+    age_requirement: int
+    is_underage: bool
+    client_date_of_birth: datetime | None
+    needs_guardian_consent: bool = False
+
+
+class GuardianConsentInput(BaseModel):
+    """Input for adding guardian consent for a minor."""
+
+    guardian_name: str = Field(..., min_length=1, max_length=200)
+    guardian_relationship: str = Field(..., min_length=1, max_length=100)  # e.g., "Parent", "Legal Guardian"
+    guardian_phone: str | None = Field(default=None, max_length=50)
+    guardian_email: str | None = Field(default=None, max_length=255)
+    guardian_signature_data: str = Field(..., description="Base64 signature of guardian")
+    notes: str | None = Field(default=None, max_length=500)
+
+
+class GuardianConsentResponse(BaseModel):
+    """Response after adding guardian consent."""
+
+    success: bool
+    guardian_name: str
+    guardian_relationship: str
+    consented_at: datetime
     message: str

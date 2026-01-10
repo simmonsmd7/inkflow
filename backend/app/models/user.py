@@ -149,6 +149,12 @@ class User(BaseModel, SoftDeleteMixin):
         foreign_keys="ConsentFormSubmission.voided_by_id",
         lazy="selectin",
     )
+    age_verified_consent_forms: Mapped[list["ConsentFormSubmission"]] = relationship(
+        "ConsentFormSubmission",
+        back_populates="age_verified_by",
+        foreign_keys="ConsentFormSubmission.age_verified_by_id",
+        lazy="selectin",
+    )
     consent_audit_logs: Mapped[list["ConsentAuditLog"]] = relationship(
         "ConsentAuditLog",
         back_populates="performed_by",

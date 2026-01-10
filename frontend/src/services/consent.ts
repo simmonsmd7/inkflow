@@ -4,6 +4,7 @@
 
 import api from './api';
 import type {
+  AgeVerificationStatus,
   ConsentAuditLogsListResponse,
   ConsentFormTemplate,
   ConsentFormTemplateCreate,
@@ -12,9 +13,13 @@ import type {
   ConsentSubmission,
   ConsentSubmissionsListResponse,
   CreateFromPrebuiltInput,
+  GuardianConsentInput,
+  GuardianConsentResponse,
   PrebuiltTemplatesListResponse,
   SubmitSigningInput,
   SubmitSigningResponse,
+  VerifyAgeInput,
+  VerifyAgeResponse,
   VerifyPhotoIdInput,
   VerifyPhotoIdResponse,
   VoidConsentInput,
@@ -98,6 +103,36 @@ export async function verifyPhotoId(
 ): Promise<VerifyPhotoIdResponse> {
   return api.post<VerifyPhotoIdResponse>(
     `/consent/submissions/${submissionId}/verify-photo-id`,
+    data
+  );
+}
+
+// === Age Verification ===
+
+export async function getAgeVerificationStatus(
+  submissionId: string
+): Promise<AgeVerificationStatus> {
+  return api.get<AgeVerificationStatus>(
+    `/consent/submissions/${submissionId}/age-status`
+  );
+}
+
+export async function verifyAge(
+  submissionId: string,
+  data: VerifyAgeInput
+): Promise<VerifyAgeResponse> {
+  return api.post<VerifyAgeResponse>(
+    `/consent/submissions/${submissionId}/verify-age`,
+    data
+  );
+}
+
+export async function addGuardianConsent(
+  submissionId: string,
+  data: GuardianConsentInput
+): Promise<GuardianConsentResponse> {
+  return api.post<GuardianConsentResponse>(
+    `/consent/submissions/${submissionId}/guardian-consent`,
     data
   );
 }

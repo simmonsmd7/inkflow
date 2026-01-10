@@ -23,6 +23,7 @@ from app.models.booking import BookingRequest
 from app.models.studio import Studio
 from app.models.user import User
 from app.schemas.consent import (
+    AgeVerificationStatus,
     ConsentAuditLogResponse,
     ConsentAuditLogsListResponse,
     ConsentFormTemplateCreate,
@@ -36,11 +37,15 @@ from app.schemas.consent import (
     ConsentSubmissionSummary,
     CreateFromPrebuiltInput,
     FormFieldResponse,
+    GuardianConsentInput,
+    GuardianConsentResponse,
     PhotoIdUploadResponse,
     PrebuiltTemplateInfo,
     PrebuiltTemplatesListResponse,
     SubmitSigningInput,
     SubmitSigningResponse,
+    VerifyAgeInput,
+    VerifyAgeResponse,
     VerifyPhotoIdInput,
     VerifyPhotoIdResponse,
     VoidConsentInput,
@@ -681,6 +686,163 @@ async def verify_photo_id(
     )
 
 
+@router.get("/submissions/{submission_id}/age-status", response_model=AgeVerificationStatus)
+async def get_age_verification_status(
+    submission_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role(["owner", "artist", "receptionist"])),
+) -> AgeVerificationStatus:
+    """Get age verification status for a submission."""
+    studio = await _get_user_studio(db, current_user)
+    submission = await _get_submission(db, submission_id, studio.id)
+
+    # Get template age requirement
+    age_requirement = 18  # Default
+    if submission.template_id:
+        template_result = await db.execute(
+            select(ConsentFormTemplate).where(ConsentFormTemplate.id == submission.template_id)
+        )
+        template = template_result.scalar_one_or_none()
+        if template:
+            age_requirement = template.age_requirement
+
+    # Determine if underage
+    is_underage = False
+    needs_guardian_consent = False
+    if submission.age_at_signing is not None:
+        is_underage = submission.age_at_signing < age_requirement
+        # For minors aged 16-17 (or within 2 years of requirement), allow guardian consent
+        if is_underage and submission.age_at_signing >= age_requirement - 2:
+            needs_guardian_consent = True
+
+    return AgeVerificationStatus(
+        age_verified=submission.age_verified,
+        age_at_signing=submission.age_at_signing,
+        age_requirement=age_requirement,
+        is_underage=is_underage,
+        client_date_of_birth=submission.client_date_of_birth,
+        needs_guardian_consent=needs_guardian_consent and not submission.has_guardian_consent,
+    )
+
+
+@router.post("/submissions/{submission_id}/verify-age", response_model=VerifyAgeResponse)
+async def verify_age(
+    submission_id: uuid.UUID,
+    data: VerifyAgeInput,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role(["owner", "artist"])),
+) -> VerifyAgeResponse:
+    """Manually verify or update age verification status for a submission."""
+    studio = await _get_user_studio(db, current_user)
+    submission = await _get_submission(db, submission_id, studio.id)
+
+    # Update age verification
+    submission.age_verified = data.age_verified
+    submission.age_verified_at = datetime.utcnow()
+    submission.age_verified_by_id = current_user.id
+    submission.age_verification_notes = data.notes
+
+    # Update age if provided
+    if data.age_at_signing is not None:
+        submission.age_at_signing = data.age_at_signing
+
+    # Update date of birth if provided
+    if data.client_date_of_birth is not None:
+        submission.client_date_of_birth = data.client_date_of_birth
+        # Recalculate age
+        today = datetime.utcnow()
+        dob = data.client_date_of_birth
+        age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+        submission.age_at_signing = age
+
+    # Log audit
+    action_notes = f"Age verification: {data.age_verified}"
+    if data.notes:
+        action_notes += f" - {data.notes}"
+    await _create_audit_log(
+        db,
+        submission.id,
+        ConsentAuditAction.AGE_VERIFIED,
+        current_user.id,
+        current_user.full_name,
+        request,
+        notes=action_notes,
+    )
+
+    await db.commit()
+    await db.refresh(submission)
+
+    return VerifyAgeResponse(
+        age_verified=submission.age_verified,
+        age_at_signing=submission.age_at_signing,
+        verified_at=submission.age_verified_at,
+        verified_by_id=current_user.id,
+        verified_by_name=current_user.full_name,
+        notes=data.notes,
+    )
+
+
+@router.post("/submissions/{submission_id}/guardian-consent", response_model=GuardianConsentResponse)
+async def add_guardian_consent(
+    submission_id: uuid.UUID,
+    data: GuardianConsentInput,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role(["owner", "artist"])),
+) -> GuardianConsentResponse:
+    """Add guardian consent for a minor's consent form submission."""
+    studio = await _get_user_studio(db, current_user)
+    submission = await _get_submission(db, submission_id, studio.id)
+
+    if submission.has_guardian_consent:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Guardian consent has already been recorded for this submission",
+        )
+
+    # Encrypt guardian signature
+    encryption_service = get_encryption_service()
+    encrypted_signature = encryption_service.encrypt(data.guardian_signature_data)
+
+    # Update submission with guardian consent
+    submission.has_guardian_consent = True
+    submission.guardian_name = data.guardian_name
+    submission.guardian_relationship = data.guardian_relationship
+    submission.guardian_phone = data.guardian_phone
+    submission.guardian_email = data.guardian_email
+    submission.guardian_signature_data = encrypted_signature
+    submission.guardian_consent_at = datetime.utcnow()
+
+    # Mark as age verified if guardian consent is provided
+    submission.age_verified = True
+    submission.age_verified_at = datetime.utcnow()
+    submission.age_verified_by_id = current_user.id
+    submission.age_verification_notes = f"Guardian consent provided by {data.guardian_name} ({data.guardian_relationship})"
+
+    # Log audit
+    await _create_audit_log(
+        db,
+        submission.id,
+        ConsentAuditAction.GUARDIAN_CONSENT,
+        current_user.id,
+        current_user.full_name,
+        request,
+        notes=f"Guardian: {data.guardian_name} ({data.guardian_relationship})",
+    )
+
+    await db.commit()
+    await db.refresh(submission)
+
+    return GuardianConsentResponse(
+        success=True,
+        guardian_name=data.guardian_name,
+        guardian_relationship=data.guardian_relationship,
+        consented_at=submission.guardian_consent_at,
+        message="Guardian consent recorded successfully",
+    )
+
+
 @router.post("/submissions/{submission_id}/void", response_model=VoidConsentResponse)
 async def void_submission(
     submission_id: uuid.UUID,
@@ -1293,6 +1455,8 @@ def _submission_to_summary(submission: ConsentFormSubmission) -> ConsentSubmissi
         has_photo_id=submission.photo_id_url is not None,
         photo_id_verified=submission.photo_id_verified,
         age_verified=submission.age_verified,
+        age_at_signing=submission.age_at_signing,
+        has_guardian_consent=submission.has_guardian_consent,
         is_voided=submission.is_voided,
         booking_request_id=submission.booking_request_id,
         created_at=submission.created_at,
@@ -1326,6 +1490,15 @@ def _submission_to_response(submission: ConsentFormSubmission) -> ConsentSubmiss
         photo_id_verified_at=submission.photo_id_verified_at,
         age_verified=submission.age_verified,
         age_at_signing=submission.age_at_signing,
+        age_verified_at=submission.age_verified_at,
+        age_verified_by_id=submission.age_verified_by_id,
+        age_verification_notes=submission.age_verification_notes,
+        has_guardian_consent=submission.has_guardian_consent,
+        guardian_name=submission.guardian_name,
+        guardian_relationship=submission.guardian_relationship,
+        guardian_phone=submission.guardian_phone,
+        guardian_email=submission.guardian_email,
+        guardian_consent_at=submission.guardian_consent_at,
         ip_address=submission.ip_address,
         submitted_at=submission.submitted_at,
         access_token=submission.access_token,

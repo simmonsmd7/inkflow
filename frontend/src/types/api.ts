@@ -1201,6 +1201,8 @@ export interface ConsentSubmissionSummary {
   has_photo_id: boolean;
   photo_id_verified: boolean;
   age_verified: boolean;
+  age_at_signing: number | null;
+  has_guardian_consent: boolean;
   is_voided: boolean;
   booking_request_id: string | null;
   created_at: string;
@@ -1226,6 +1228,15 @@ export interface ConsentSubmission {
   photo_id_verified_at: string | null;
   age_verified: boolean;
   age_at_signing: number | null;
+  age_verified_at: string | null;
+  age_verified_by_id: string | null;
+  age_verification_notes: string | null;
+  has_guardian_consent: boolean;
+  guardian_name: string | null;
+  guardian_relationship: string | null;
+  guardian_phone: string | null;
+  guardian_email: string | null;
+  guardian_consent_at: string | null;
   ip_address: string | null;
   submitted_at: string;
   access_token: string;
@@ -1263,6 +1274,49 @@ export interface VoidConsentResponse {
   voided_by_id: string;
   voided_by_name: string;
   reason: string;
+}
+
+// Age Verification types
+export interface AgeVerificationStatus {
+  age_verified: boolean;
+  age_at_signing: number | null;
+  age_requirement: number;
+  is_underage: boolean;
+  client_date_of_birth: string | null;
+  needs_guardian_consent: boolean;
+}
+
+export interface VerifyAgeInput {
+  age_verified: boolean;
+  age_at_signing?: number | null;
+  client_date_of_birth?: string | null;
+  notes?: string | null;
+}
+
+export interface VerifyAgeResponse {
+  age_verified: boolean;
+  age_at_signing: number | null;
+  verified_at: string;
+  verified_by_id: string;
+  verified_by_name: string;
+  notes: string | null;
+}
+
+export interface GuardianConsentInput {
+  guardian_name: string;
+  guardian_relationship: string;
+  guardian_phone?: string | null;
+  guardian_email?: string | null;
+  guardian_signature_data: string;
+  notes?: string | null;
+}
+
+export interface GuardianConsentResponse {
+  success: boolean;
+  guardian_name: string;
+  guardian_relationship: string;
+  consented_at: string;
+  message: string;
 }
 
 export interface ConsentAuditLog {

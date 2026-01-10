@@ -114,6 +114,7 @@ from app.schemas.message import (
     ReplyTemplateUpdate,
 )
 from app.schemas.consent import (
+    AgeVerificationStatus,
     ConsentAuditAction,
     ConsentAuditLogResponse,
     ConsentAuditLogsListResponse,
@@ -130,6 +131,8 @@ from app.schemas.consent import (
     CreateFromPrebuiltInput,
     FormFieldCreate,
     FormFieldResponse,
+    GuardianConsentInput,
+    GuardianConsentResponse,
     PhotoIdUploadResponse,
     PrebuiltTemplateInfo,
     PrebuiltTemplatesListResponse,
@@ -137,6 +140,8 @@ from app.schemas.consent import (
     StartSigningInput,
     SubmitSigningInput,
     SubmitSigningResponse,
+    VerifyAgeInput,
+    VerifyAgeResponse,
     VerifyPhotoIdInput,
     VerifyPhotoIdResponse,
     VoidConsentInput,
