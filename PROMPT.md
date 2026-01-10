@@ -237,13 +237,21 @@ Always read `ralph.log` at the start of each iteration to understand current sta
 
 ---
 
-## MANDATORY VISUAL VERIFICATION
+## MANDATORY VISUAL VERIFICATION (Browser Tools Available)
+
+You have access to Chrome browser tools via MCP. USE THEM.
 
 Before committing any frontend changes:
-1. Take a screenshot of http://localhost:5173
-2. Verify the feature appears and functions correctly
-3. Check for visual bugs, layout issues, console errors
-4. Only proceed if verification passes
+1. Navigate to http://localhost:5173 using browser tools
+2. Take a screenshot to verify the feature appears correctly
+3. Check browser console for JavaScript errors
+4. Interact with the feature (click buttons, fill forms) to verify functionality
+5. Only proceed if verification passes
+
+If you find bugs or errors:
+- Fix them immediately
+- Re-verify with another screenshot
+- Do NOT commit broken code
 
 ---
 
@@ -339,3 +347,16 @@ If you encounter issues:
 | `cd frontend && npm run build` | Build check |
 | `cat ralph.log` | Check progress |
 | `git log --oneline -10` | Recent commits |
+
+---
+
+## Ralph Loop Command
+
+```bash
+while :; do cat PROMPT.md | claude --chrome -p --dangerously-skip-permissions; done
+```
+
+**Flags:**
+- `--chrome` - Enables browser tools for visual verification
+- `-p` - Print mode (pipes input as prompt)
+- `--dangerously-skip-permissions` - Autonomous file operations
