@@ -5,6 +5,7 @@
 import { api } from './api';
 import type {
   ArtistCommissionInfo,
+  ArtistPayoutReportResponse,
   ArtistsWithCommissionResponse,
   AssignCommissionRuleInput,
   AssignToPayPeriodInput,
@@ -21,6 +22,7 @@ import type {
   MarkPayPeriodPaidInput,
   MarkPayPeriodPaidResponse,
   MessageResponse,
+  PayoutHistoryResponse,
   PayPeriod,
   PayPeriodCreate,
   PayPeriodSettings,
@@ -281,4 +283,51 @@ export async function listEarnedCommissions(
     params.append('unpaid_only', 'true');
   }
   return api.get<EarnedCommissionsListResponse>(`/commissions/earned?${params.toString()}`);
+}
+
+// ============ Payout Reports ============
+
+/**
+ * Get payout history report showing paid pay periods with artist breakdowns.
+ */
+export async function getPayoutHistory(
+  page: number = 1,
+  pageSize: number = 20,
+  options?: {
+    startDate?: string;
+    endDate?: string;
+  }
+): Promise<PayoutHistoryResponse> {
+  const params = new URLSearchParams({
+    page: page.toString(),
+    page_size: pageSize.toString(),
+  });
+  if (options?.startDate) {
+    params.append('start_date', options.startDate);
+  }
+  if (options?.endDate) {
+    params.append('end_date', options.endDate);
+  }
+  return api.get<PayoutHistoryResponse>(`/commissions/reports/payout-history?${params.toString()}`);
+}
+
+/**
+ * Get artist payouts report showing totals per artist.
+ */
+export async function getArtistPayoutsReport(options?: {
+  startDate?: string;
+  endDate?: string;
+  paidOnly?: boolean;
+}): Promise<ArtistPayoutReportResponse> {
+  const params = new URLSearchParams();
+  if (options?.startDate) {
+    params.append('start_date', options.startDate);
+  }
+  if (options?.endDate) {
+    params.append('end_date', options.endDate);
+  }
+  if (options?.paidOnly !== undefined) {
+    params.append('paid_only', options.paidOnly.toString());
+  }
+  return api.get<ArtistPayoutReportResponse>(`/commissions/reports/artist-payouts?${params.toString()}`);
 }

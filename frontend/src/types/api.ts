@@ -954,3 +954,57 @@ export interface MarkPayPeriodPaidResponse {
   message: string;
   pay_period: PayPeriodSummary;
 }
+
+// ============ Payout Report Types ============
+
+export interface ArtistPayoutSummary {
+  artist_id: string;
+  artist_name: string;
+  email: string;
+  total_service: number;
+  total_studio_commission: number;
+  total_artist_payout: number;
+  total_tips: number;
+  booking_count: number;
+  pay_period_count: number;
+}
+
+export interface PayoutReportSummary {
+  total_service: number;
+  total_studio_commission: number;
+  total_artist_payout: number;
+  total_tips: number;
+  total_bookings: number;
+  total_pay_periods: number;
+  artists_paid: number;
+}
+
+export interface PayoutHistoryItem {
+  id: string;
+  start_date: string;
+  end_date: string;
+  paid_at: string | null;
+  payout_reference: string | null;
+  total_service: number;
+  total_studio_commission: number;
+  total_artist_payout: number;
+  total_tips: number;
+  commission_count: number;
+  payment_notes: string | null;
+  artist_breakdown: ArtistPayoutSummary[];
+}
+
+export interface PayoutHistoryResponse {
+  history: PayoutHistoryItem[];
+  summary: PayoutReportSummary;
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface ArtistPayoutReportResponse {
+  artists: ArtistPayoutSummary[];
+  summary: PayoutReportSummary;
+  start_date: string | null;
+  end_date: string | null;
+}

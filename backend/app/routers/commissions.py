@@ -22,6 +22,8 @@ from app.models.studio import Studio
 from app.models.user import User, UserRole
 from app.schemas.commission import (
     ArtistCommissionInfo,
+    ArtistPayoutReportResponse,
+    ArtistPayoutSummary,
     ArtistsWithCommissionResponse,
     AssignCommissionRuleInput,
     AssignToPayPeriodInput,
@@ -40,6 +42,9 @@ from app.schemas.commission import (
     EarnedCommissionWithDetails,
     MarkPayPeriodPaidInput,
     MarkPayPeriodPaidResponse,
+    PayoutHistoryItem,
+    PayoutHistoryResponse,
+    PayoutReportSummary,
     PayPeriodCreate,
     PayPeriodResponse,
     PayPeriodSchedule,
@@ -1336,4 +1341,279 @@ async def list_unassigned_commissions(
         total_studio_commission=sums.total_studio_commission if sums else 0,
         total_artist_payout=sums.total_artist_payout if sums else 0,
         total_tips=sums.total_tips if sums else 0,
+    )
+
+
+# ============ Payout Reports ============
+
+
+@router.get("/reports/payout-history", response_model=PayoutHistoryResponse)
+async def get_payout_history(
+    current_user: User = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+) -> PayoutHistoryResponse:
+    """
+    Get payout history report showing paid pay periods with artist breakdowns.
+    Owner only.
+    """
+    from datetime import datetime as dt
+    from collections import defaultdict
+
+    studio = await get_user_studio(db, current_user)
+
+    # Parse dates
+    start_dt = None
+    end_dt = None
+    if start_date:
+        start_dt = dt.fromisoformat(start_date + "T00:00:00+00:00")
+    if end_date:
+        end_dt = dt.fromisoformat(end_date + "T23:59:59+00:00")
+
+    # Build query for paid pay periods
+    base_query = select(PayPeriod).where(
+        PayPeriod.studio_id == studio.id,
+        PayPeriod.status == PayPeriodStatus.PAID,
+    )
+
+    if start_dt:
+        base_query = base_query.where(PayPeriod.paid_at >= start_dt)
+    if end_dt:
+        base_query = base_query.where(PayPeriod.paid_at <= end_dt)
+
+    # Count total
+    count_query = select(func.count()).select_from(base_query.subquery())
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+
+    # Get paginated pay periods
+    query = (
+        base_query
+        .order_by(PayPeriod.paid_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    result = await db.execute(query)
+    pay_periods = list(result.scalars().all())
+
+    # Get commissions for each pay period and calculate artist breakdowns
+    history_items = []
+    overall_totals = {
+        "total_service": 0,
+        "total_studio_commission": 0,
+        "total_artist_payout": 0,
+        "total_tips": 0,
+        "total_bookings": 0,
+        "artists_paid": set(),
+    }
+
+    for pp in pay_periods:
+        # Get commissions for this pay period with artist info
+        comm_query = (
+            select(EarnedCommission)
+            .options(selectinload(EarnedCommission.artist))
+            .where(EarnedCommission.pay_period_id == pp.id)
+        )
+        comm_result = await db.execute(comm_query)
+        commissions = list(comm_result.scalars().all())
+
+        # Build artist breakdown
+        artist_totals: dict = defaultdict(lambda: {
+            "total_service": 0,
+            "total_studio_commission": 0,
+            "total_artist_payout": 0,
+            "total_tips": 0,
+            "booking_count": 0,
+            "artist_name": "",
+            "email": "",
+        })
+
+        for comm in commissions:
+            artist = comm.artist
+            if artist:
+                artist_id = str(artist.id)
+                artist_totals[artist_id]["total_service"] += comm.service_total
+                artist_totals[artist_id]["total_studio_commission"] += comm.studio_commission
+                artist_totals[artist_id]["total_artist_payout"] += comm.artist_payout
+                artist_totals[artist_id]["total_tips"] += comm.tips_amount or 0
+                artist_totals[artist_id]["booking_count"] += 1
+                artist_totals[artist_id]["artist_name"] = artist.full_name
+                artist_totals[artist_id]["email"] = artist.email
+                overall_totals["artists_paid"].add(artist_id)
+
+        artist_breakdown = [
+            ArtistPayoutSummary(
+                artist_id=uuid.UUID(artist_id),
+                artist_name=data["artist_name"],
+                email=data["email"],
+                total_service=data["total_service"],
+                total_studio_commission=data["total_studio_commission"],
+                total_artist_payout=data["total_artist_payout"],
+                total_tips=data["total_tips"],
+                booking_count=data["booking_count"],
+                pay_period_count=1,
+            )
+            for artist_id, data in artist_totals.items()
+        ]
+
+        history_items.append(
+            PayoutHistoryItem(
+                id=pp.id,
+                start_date=pp.start_date,
+                end_date=pp.end_date,
+                paid_at=pp.paid_at,
+                payout_reference=pp.payout_reference,
+                total_service=pp.total_service,
+                total_studio_commission=pp.total_studio_commission,
+                total_artist_payout=pp.total_artist_payout,
+                total_tips=pp.total_tips,
+                commission_count=pp.commission_count,
+                payment_notes=pp.payment_notes,
+                artist_breakdown=artist_breakdown,
+            )
+        )
+
+        # Update overall totals
+        overall_totals["total_service"] += pp.total_service
+        overall_totals["total_studio_commission"] += pp.total_studio_commission
+        overall_totals["total_artist_payout"] += pp.total_artist_payout
+        overall_totals["total_tips"] += pp.total_tips
+        overall_totals["total_bookings"] += pp.commission_count
+
+    return PayoutHistoryResponse(
+        history=history_items,
+        summary=PayoutReportSummary(
+            total_service=overall_totals["total_service"],
+            total_studio_commission=overall_totals["total_studio_commission"],
+            total_artist_payout=overall_totals["total_artist_payout"],
+            total_tips=overall_totals["total_tips"],
+            total_bookings=overall_totals["total_bookings"],
+            total_pay_periods=total,
+            artists_paid=len(overall_totals["artists_paid"]),
+        ),
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.get("/reports/artist-payouts", response_model=ArtistPayoutReportResponse)
+async def get_artist_payouts_report(
+    current_user: User = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    paid_only: bool = Query(True, description="Only include paid commissions"),
+) -> ArtistPayoutReportResponse:
+    """
+    Get artist payouts report showing totals per artist.
+    Owner only.
+    """
+    from datetime import datetime as dt
+    from collections import defaultdict
+
+    studio = await get_user_studio(db, current_user)
+
+    # Parse dates
+    start_dt = None
+    end_dt = None
+    if start_date:
+        start_dt = dt.fromisoformat(start_date + "T00:00:00+00:00")
+    if end_date:
+        end_dt = dt.fromisoformat(end_date + "T23:59:59+00:00")
+
+    # Build query for commissions
+    query = (
+        select(EarnedCommission)
+        .options(selectinload(EarnedCommission.artist))
+        .where(EarnedCommission.studio_id == studio.id)
+    )
+
+    if paid_only:
+        query = query.where(EarnedCommission.paid_at.is_not(None))
+    if start_dt:
+        query = query.where(EarnedCommission.completed_at >= start_dt)
+    if end_dt:
+        query = query.where(EarnedCommission.completed_at <= end_dt)
+
+    result = await db.execute(query)
+    commissions = list(result.scalars().all())
+
+    # Aggregate by artist
+    artist_totals: dict = defaultdict(lambda: {
+        "total_service": 0,
+        "total_studio_commission": 0,
+        "total_artist_payout": 0,
+        "total_tips": 0,
+        "booking_count": 0,
+        "pay_periods": set(),
+        "artist_name": "",
+        "email": "",
+    })
+
+    overall_totals = {
+        "total_service": 0,
+        "total_studio_commission": 0,
+        "total_artist_payout": 0,
+        "total_tips": 0,
+        "total_bookings": 0,
+        "pay_periods": set(),
+    }
+
+    for comm in commissions:
+        artist = comm.artist
+        if artist:
+            artist_id = str(artist.id)
+            artist_totals[artist_id]["total_service"] += comm.service_total
+            artist_totals[artist_id]["total_studio_commission"] += comm.studio_commission
+            artist_totals[artist_id]["total_artist_payout"] += comm.artist_payout
+            artist_totals[artist_id]["total_tips"] += comm.tips_amount or 0
+            artist_totals[artist_id]["booking_count"] += 1
+            artist_totals[artist_id]["artist_name"] = artist.full_name
+            artist_totals[artist_id]["email"] = artist.email
+            if comm.pay_period_id:
+                artist_totals[artist_id]["pay_periods"].add(comm.pay_period_id)
+                overall_totals["pay_periods"].add(comm.pay_period_id)
+
+        overall_totals["total_service"] += comm.service_total
+        overall_totals["total_studio_commission"] += comm.studio_commission
+        overall_totals["total_artist_payout"] += comm.artist_payout
+        overall_totals["total_tips"] += comm.tips_amount or 0
+        overall_totals["total_bookings"] += 1
+
+    # Build artist summaries
+    artists = [
+        ArtistPayoutSummary(
+            artist_id=uuid.UUID(artist_id),
+            artist_name=data["artist_name"],
+            email=data["email"],
+            total_service=data["total_service"],
+            total_studio_commission=data["total_studio_commission"],
+            total_artist_payout=data["total_artist_payout"],
+            total_tips=data["total_tips"],
+            booking_count=data["booking_count"],
+            pay_period_count=len(data["pay_periods"]),
+        )
+        for artist_id, data in artist_totals.items()
+    ]
+
+    # Sort by total artist payout descending
+    artists.sort(key=lambda a: a.total_artist_payout, reverse=True)
+
+    return ArtistPayoutReportResponse(
+        artists=artists,
+        summary=PayoutReportSummary(
+            total_service=overall_totals["total_service"],
+            total_studio_commission=overall_totals["total_studio_commission"],
+            total_artist_payout=overall_totals["total_artist_payout"],
+            total_tips=overall_totals["total_tips"],
+            total_bookings=overall_totals["total_bookings"],
+            total_pay_periods=len(overall_totals["pay_periods"]),
+            artists_paid=len(artists),
+        ),
+        start_date=start_dt,
+        end_date=end_dt,
     )

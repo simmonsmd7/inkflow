@@ -51,6 +51,8 @@ from app.schemas.studio import (
 )
 from app.schemas.commission import (
     ArtistCommissionInfo,
+    ArtistPayoutReportResponse,
+    ArtistPayoutSummary,
     ArtistsWithCommissionResponse,
     AssignCommissionRuleInput,
     AssignToPayPeriodInput,
@@ -75,6 +77,9 @@ from app.schemas.commission import (
     EarnedCommissionWithDetails,
     MarkPayPeriodPaidInput,
     MarkPayPeriodPaidResponse,
+    PayoutHistoryItem,
+    PayoutHistoryResponse,
+    PayoutReportSummary,
     PayPeriodCreate,
     PayPeriodResponse,
     PayPeriodSchedule,
@@ -155,6 +160,8 @@ __all__ = [
     "TattooSize",
     # Commission schemas
     "ArtistCommissionInfo",
+    "ArtistPayoutReportResponse",
+    "ArtistPayoutSummary",
     "ArtistsWithCommissionResponse",
     "AssignCommissionRuleInput",
     "AssignToPayPeriodInput",
@@ -179,6 +186,9 @@ __all__ = [
     "EarnedCommissionWithDetails",
     "MarkPayPeriodPaidInput",
     "MarkPayPeriodPaidResponse",
+    "PayoutHistoryItem",
+    "PayoutHistoryResponse",
+    "PayoutReportSummary",
     "PayPeriodCreate",
     "PayPeriodResponse",
     "PayPeriodSchedule",

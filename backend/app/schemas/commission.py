@@ -446,3 +446,71 @@ class AssignToPayPeriodResponse(BaseModel):
     message: str
     assigned_count: int
     pay_period: PayPeriodSummary
+
+
+# ============ Payout Reports Schemas ============
+
+
+class ArtistPayoutSummary(BaseModel):
+    """Summary of payouts for a single artist."""
+
+    artist_id: UUID
+    artist_name: str
+    email: str
+    total_service: int = Field(description="Total service revenue in cents")
+    total_studio_commission: int = Field(description="Studio commission in cents")
+    total_artist_payout: int = Field(description="Artist payouts in cents")
+    total_tips: int = Field(description="Tips in cents")
+    booking_count: int = Field(description="Number of completed bookings")
+    pay_period_count: int = Field(description="Number of pay periods included")
+
+
+class PayoutReportSummary(BaseModel):
+    """Overall summary for a payout report."""
+
+    total_service: int = Field(description="Total service revenue in cents")
+    total_studio_commission: int = Field(description="Studio commission in cents")
+    total_artist_payout: int = Field(description="Total artist payouts in cents")
+    total_tips: int = Field(description="Tips in cents")
+    total_bookings: int = Field(description="Number of completed bookings")
+    total_pay_periods: int = Field(description="Number of pay periods included")
+    artists_paid: int = Field(description="Number of artists with payouts")
+
+
+class PayoutHistoryItem(BaseModel):
+    """A single payout history entry."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    start_date: datetime
+    end_date: datetime
+    paid_at: Optional[datetime]
+    payout_reference: Optional[str]
+    total_service: int
+    total_studio_commission: int
+    total_artist_payout: int
+    total_tips: int
+    commission_count: int
+    payment_notes: Optional[str]
+    # Artist breakdown for this pay period
+    artist_breakdown: list[ArtistPayoutSummary] = []
+
+
+class PayoutHistoryResponse(BaseModel):
+    """Response for payout history report."""
+
+    history: list[PayoutHistoryItem]
+    summary: PayoutReportSummary
+    total: int
+    page: int
+    page_size: int
+
+
+class ArtistPayoutReportResponse(BaseModel):
+    """Response for artist payouts report (all artists breakdown)."""
+
+    artists: list[ArtistPayoutSummary]
+    summary: PayoutReportSummary
+    start_date: Optional[datetime]
+    end_date: Optional[datetime]

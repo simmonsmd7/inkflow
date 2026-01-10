@@ -25,6 +25,8 @@ import {
   assignToPayPeriod,
   getPayPeriodSettings,
   updatePayPeriodSettings,
+  getPayoutHistory,
+  getArtistPayoutsReport,
 } from '../services/commissions';
 import type {
   CommissionRuleSummary,
@@ -41,6 +43,8 @@ import type {
   PayPeriodStatus,
   PayPeriodSettings,
   EarnedCommission,
+  PayoutHistoryResponse,
+  ArtistPayoutReportResponse,
 } from '../types/api';
 
 // ============ Commission Rule Modal ============
@@ -515,7 +519,7 @@ function TypeBadge({ type }: { type: CommissionType }) {
 
 // ============ Main Commissions Page ============
 
-type TabType = 'rules' | 'assignments' | 'pay_periods';
+type TabType = 'rules' | 'assignments' | 'pay_periods' | 'reports';
 
 const SCHEDULE_LABELS: Record<PayPeriodSchedule, string> = {
   weekly: 'Weekly',
@@ -548,6 +552,15 @@ export function Commissions() {
   const [payPeriodSettings, setPayPeriodSettings] = useState<PayPeriodSettings | null>(null);
   const [unassignedCommissions, setUnassignedCommissions] = useState<EarnedCommission[]>([]);
   const [selectedPayPeriod, setSelectedPayPeriod] = useState<PayPeriodWithCommissions | null>(null);
+
+  // Reports state
+  const [payoutHistory, setPayoutHistory] = useState<PayoutHistoryResponse | null>(null);
+  const [artistPayouts, setArtistPayouts] = useState<ArtistPayoutReportResponse | null>(null);
+  const [loadingReports, setLoadingReports] = useState(true);
+  const [reportStartDate, setReportStartDate] = useState('');
+  const [reportEndDate, setReportEndDate] = useState('');
+  const [reportView, setReportView] = useState<'history' | 'artists'>('history');
+  const [expandedPayPeriod, setExpandedPayPeriod] = useState<string | null>(null);
 
   // Modal state
   const [ruleModalOpen, setRuleModalOpen] = useState(false);
@@ -621,6 +634,33 @@ export function Commissions() {
       console.error('Failed to load unassigned commissions:', err);
     }
   };
+
+  const loadReports = async () => {
+    setLoadingReports(true);
+    try {
+      const options = {
+        startDate: reportStartDate || undefined,
+        endDate: reportEndDate || undefined,
+      };
+      const [historyResponse, artistsResponse] = await Promise.all([
+        getPayoutHistory(1, 50, options),
+        getArtistPayoutsReport(options),
+      ]);
+      setPayoutHistory(historyResponse);
+      setArtistPayouts(artistsResponse);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load reports');
+    } finally {
+      setLoadingReports(false);
+    }
+  };
+
+  // Load reports when switching to reports tab or when date filters change
+  useEffect(() => {
+    if (activeTab === 'reports') {
+      loadReports();
+    }
+  }, [activeTab, reportStartDate, reportEndDate]);
 
   const handleCreatePayPeriod = async (startDate: string, endDate: string) => {
     try {
@@ -882,6 +922,16 @@ export function Commissions() {
             }`}
           >
             Pay Periods
+          </button>
+          <button
+            onClick={() => setActiveTab('reports')}
+            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'reports'
+                ? 'border-accent-primary text-accent-primary'
+                : 'border-transparent text-ink-400 hover:text-ink-200'
+            }`}
+          >
+            Payout Reports
           </button>
         </nav>
       </div>
@@ -1290,6 +1340,261 @@ export function Commissions() {
               </table>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Reports Tab */}
+      {activeTab === 'reports' && (
+        <div className="space-y-6">
+          {/* Filters */}
+          <div className="bg-ink-800 rounded-xl border border-ink-700 p-4">
+            <div className="flex flex-wrap items-end gap-4">
+              <div className="flex-1 min-w-[200px]">
+                <label className="block text-sm font-medium text-ink-300 mb-1">Start Date</label>
+                <input
+                  type="date"
+                  value={reportStartDate}
+                  onChange={(e) => setReportStartDate(e.target.value)}
+                  className="w-full px-3 py-2 bg-ink-900 border border-ink-700 rounded-lg text-ink-100 focus:outline-none focus:border-accent-primary"
+                />
+              </div>
+              <div className="flex-1 min-w-[200px]">
+                <label className="block text-sm font-medium text-ink-300 mb-1">End Date</label>
+                <input
+                  type="date"
+                  value={reportEndDate}
+                  onChange={(e) => setReportEndDate(e.target.value)}
+                  className="w-full px-3 py-2 bg-ink-900 border border-ink-700 rounded-lg text-ink-100 focus:outline-none focus:border-accent-primary"
+                />
+              </div>
+              <button
+                onClick={() => {
+                  setReportStartDate('');
+                  setReportEndDate('');
+                }}
+                className="px-4 py-2 text-ink-400 hover:text-ink-200 transition-colors"
+              >
+                Clear Filters
+              </button>
+            </div>
+          </div>
+
+          {/* View Toggle */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => setReportView('history')}
+              className={`px-4 py-2 rounded-lg transition-colors ${
+                reportView === 'history'
+                  ? 'bg-accent-primary text-white'
+                  : 'bg-ink-700 text-ink-300 hover:text-ink-100'
+              }`}
+            >
+              Payout History
+            </button>
+            <button
+              onClick={() => setReportView('artists')}
+              className={`px-4 py-2 rounded-lg transition-colors ${
+                reportView === 'artists'
+                  ? 'bg-accent-primary text-white'
+                  : 'bg-ink-700 text-ink-300 hover:text-ink-100'
+              }`}
+            >
+              Artist Breakdown
+            </button>
+          </div>
+
+          {loadingReports ? (
+            <div className="p-8 text-center">
+              <div className="animate-spin w-8 h-8 border-2 border-accent-primary border-t-transparent rounded-full mx-auto"></div>
+              <p className="text-ink-400 mt-2">Loading reports...</p>
+            </div>
+          ) : reportView === 'history' ? (
+            <div className="space-y-4">
+              {/* Summary Cards */}
+              {payoutHistory && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-ink-800 rounded-xl border border-ink-700 p-4">
+                    <p className="text-ink-400 text-sm">Total Paid Out</p>
+                    <p className="text-2xl font-bold text-ink-100">{formatCentsToDollars(payoutHistory.summary.total_artist_payout)}</p>
+                  </div>
+                  <div className="bg-ink-800 rounded-xl border border-ink-700 p-4">
+                    <p className="text-ink-400 text-sm">Studio Revenue</p>
+                    <p className="text-2xl font-bold text-ink-100">{formatCentsToDollars(payoutHistory.summary.total_studio_commission)}</p>
+                  </div>
+                  <div className="bg-ink-800 rounded-xl border border-ink-700 p-4">
+                    <p className="text-ink-400 text-sm">Pay Periods</p>
+                    <p className="text-2xl font-bold text-ink-100">{payoutHistory.summary.total_pay_periods}</p>
+                  </div>
+                  <div className="bg-ink-800 rounded-xl border border-ink-700 p-4">
+                    <p className="text-ink-400 text-sm">Artists Paid</p>
+                    <p className="text-2xl font-bold text-ink-100">{payoutHistory.summary.artists_paid}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Payout History Table */}
+              <div className="bg-ink-800 rounded-xl border border-ink-700 overflow-hidden">
+                {!payoutHistory || payoutHistory.history.length === 0 ? (
+                  <div className="p-8 text-center">
+                    <svg className="w-12 h-12 text-ink-500 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <h3 className="text-lg font-medium text-ink-200">No payout history yet</h3>
+                    <p className="text-ink-400 mt-1">Complete pay periods to see payout history.</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-ink-700">
+                    {payoutHistory.history.map((item) => (
+                      <div key={item.id}>
+                        <div
+                          onClick={() => setExpandedPayPeriod(expandedPayPeriod === item.id ? null : item.id)}
+                          className="flex items-center gap-4 p-4 hover:bg-ink-700/30 cursor-pointer transition-colors"
+                        >
+                          <div className="flex-shrink-0">
+                            <svg
+                              className={`w-5 h-5 text-ink-400 transition-transform ${expandedPayPeriod === item.id ? 'rotate-90' : ''}`}
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-medium text-ink-100">
+                              {new Date(item.start_date).toLocaleDateString()} - {new Date(item.end_date).toLocaleDateString()}
+                            </p>
+                            <p className="text-sm text-ink-400">
+                              {item.commission_count} bookings{item.payout_reference && ` • Ref: ${item.payout_reference}`}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-medium text-ink-100">{formatCentsToDollars(item.total_artist_payout)}</p>
+                            <p className="text-xs text-ink-400">artist payouts</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-medium text-green-400">{formatCentsToDollars(item.total_studio_commission)}</p>
+                            <p className="text-xs text-ink-400">studio revenue</p>
+                          </div>
+                          {item.paid_at && (
+                            <div className="text-sm text-ink-400">
+                              Paid {new Date(item.paid_at).toLocaleDateString()}
+                            </div>
+                          )}
+                        </div>
+                        {/* Expanded Artist Breakdown */}
+                        {expandedPayPeriod === item.id && item.artist_breakdown.length > 0 && (
+                          <div className="bg-ink-900/50 border-t border-ink-700 p-4">
+                            <h4 className="text-sm font-medium text-ink-300 mb-3">Artist Breakdown</h4>
+                            <table className="w-full">
+                              <thead>
+                                <tr className="text-left text-xs text-ink-400 border-b border-ink-700">
+                                  <th className="pb-2">Artist</th>
+                                  <th className="pb-2 text-right">Bookings</th>
+                                  <th className="pb-2 text-right">Service Total</th>
+                                  <th className="pb-2 text-right">Payout</th>
+                                  <th className="pb-2 text-right">Tips</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-ink-700/50">
+                                {item.artist_breakdown.map((artist) => (
+                                  <tr key={artist.artist_id} className="text-sm">
+                                    <td className="py-2 text-ink-200">{artist.artist_name}</td>
+                                    <td className="py-2 text-ink-300 text-right">{artist.booking_count}</td>
+                                    <td className="py-2 text-ink-300 text-right">{formatCentsToDollars(artist.total_service)}</td>
+                                    <td className="py-2 text-ink-100 text-right font-medium">{formatCentsToDollars(artist.total_artist_payout)}</td>
+                                    <td className="py-2 text-green-400 text-right">{formatCentsToDollars(artist.total_tips)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Artist Summary Cards */}
+              {artistPayouts && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-ink-800 rounded-xl border border-ink-700 p-4">
+                    <p className="text-ink-400 text-sm">Total Service Revenue</p>
+                    <p className="text-2xl font-bold text-ink-100">{formatCentsToDollars(artistPayouts.summary.total_service)}</p>
+                  </div>
+                  <div className="bg-ink-800 rounded-xl border border-ink-700 p-4">
+                    <p className="text-ink-400 text-sm">Artist Payouts</p>
+                    <p className="text-2xl font-bold text-ink-100">{formatCentsToDollars(artistPayouts.summary.total_artist_payout)}</p>
+                  </div>
+                  <div className="bg-ink-800 rounded-xl border border-ink-700 p-4">
+                    <p className="text-ink-400 text-sm">Total Bookings</p>
+                    <p className="text-2xl font-bold text-ink-100">{artistPayouts.summary.total_bookings}</p>
+                  </div>
+                  <div className="bg-ink-800 rounded-xl border border-ink-700 p-4">
+                    <p className="text-ink-400 text-sm">Total Tips</p>
+                    <p className="text-2xl font-bold text-green-400">{formatCentsToDollars(artistPayouts.summary.total_tips)}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Artists Table */}
+              <div className="bg-ink-800 rounded-xl border border-ink-700 overflow-hidden">
+                {!artistPayouts || artistPayouts.artists.length === 0 ? (
+                  <div className="p-8 text-center">
+                    <svg className="w-12 h-12 text-ink-500 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    <h3 className="text-lg font-medium text-ink-200">No artist payouts yet</h3>
+                    <p className="text-ink-400 mt-1">Complete bookings and pay periods to see artist payouts.</p>
+                  </div>
+                ) : (
+                  <table className="w-full">
+                    <thead className="bg-ink-700/50 border-b border-ink-700">
+                      <tr>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-ink-300">Artist</th>
+                        <th className="text-right py-3 px-4 text-sm font-medium text-ink-300">Bookings</th>
+                        <th className="text-right py-3 px-4 text-sm font-medium text-ink-300">Pay Periods</th>
+                        <th className="text-right py-3 px-4 text-sm font-medium text-ink-300">Service Total</th>
+                        <th className="text-right py-3 px-4 text-sm font-medium text-ink-300">Studio Cut</th>
+                        <th className="text-right py-3 px-4 text-sm font-medium text-ink-300">Artist Payout</th>
+                        <th className="text-right py-3 px-4 text-sm font-medium text-ink-300">Tips</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-ink-700">
+                      {artistPayouts.artists.map((artist) => (
+                        <tr key={artist.artist_id} className="hover:bg-ink-700/30 transition-colors">
+                          <td className="py-3 px-4">
+                            <p className="font-medium text-ink-100">{artist.artist_name}</p>
+                            <p className="text-xs text-ink-400">{artist.email}</p>
+                          </td>
+                          <td className="py-3 px-4 text-sm text-ink-200 text-right">{artist.booking_count}</td>
+                          <td className="py-3 px-4 text-sm text-ink-200 text-right">{artist.pay_period_count}</td>
+                          <td className="py-3 px-4 text-sm text-ink-200 text-right">{formatCentsToDollars(artist.total_service)}</td>
+                          <td className="py-3 px-4 text-sm text-ink-200 text-right">{formatCentsToDollars(artist.total_studio_commission)}</td>
+                          <td className="py-3 px-4 text-sm font-medium text-ink-100 text-right">{formatCentsToDollars(artist.total_artist_payout)}</td>
+                          <td className="py-3 px-4 text-sm text-green-400 text-right">{formatCentsToDollars(artist.total_tips)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-ink-700/30 border-t border-ink-700">
+                      <tr className="font-medium">
+                        <td className="py-3 px-4 text-ink-100">Total</td>
+                        <td className="py-3 px-4 text-ink-100 text-right">{artistPayouts.summary.total_bookings}</td>
+                        <td className="py-3 px-4 text-ink-100 text-right">{artistPayouts.summary.total_pay_periods}</td>
+                        <td className="py-3 px-4 text-ink-100 text-right">{formatCentsToDollars(artistPayouts.summary.total_service)}</td>
+                        <td className="py-3 px-4 text-ink-100 text-right">{formatCentsToDollars(artistPayouts.summary.total_studio_commission)}</td>
+                        <td className="py-3 px-4 text-ink-100 text-right">{formatCentsToDollars(artistPayouts.summary.total_artist_payout)}</td>
+                        <td className="py-3 px-4 text-green-400 text-right">{formatCentsToDollars(artistPayouts.summary.total_tips)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
