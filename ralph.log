@@ -2191,3 +2191,62 @@ Navigation & Routes:
 - Verified: Backend endpoint returns 401 without auth (expected behavior)
 Status: COMPLETE
 Next: P9.6 - Rebooking flow
+
+=== ITERATION 50 ===
+Date: 2026-01-10
+Task: P9.6 - Rebooking flow
+
+Changes:
+Backend Router (client_portal.py):
+- Added ClientRebookingArtistInfo schema for artist info in rebooking
+- Added ClientRebookingData schema for pre-filling rebooking form
+- Added ClientRebookingSubmit schema for rebooking request input
+- Added ClientRebookingResponse schema for submission response
+- GET /client/portal/rebooking/{booking_id}: Get rebooking data from completed booking
+- POST /client/portal/rebooking/submit: Submit new rebooking request
+- Validates only completed bookings can be rebooked
+- Detects touch-up vs new tattoo based on design/placement match
+- Links new booking to original with reference in notes
+
+Frontend Types (api.ts):
+- ClientRebookingArtistInfo interface
+- ClientRebookingData interface with original booking info
+- ClientRebookingSubmit interface for form submission
+- ClientRebookingResponse interface with touch-up detection
+
+Frontend Service (clientPortal.ts):
+- getRebookingData(): Fetch pre-fill data from completed booking
+- submitRebooking(): Submit rebooking/touch-up request
+
+Frontend Page (ClientRebooking.tsx - NEW):
+- Touch-Up / New Tattoo mode toggle
+- Original booking summary display (studio, artist, design, placement, date)
+- Pre-filled form with original booking details
+- Artist selection with "Previous" indicator
+- Size, color preference, budget, notes fields
+- Form validation with error states
+- Loading, error, and success states
+- Automatic redirection to login when unauthenticated
+- Dark theme consistent with client portal
+
+Frontend Navigation:
+- frontend/src/App.tsx: Added /client/rebook/:bookingId route
+- frontend/src/pages/index.ts: Exported ClientRebooking component
+
+Frontend BookingHistory (ClientBookingHistory.tsx):
+- Added "Rebook / Touch-Up" button on completed bookings
+- Links to /client/rebook/{booking_id}
+- Styled with accent color and refresh icon
+
+- Verified: Frontend build passes with no TypeScript errors
+- Verified: Route redirects to login when not authenticated
+Status: COMPLETE
+Next: Phase 9 complete! All client portal features implemented.
+
+Phase 9 Summary - Client Portal (COMPLETE):
+- P9.1: Client login/registration - DONE
+- P9.2: Booking history view - DONE
+- P9.3: Upcoming appointments - DONE
+- P9.4: Consent form signing - DONE
+- P9.5: Aftercare instructions access - DONE
+- P9.6: Rebooking flow - DONE
