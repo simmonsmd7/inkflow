@@ -1672,3 +1672,72 @@ Changes:
 
 Status: COMPLETE
 Next: P7.5 - Touch-up scheduling integration
+
+=== ITERATION 23 ===
+Date: 2026-01-10
+Task: P7.5 - Touch-up scheduling integration
+
+Changes:
+Backend Schemas (aftercare.py):
+- TouchUpRequestInput: Client touch-up request with preferred dates
+- TouchUpScheduleInput: Staff scheduling input (date, duration, artist, notes, confirmation options)
+- TouchUpBookingInfo: Booking info snapshot for touch-up display
+- TouchUpResponse: Touch-up scheduling response
+- HealingIssueWithTouchUp: Healing issue with optional touch-up booking info
+- ClientTouchUpRequestInput: Public client request form data
+- ClientTouchUpRequestResponse: Response for client touch-up request
+
+Backend Router (aftercare.py):
+- GET /healing-issues/{id}/touch-up - Get healing issue with touch-up booking info
+- POST /healing-issues/{id}/schedule-touch-up - Schedule touch-up from healing issue
+- POST /touch-up/request/{access_token} - Public endpoint for client touch-up requests
+- GET /touch-up/pending - List pending touch-up requests
+- DELETE /healing-issues/{id}/touch-up - Unlink touch-up booking from issue
+
+Backend Services:
+- Uses existing CalendarService for generating appointment .ics files
+- Uses existing EmailService for sending touch-up confirmation emails
+- Creates booking request linked to healing issue
+
+Frontend Types (api.ts):
+- TouchUpBookingInfo, HealingIssueWithTouchUp interfaces
+- TouchUpScheduleInput, TouchUpResponse interfaces
+- ClientTouchUpRequestInput, ClientTouchUpRequestResponse interfaces
+
+Frontend Service (aftercare.ts):
+- getHealingIssueWithTouchUp() - Fetch issue with touch-up booking info
+- scheduleTouchUp() - Schedule touch-up appointment
+- getPendingTouchUps() - List pending touch-up requests
+- cancelTouchUp() - Unlink touch-up booking from issue
+- clientRequestTouchUp() - Public client touch-up request
+
+Frontend UI (Aftercare.tsx):
+- Enhanced healing issue detail modal with touch-up status section
+- "Schedule Touch-up" button when touch_up_requested is true
+- Touch-up scheduling modal with:
+  - Date/time picker
+  - Duration selector (30min to 3 hours)
+  - Notes textarea
+  - Free touch-up checkbox (default: true)
+  - Send confirmation email checkbox
+- Display existing touch-up booking info
+- Unlink touch-up booking option
+
+New Public Page (TouchUpRequest.tsx):
+- Client-facing touch-up request page at /aftercare/:accessToken/touch-up
+- Shows aftercare info (client name, studio, appointment date, placement)
+- Touch-up request form with:
+  - Reason/description (required, min 10 chars)
+  - Preferred dates (up to 5)
+  - Additional notes
+- Success confirmation with expected response time
+- Error handling for invalid/expired tokens
+
+App Routes (App.tsx):
+- Added /aftercare/:accessToken/touch-up public route
+- Added TouchUpRequest to imports and pages/index.ts export
+
+- Verified: Frontend build passes with no TypeScript errors
+- Verified: Backend Python syntax checks pass
+Status: COMPLETE
+Next: P8.1 - Dashboard analytics
