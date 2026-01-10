@@ -145,11 +145,35 @@ tattooproject/
 - [ ] **P9.5** Aftercare instructions access
 - [ ] **P9.6** Rebooking flow
 
-### Phase 10: Future Enhancements (DO NOT IMPLEMENT - requires manual setup)
+### Phase 10: Final Verification (Browser Testing)
+Use Chrome browser tools to systematically verify all features work correctly:
+
+- [ ] **P10.1** Verify authentication flows (register new user, login, logout, password reset)
+- [ ] **P10.2** Verify studio/artist setup (create studio profile, upload logo, set hours, artist bio/portfolio)
+- [ ] **P10.3** Verify booking system (submit booking request, review queue, send quote, request deposit)
+- [ ] **P10.4** Verify Stripe integration (deposit payment flow, webhook handling, payment confirmation)
+- [ ] **P10.5** Verify calendar & scheduling (availability setup, time-off, reminders, reschedule, cancel)
+- [ ] **P10.6** Verify unified inbox (create conversation, send messages, templates, assign to artist)
+- [ ] **P10.7** Verify commission system (create rules, assign to artists, calculate payouts, export reports)
+- [ ] **P10.8** Verify consent forms (create template, client signing flow, signature capture, photo ID upload)
+- [ ] **P10.9** Verify aftercare system (create templates, send instructions, follow-ups, healing issue reporting)
+- [ ] **P10.10** Verify dashboard & analytics (overview stats, artist performance, revenue reports, charts)
+- [ ] **P10.11** Verify client portal (client login, booking history, upcoming appointments, consent signing, aftercare access, rebooking)
+
+**Verification Protocol for each task:**
+1. Navigate to the relevant page using browser tools
+2. Take a screenshot to document the UI state
+3. Interact with forms/buttons to test functionality
+4. Check browser console for JavaScript errors
+5. Verify API responses are correct (check Network tab if needed)
+6. If bugs found: fix immediately, re-verify, then continue
+7. Log verification results in ralph.log
+
+### Phase 11: Future Enhancements (DO NOT IMPLEMENT - requires manual setup)
 These features require external service setup that cannot be automated:
-- [ ] **P10.1** Instagram DM integration (requires Meta business verification + app review)
-- [ ] **P10.2** Facebook Messenger integration (requires Meta approval)
-- [ ] **P10.3** WhatsApp Business integration (requires Meta approval)
+- [ ] **P11.1** Instagram DM integration (requires Meta business verification + app review)
+- [ ] **P11.2** Facebook Messenger integration (requires Meta approval)
+- [ ] **P11.3** WhatsApp Business integration (requires Meta approval)
 
 ---
 
@@ -349,9 +373,9 @@ cd frontend && npm run build
 
 ## When Complete
 
-When all Phase 1-9 tasks are checked off:
-1. Run full test suite
-2. Verify all features work end-to-end
+When all Phase 1-10 tasks are checked off (including verification):
+1. Run frontend build check one final time
+2. Confirm all verification tasks passed
 3. Output "INKFLOW_MVP_COMPLETE" in ralph.log
 4. Exit
 
