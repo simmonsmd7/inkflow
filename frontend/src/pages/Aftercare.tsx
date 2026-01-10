@@ -23,6 +23,15 @@ import {
   getFollowUpTypeLabel,
   getFollowUpStatusLabel,
   getFollowUpStatusColor,
+  listHealingIssues,
+  getHealingIssue,
+  acknowledgeHealingIssue,
+  resolveHealingIssue,
+  getHealingIssueSeverityLabel,
+  getHealingIssueSeverityColor,
+  getHealingIssueStatusLabel,
+  getHealingIssueStatusColor,
+  HEALING_ISSUE_SYMPTOMS,
 } from '../services/aftercare';
 import type {
   AftercareTemplateSummary,
@@ -35,6 +44,10 @@ import type {
   TattooPlacement,
   FollowUpSummary,
   FollowUpStatus,
+  HealingIssueSummary,
+  HealingIssueResponse,
+  HealingIssueSeverity,
+  HealingIssueStatus,
 } from '../types/api';
 
 const TATTOO_TYPES: TattooType[] = [
@@ -49,7 +62,7 @@ const PLACEMENTS: TattooPlacement[] = [
   'stomach', 'neck', 'face', 'head', 'shoulder', 'hip', 'other',
 ];
 
-type TabType = 'templates' | 'sent' | 'followups';
+type TabType = 'templates' | 'sent' | 'followups' | 'issues';
 
 export function Aftercare() {
   const { user } = useAuth();
@@ -76,6 +89,19 @@ export function Aftercare() {
   const [followUpFilter, setFollowUpFilter] = useState<FollowUpStatus | ''>('');
   const [loadingFollowUps, setLoadingFollowUps] = useState(false);
   const [processingFollowUp, setProcessingFollowUp] = useState<string | null>(null);
+
+  // Healing issues state
+  const [healingIssues, setHealingIssues] = useState<HealingIssueSummary[]>([]);
+  const [issueStatusFilter, setIssueStatusFilter] = useState<HealingIssueStatus | ''>('');
+  const [issueSeverityFilter, setIssueSeverityFilter] = useState<HealingIssueSeverity | ''>('');
+  const [loadingIssues, setLoadingIssues] = useState(false);
+  const [selectedIssue, setSelectedIssue] = useState<HealingIssueResponse | null>(null);
+  const [processingIssue, setProcessingIssue] = useState<string | null>(null);
+  const [showAcknowledgeModal, setShowAcknowledgeModal] = useState(false);
+  const [showResolveModal, setShowResolveModal] = useState(false);
+  const [acknowledgeNotes, setAcknowledgeNotes] = useState('');
+  const [resolveNotes, setResolveNotes] = useState('');
+  const [requestTouchUp, setRequestTouchUp] = useState(false);
 
   // Edit form state
   const [editForm, setEditForm] = useState<AftercareTemplateCreate>({
@@ -112,8 +138,10 @@ export function Aftercare() {
       loadSentAftercare();
     } else if (activeTab === 'followups') {
       loadFollowUps();
+    } else if (activeTab === 'issues') {
+      loadHealingIssues();
     }
-  }, [activeTab, followUpFilter]);
+  }, [activeTab, followUpFilter, issueStatusFilter, issueSeverityFilter]);
 
   async function loadSentAftercare() {
     try {
@@ -174,6 +202,86 @@ export function Aftercare() {
     } finally {
       setProcessingFollowUp(null);
     }
+  }
+
+  async function loadHealingIssues() {
+    try {
+      setLoadingIssues(true);
+      setError(null);
+      const response = await listHealingIssues({
+        page_size: 50,
+        status: issueStatusFilter || undefined,
+        severity: issueSeverityFilter || undefined,
+      });
+      setHealingIssues(response.items);
+    } catch (err) {
+      setError('Failed to load healing issues');
+      console.error(err);
+    } finally {
+      setLoadingIssues(false);
+    }
+  }
+
+  async function handleViewIssue(issue: HealingIssueSummary) {
+    try {
+      setLoadingIssues(true);
+      const fullIssue = await getHealingIssue(issue.id);
+      setSelectedIssue(fullIssue);
+    } catch (err) {
+      setError('Failed to load issue details');
+      console.error(err);
+    } finally {
+      setLoadingIssues(false);
+    }
+  }
+
+  async function handleAcknowledgeIssue() {
+    if (!selectedIssue) return;
+
+    try {
+      setProcessingIssue(selectedIssue.id);
+      setError(null);
+      await acknowledgeHealingIssue(selectedIssue.id, acknowledgeNotes || undefined);
+      setSuccess('Issue acknowledged and client notified');
+      setShowAcknowledgeModal(false);
+      setAcknowledgeNotes('');
+      setSelectedIssue(null);
+      loadHealingIssues();
+    } catch (err) {
+      setError('Failed to acknowledge issue');
+      console.error(err);
+    } finally {
+      setProcessingIssue(null);
+    }
+  }
+
+  async function handleResolveIssue() {
+    if (!selectedIssue || !resolveNotes.trim()) {
+      setError('Resolution notes are required');
+      return;
+    }
+
+    try {
+      setProcessingIssue(selectedIssue.id);
+      setError(null);
+      await resolveHealingIssue(selectedIssue.id, resolveNotes, requestTouchUp);
+      setSuccess('Issue resolved and client notified');
+      setShowResolveModal(false);
+      setResolveNotes('');
+      setRequestTouchUp(false);
+      setSelectedIssue(null);
+      loadHealingIssues();
+    } catch (err) {
+      setError('Failed to resolve issue');
+      console.error(err);
+    } finally {
+      setProcessingIssue(null);
+    }
+  }
+
+  function getSymptomLabel(symptomId: string): string {
+    const symptom = HEALING_ISSUE_SYMPTOMS.find((s) => s.id === symptomId);
+    return symptom?.label || symptomId;
   }
 
   async function loadTemplates() {
@@ -395,6 +503,21 @@ export function Aftercare() {
             }`}
           >
             Follow-ups
+          </button>
+          <button
+            onClick={() => setActiveTab('issues')}
+            className={`py-3 px-1 border-b-2 transition-colors flex items-center gap-2 ${
+              activeTab === 'issues'
+                ? 'border-accent-primary text-ink-100 font-medium'
+                : 'border-transparent text-ink-400 hover:text-ink-300'
+            }`}
+          >
+            Healing Issues
+            {healingIssues.filter((i) => i.status === 'reported').length > 0 && (
+              <span className="bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[18px] text-center">
+                {healingIssues.filter((i) => i.status === 'reported').length}
+              </span>
+            )}
           </button>
         </nav>
       </div>
@@ -757,6 +880,344 @@ export function Aftercare() {
             </div>
           )}
         </>
+      )}
+
+      {/* Healing Issues Tab Content */}
+      {activeTab === 'issues' && (
+        <>
+          {/* Filter controls */}
+          <div className="flex items-center gap-4 mb-4 flex-wrap">
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-ink-400">Status:</label>
+              <select
+                value={issueStatusFilter}
+                onChange={(e) => setIssueStatusFilter(e.target.value as HealingIssueStatus | '')}
+                className="px-3 py-1.5 bg-ink-800 border border-ink-600 rounded-lg text-ink-100 text-sm focus:outline-none focus:border-accent-primary"
+              >
+                <option value="">All</option>
+                <option value="reported">Reported</option>
+                <option value="acknowledged">Acknowledged</option>
+                <option value="in_progress">In Progress</option>
+                <option value="resolved">Resolved</option>
+                <option value="escalated">Escalated</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-ink-400">Severity:</label>
+              <select
+                value={issueSeverityFilter}
+                onChange={(e) => setIssueSeverityFilter(e.target.value as HealingIssueSeverity | '')}
+                className="px-3 py-1.5 bg-ink-800 border border-ink-600 rounded-lg text-ink-100 text-sm focus:outline-none focus:border-accent-primary"
+              >
+                <option value="">All</option>
+                <option value="minor">Minor</option>
+                <option value="moderate">Moderate</option>
+                <option value="concerning">Concerning</option>
+                <option value="urgent">Urgent</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Loading */}
+          {loadingIssues && (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-primary"></div>
+            </div>
+          )}
+
+          {/* Empty state */}
+          {!loadingIssues && healingIssues.length === 0 && (
+            <div className="text-center py-12 bg-ink-800 rounded-xl border border-ink-700">
+              <svg
+                className="w-12 h-12 mx-auto text-ink-500 mb-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              <h3 className="text-lg font-medium text-ink-200 mb-2">No Healing Issues</h3>
+              <p className="text-ink-400">
+                {issueStatusFilter || issueSeverityFilter
+                  ? 'No issues match your filters'
+                  : 'Clients can report healing concerns through their aftercare page.'}
+              </p>
+            </div>
+          )}
+
+          {/* Healing Issues List */}
+          {healingIssues.length > 0 && (
+            <div className="space-y-4">
+              {healingIssues.map((issue) => (
+                <div
+                  key={issue.id}
+                  onClick={() => handleViewIssue(issue)}
+                  className="bg-ink-800 rounded-xl border border-ink-700 p-5 hover:border-ink-600 transition-colors cursor-pointer"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <span className={`text-xs px-2 py-1 rounded-full ${getHealingIssueSeverityColor(issue.severity)}`}>
+                        {getHealingIssueSeverityLabel(issue.severity)}
+                      </span>
+                      <span className={`text-xs px-2 py-1 rounded-full ${getHealingIssueStatusColor(issue.status)}`}>
+                        {getHealingIssueStatusLabel(issue.status)}
+                      </span>
+                    </div>
+                    <span className="text-xs text-ink-500">
+                      {issue.days_since_appointment} days after appointment
+                    </span>
+                  </div>
+
+                  <p className="text-ink-200 mb-3 line-clamp-2">{issue.description}</p>
+
+                  {issue.symptoms.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {issue.symptoms.slice(0, 4).map((symptom) => (
+                        <span key={symptom} className="text-xs bg-ink-700 text-ink-300 px-2 py-1 rounded">
+                          {getSymptomLabel(symptom)}
+                        </span>
+                      ))}
+                      {issue.symptoms.length > 4 && (
+                        <span className="text-xs text-ink-500">+{issue.symptoms.length - 4} more</span>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="text-xs text-ink-500">
+                    Reported {new Date(issue.created_at).toLocaleString()}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Healing Issue Detail Modal */}
+      {selectedIssue && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-ink-800 rounded-xl border border-ink-700 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-ink-700 sticky top-0 bg-ink-800">
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className={`text-sm px-3 py-1 rounded-full ${getHealingIssueSeverityColor(selectedIssue.severity)}`}>
+                      {getHealingIssueSeverityLabel(selectedIssue.severity)}
+                    </span>
+                    <span className={`text-sm px-3 py-1 rounded-full ${getHealingIssueStatusColor(selectedIssue.status)}`}>
+                      {getHealingIssueStatusLabel(selectedIssue.status)}
+                    </span>
+                  </div>
+                  <p className="text-ink-400 text-sm">
+                    {selectedIssue.days_since_appointment} days after appointment
+                  </p>
+                </div>
+                <button
+                  onClick={() => setSelectedIssue(null)}
+                  className="text-ink-400 hover:text-ink-200 p-1"
+                >
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Description */}
+              <div>
+                <h3 className="text-sm font-medium text-ink-300 mb-2">Description</h3>
+                <p className="text-ink-200 whitespace-pre-wrap">{selectedIssue.description}</p>
+              </div>
+
+              {/* Symptoms */}
+              {selectedIssue.symptoms.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-medium text-ink-300 mb-2">Reported Symptoms</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedIssue.symptoms.map((symptom) => (
+                      <span key={symptom} className="text-sm bg-ink-700 text-ink-200 px-3 py-1.5 rounded-lg">
+                        {getSymptomLabel(symptom)}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Photos */}
+              {selectedIssue.photo_urls.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-medium text-ink-300 mb-2">Photos</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    {selectedIssue.photo_urls.map((url, i) => (
+                      <img
+                        key={i}
+                        src={url}
+                        alt={`Issue photo ${i + 1}`}
+                        className="rounded-lg w-full h-40 object-cover"
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Staff Notes */}
+              {selectedIssue.staff_notes && (
+                <div>
+                  <h3 className="text-sm font-medium text-ink-300 mb-2">Staff Notes</h3>
+                  <p className="text-ink-400 whitespace-pre-wrap bg-ink-700/50 rounded-lg p-3">
+                    {selectedIssue.staff_notes}
+                  </p>
+                </div>
+              )}
+
+              {/* Resolution Notes */}
+              {selectedIssue.resolution_notes && (
+                <div>
+                  <h3 className="text-sm font-medium text-ink-300 mb-2">Resolution Notes</h3>
+                  <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-3">
+                    <p className="text-green-400 whitespace-pre-wrap">{selectedIssue.resolution_notes}</p>
+                  </div>
+                  {selectedIssue.touch_up_requested && (
+                    <p className="text-sm text-yellow-400 mt-2">Touch-up recommended</p>
+                  )}
+                </div>
+              )}
+
+              {/* Timeline */}
+              <div className="text-xs text-ink-500 space-y-1">
+                <p>Reported: {new Date(selectedIssue.created_at).toLocaleString()}</p>
+                {selectedIssue.responded_at && (
+                  <p>Responded: {new Date(selectedIssue.responded_at).toLocaleString()}</p>
+                )}
+                {selectedIssue.resolved_at && (
+                  <p>Resolved: {new Date(selectedIssue.resolved_at).toLocaleString()}</p>
+                )}
+              </div>
+            </div>
+
+            {/* Actions */}
+            {canEdit && selectedIssue.status !== 'resolved' && (
+              <div className="p-6 border-t border-ink-700 flex items-center justify-end gap-3">
+                {selectedIssue.status === 'reported' && (
+                  <button
+                    onClick={() => setShowAcknowledgeModal(true)}
+                    disabled={processingIssue === selectedIssue.id}
+                    className="px-4 py-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors disabled:opacity-50"
+                  >
+                    Acknowledge
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowResolveModal(true)}
+                  disabled={processingIssue === selectedIssue.id}
+                  className="px-4 py-2 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition-colors disabled:opacity-50"
+                >
+                  Resolve Issue
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Acknowledge Modal */}
+      {showAcknowledgeModal && selectedIssue && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4">
+          <div className="bg-ink-800 rounded-xl border border-ink-700 max-w-md w-full p-6">
+            <h2 className="text-xl font-bold text-ink-100 mb-4">Acknowledge Issue</h2>
+            <p className="text-ink-400 mb-4">
+              This will notify the client that their concern has been received and is being reviewed.
+            </p>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-ink-300 mb-2">
+                Initial Response (optional)
+              </label>
+              <textarea
+                value={acknowledgeNotes}
+                onChange={(e) => setAcknowledgeNotes(e.target.value)}
+                className="w-full px-3 py-2 bg-ink-900 border border-ink-600 rounded-lg text-ink-100 focus:outline-none focus:border-accent-primary"
+                rows={4}
+                placeholder="Add a message to include in the acknowledgment email..."
+              />
+            </div>
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowAcknowledgeModal(false);
+                  setAcknowledgeNotes('');
+                }}
+                className="px-4 py-2 text-ink-300 hover:bg-ink-700 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAcknowledgeIssue}
+                disabled={processingIssue === selectedIssue.id}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50"
+              >
+                {processingIssue === selectedIssue.id ? 'Sending...' : 'Send Acknowledgment'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Resolve Modal */}
+      {showResolveModal && selectedIssue && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4">
+          <div className="bg-ink-800 rounded-xl border border-ink-700 max-w-md w-full p-6">
+            <h2 className="text-xl font-bold text-ink-100 mb-4">Resolve Issue</h2>
+            <p className="text-ink-400 mb-4">
+              Provide resolution notes to close this issue. The client will be notified.
+            </p>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-ink-300 mb-2">
+                Resolution Notes *
+              </label>
+              <textarea
+                value={resolveNotes}
+                onChange={(e) => setResolveNotes(e.target.value)}
+                className="w-full px-3 py-2 bg-ink-900 border border-ink-600 rounded-lg text-ink-100 focus:outline-none focus:border-accent-primary"
+                rows={4}
+                placeholder="Explain the resolution and any advice for the client..."
+              />
+            </div>
+            <label className="flex items-center gap-2 mb-4 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={requestTouchUp}
+                onChange={(e) => setRequestTouchUp(e.target.checked)}
+                className="w-4 h-4 rounded border-ink-600 bg-ink-900 text-accent-primary focus:ring-accent-primary"
+              />
+              <span className="text-sm text-ink-300">Recommend touch-up session</span>
+            </label>
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowResolveModal(false);
+                  setResolveNotes('');
+                  setRequestTouchUp(false);
+                }}
+                className="px-4 py-2 text-ink-300 hover:bg-ink-700 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleResolveIssue}
+                disabled={processingIssue === selectedIssue.id || !resolveNotes.trim()}
+                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors disabled:opacity-50"
+              >
+                {processingIssue === selectedIssue.id ? 'Resolving...' : 'Resolve Issue'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Template Detail Modal */}

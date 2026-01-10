@@ -1544,3 +1544,629 @@ async def cancel_follow_up(
         status=follow_up.status.value,
         message="Follow-up cancelled successfully",
     )
+
+
+# === Healing Issue Report Endpoints ===
+
+def healing_issue_to_summary(issue: HealingIssueReport) -> HealingIssueSummary:
+    """Convert healing issue model to summary schema."""
+    return HealingIssueSummary(
+        id=issue.id,
+        aftercare_sent_id=issue.aftercare_sent_id,
+        description=issue.description,
+        severity=issue.severity.value,
+        symptoms=issue.symptoms or [],
+        days_since_appointment=issue.days_since_appointment,
+        status=issue.status.value,
+        created_at=issue.created_at,
+    )
+
+
+def healing_issue_to_response(issue: HealingIssueReport) -> HealingIssueResponse:
+    """Convert healing issue model to full response schema."""
+    return HealingIssueResponse(
+        id=issue.id,
+        aftercare_sent_id=issue.aftercare_sent_id,
+        description=issue.description,
+        severity=issue.severity.value,
+        symptoms=issue.symptoms or [],
+        days_since_appointment=issue.days_since_appointment,
+        status=issue.status.value,
+        created_at=issue.created_at,
+        studio_id=issue.studio_id,
+        photo_urls=issue.photo_urls or [],
+        resolved_at=issue.resolved_at,
+        resolution_notes=issue.resolution_notes,
+        responded_by_id=issue.responded_by_id,
+        responded_at=issue.responded_at,
+        staff_notes=issue.staff_notes,
+        touch_up_requested=issue.touch_up_requested,
+        touch_up_booking_id=issue.touch_up_booking_id,
+    )
+
+
+@router.post("/healing-issues/report/{access_token}", response_model=HealingIssueResponse, status_code=status.HTTP_201_CREATED)
+async def report_healing_issue(
+    access_token: str,
+    issue_data: ReportIssueInput,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Public endpoint for clients to report a healing issue.
+
+    No authentication required - access is via secure aftercare access token.
+    """
+    from app.services.email import email_service
+
+    # Find the aftercare record by token
+    stmt = select(AftercareSent).where(
+        AftercareSent.access_token == access_token,
+    ).options(
+        selectinload(AftercareSent.studio),
+        selectinload(AftercareSent.artist),
+    )
+    result = await db.execute(stmt)
+    sent_record = result.scalar_one_or_none()
+
+    if not sent_record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Aftercare record not found"
+        )
+
+    # Calculate days since appointment
+    now = datetime.utcnow()
+    days_since = (now - sent_record.appointment_date.replace(tzinfo=None)).days
+
+    # Create the healing issue report
+    issue = HealingIssueReport(
+        aftercare_sent_id=sent_record.id,
+        studio_id=sent_record.studio_id,
+        description=issue_data.description,
+        severity=HealingIssueSeverity(issue_data.severity),
+        symptoms=issue_data.symptoms,
+        days_since_appointment=max(0, days_since),
+        status=HealingIssueStatus.REPORTED,
+        photo_urls=[],
+    )
+
+    db.add(issue)
+    await db.commit()
+    await db.refresh(issue)
+
+    # Send notification email to studio/artist
+    studio = sent_record.studio
+    artist = sent_record.artist
+
+    if studio:
+        # Get studio owner email for notification
+        owner_stmt = select(User).where(User.id == studio.owner_id)
+        owner_result = await db.execute(owner_stmt)
+        owner = owner_result.scalar_one_or_none()
+
+        notify_email = artist.email if artist else (owner.email if owner else None)
+
+        if notify_email:
+            severity_colors = {
+                "minor": "#10B981",  # green
+                "moderate": "#F59E0B",  # amber
+                "concerning": "#F97316",  # orange
+                "urgent": "#EF4444",  # red
+            }
+            severity_color = severity_colors.get(issue_data.severity, "#6B7280")
+
+            await email_service.send_email(
+                to_email=notify_email,
+                subject=f"[{issue_data.severity.upper()}] Healing Issue Reported - {sent_record.client_name}",
+                html_content=f"""
+                    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+                        <h2 style="color: {severity_color};">Healing Issue Reported</h2>
+                        <p>A client has reported a healing issue that needs your attention.</p>
+
+                        <div style="background: #F3F4F6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                            <p><strong>Client:</strong> {sent_record.client_name}</p>
+                            <p><strong>Email:</strong> {sent_record.client_email}</p>
+                            <p><strong>Phone:</strong> {sent_record.client_phone or 'Not provided'}</p>
+                            <p><strong>Appointment Date:</strong> {sent_record.appointment_date.strftime('%B %d, %Y')}</p>
+                            <p><strong>Days Since:</strong> {days_since} days</p>
+                        </div>
+
+                        <div style="background: #FEF3C7; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid {severity_color};">
+                            <p><strong>Severity:</strong> <span style="color: {severity_color}; font-weight: bold;">{issue_data.severity.upper()}</span></p>
+                            <p><strong>Symptoms:</strong> {', '.join(issue_data.symptoms) if issue_data.symptoms else 'None specified'}</p>
+                            <p><strong>Description:</strong></p>
+                            <p style="white-space: pre-wrap;">{issue_data.description}</p>
+                        </div>
+
+                        <p>Please log in to InkFlow to review and respond to this issue.</p>
+                    </div>
+                """,
+                plain_content=f"""
+HEALING ISSUE REPORTED
+
+Client: {sent_record.client_name}
+Email: {sent_record.client_email}
+Phone: {sent_record.client_phone or 'Not provided'}
+Appointment Date: {sent_record.appointment_date.strftime('%B %d, %Y')}
+Days Since: {days_since} days
+
+Severity: {issue_data.severity.upper()}
+Symptoms: {', '.join(issue_data.symptoms) if issue_data.symptoms else 'None specified'}
+
+Description:
+{issue_data.description}
+
+Please log in to InkFlow to review and respond to this issue.
+                """,
+            )
+
+    return healing_issue_to_response(issue)
+
+
+@router.post("/healing-issues/{issue_id}/photos", response_model=HealingIssueResponse)
+async def upload_healing_issue_photo(
+    issue_id: str,
+    access_token: str = Query(..., description="Aftercare access token"),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Upload a photo to a healing issue report.
+
+    This endpoint accepts multipart form data with the photo file.
+    Authentication is via the aftercare access token.
+    """
+    import os
+    from fastapi import UploadFile, File
+
+    # This is a placeholder - actual file upload needs the file parameter
+    # We'll implement this properly with a separate endpoint structure
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Photo upload endpoint - use the full upload endpoint"
+    )
+
+
+@router.post("/healing-issues/{issue_id}/upload-photo")
+async def upload_healing_photo(
+    issue_id: str,
+    access_token: str = Query(..., description="Aftercare access token"),
+    file: "UploadFile" = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Upload a photo to document a healing issue.
+
+    Accepts image files (JPEG, PNG, WebP) up to 10MB.
+    Photos are stored securely and linked to the healing issue.
+    """
+    from fastapi import UploadFile, File
+    import os
+    import uuid as uuid_module
+
+    # Verify access token
+    stmt = select(AftercareSent).where(AftercareSent.access_token == access_token)
+    result = await db.execute(stmt)
+    sent_record = result.scalar_one_or_none()
+
+    if not sent_record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invalid access token"
+        )
+
+    # Find the healing issue
+    issue_stmt = select(HealingIssueReport).where(
+        HealingIssueReport.id == issue_id,
+        HealingIssueReport.aftercare_sent_id == sent_record.id,
+    )
+    issue_result = await db.execute(issue_stmt)
+    issue = issue_result.scalar_one_or_none()
+
+    if not issue:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Healing issue not found"
+        )
+
+    if file is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No file provided"
+        )
+
+    # Validate file type
+    allowed_types = {"image/jpeg", "image/png", "image/webp"}
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid file type. Allowed: JPEG, PNG, WebP"
+        )
+
+    # Read file content
+    content = await file.read()
+
+    # Check file size (10MB max)
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File too large. Maximum size is 10MB"
+        )
+
+    # Generate filename and save
+    ext = file.filename.split(".")[-1] if file.filename and "." in file.filename else "jpg"
+    filename = f"{uuid_module.uuid4()}.{ext}"
+
+    # Ensure upload directory exists
+    upload_dir = "uploads/healing_issues"
+    os.makedirs(upload_dir, exist_ok=True)
+
+    file_path = os.path.join(upload_dir, filename)
+    with open(file_path, "wb") as f:
+        f.write(content)
+
+    # Add to issue's photo_urls
+    photo_url = f"/uploads/healing_issues/{filename}"
+    current_photos = issue.photo_urls or []
+    current_photos.append(photo_url)
+    issue.photo_urls = current_photos
+
+    await db.commit()
+    await db.refresh(issue)
+
+    return {"message": "Photo uploaded successfully", "photo_url": photo_url}
+
+
+@router.get("/healing-issues", response_model=HealingIssueListResponse)
+async def list_healing_issues(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    status_filter: Optional[str] = Query(default=None, alias="status"),
+    severity_filter: Optional[str] = Query(default=None, alias="severity"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """List healing issue reports for the studio."""
+    studio = await get_user_studio(current_user, db)
+
+    stmt = select(HealingIssueReport).where(
+        HealingIssueReport.studio_id == studio.id,
+    )
+
+    if status_filter:
+        stmt = stmt.where(HealingIssueReport.status == HealingIssueStatus(status_filter))
+
+    if severity_filter:
+        stmt = stmt.where(HealingIssueReport.severity == HealingIssueSeverity(severity_filter))
+
+    # Count
+    count_stmt = select(func.count()).select_from(stmt.subquery())
+    total = (await db.execute(count_stmt)).scalar() or 0
+
+    # Paginate - show newest first, urgent issues at top
+    stmt = stmt.order_by(
+        # Urgent first
+        (HealingIssueReport.severity == HealingIssueSeverity.URGENT).desc(),
+        (HealingIssueReport.severity == HealingIssueSeverity.CONCERNING).desc(),
+        HealingIssueReport.created_at.desc(),
+    )
+    stmt = stmt.offset((page - 1) * page_size).limit(page_size)
+
+    result = await db.execute(stmt)
+    issues = result.scalars().all()
+
+    return HealingIssueListResponse(
+        items=[healing_issue_to_summary(i) for i in issues],
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=(total + page_size - 1) // page_size,
+    )
+
+
+@router.get("/healing-issues/{issue_id}", response_model=HealingIssueResponse)
+async def get_healing_issue(
+    issue_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get a specific healing issue report."""
+    studio = await get_user_studio(current_user, db)
+
+    stmt = select(HealingIssueReport).where(
+        HealingIssueReport.id == issue_id,
+        HealingIssueReport.studio_id == studio.id,
+    )
+    result = await db.execute(stmt)
+    issue = result.scalar_one_or_none()
+
+    if not issue:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Healing issue not found"
+        )
+
+    return healing_issue_to_response(issue)
+
+
+@router.patch("/healing-issues/{issue_id}", response_model=HealingIssueResponse)
+async def update_healing_issue(
+    issue_id: str,
+    update_data: HealingIssueUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role([UserRole.OWNER, UserRole.ARTIST])),
+):
+    """Update a healing issue report (status, notes, etc.)."""
+    studio = await get_user_studio(current_user, db)
+
+    stmt = select(HealingIssueReport).where(
+        HealingIssueReport.id == issue_id,
+        HealingIssueReport.studio_id == studio.id,
+    )
+    result = await db.execute(stmt)
+    issue = result.scalar_one_or_none()
+
+    if not issue:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Healing issue not found"
+        )
+
+    # Apply updates
+    update_dict = update_data.model_dump(exclude_unset=True)
+    for field, value in update_dict.items():
+        if field == "status" and value is not None:
+            new_status = HealingIssueStatus(value)
+            setattr(issue, field, new_status)
+            # Track resolved_at
+            if new_status == HealingIssueStatus.RESOLVED:
+                issue.resolved_at = datetime.utcnow()
+        else:
+            setattr(issue, field, value)
+
+    # Track who responded
+    if issue.responded_by_id is None:
+        issue.responded_by_id = current_user.id
+        issue.responded_at = datetime.utcnow()
+
+    await db.commit()
+    await db.refresh(issue)
+
+    return healing_issue_to_response(issue)
+
+
+@router.post("/healing-issues/{issue_id}/acknowledge", response_model=HealingIssueResponse)
+async def acknowledge_healing_issue(
+    issue_id: str,
+    staff_notes: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role([UserRole.OWNER, UserRole.ARTIST])),
+):
+    """
+    Acknowledge a reported healing issue.
+
+    This marks the issue as being reviewed by staff.
+    """
+    from app.services.email import email_service
+
+    studio = await get_user_studio(current_user, db)
+
+    stmt = select(HealingIssueReport).where(
+        HealingIssueReport.id == issue_id,
+        HealingIssueReport.studio_id == studio.id,
+    ).options(
+        selectinload(HealingIssueReport.aftercare_sent),
+    )
+    result = await db.execute(stmt)
+    issue = result.scalar_one_or_none()
+
+    if not issue:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Healing issue not found"
+        )
+
+    if issue.status != HealingIssueStatus.REPORTED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Issue already has status '{issue.status.value}'"
+        )
+
+    # Update status
+    issue.status = HealingIssueStatus.ACKNOWLEDGED
+    issue.responded_by_id = current_user.id
+    issue.responded_at = datetime.utcnow()
+    if staff_notes:
+        issue.staff_notes = staff_notes
+
+    await db.commit()
+    await db.refresh(issue)
+
+    # Send acknowledgment email to client
+    sent_record = issue.aftercare_sent
+    if sent_record:
+        await email_service.send_email(
+            to_email=sent_record.client_email,
+            subject=f"Your healing concern has been received - {studio.name}",
+            html_content=f"""
+                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2>We've Received Your Healing Concern</h2>
+                    <p>Hi {sent_record.client_name},</p>
+                    <p>Thank you for reporting your concern. Our team at {studio.name} has reviewed your submission and will be in touch soon with guidance.</p>
+
+                    {f'<div style="background: #F3F4F6; padding: 15px; border-radius: 8px; margin: 20px 0;"><strong>Initial Response:</strong><p style="margin: 10px 0 0 0;">{staff_notes}</p></div>' if staff_notes else ''}
+
+                    <p><strong>What to do in the meantime:</strong></p>
+                    <ul>
+                        <li>Continue following the aftercare instructions provided</li>
+                        <li>Keep the area clean and moisturized</li>
+                        <li>Avoid scratching or picking at the tattoo</li>
+                        <li>If symptoms worsen significantly, please seek medical attention</li>
+                    </ul>
+
+                    <p>If you have any additional concerns or your symptoms change, please reply to this email or contact us directly.</p>
+
+                    <p>Best regards,<br>{current_user.full_name}<br>{studio.name}</p>
+                </div>
+            """,
+            plain_content=f"""
+We've Received Your Healing Concern
+
+Hi {sent_record.client_name},
+
+Thank you for reporting your concern. Our team at {studio.name} has reviewed your submission and will be in touch soon with guidance.
+
+{f'Initial Response: {staff_notes}' if staff_notes else ''}
+
+What to do in the meantime:
+- Continue following the aftercare instructions provided
+- Keep the area clean and moisturized
+- Avoid scratching or picking at the tattoo
+- If symptoms worsen significantly, please seek medical attention
+
+If you have any additional concerns or your symptoms change, please reply to this email or contact us directly.
+
+Best regards,
+{current_user.full_name}
+{studio.name}
+            """,
+        )
+
+    return healing_issue_to_response(issue)
+
+
+@router.post("/healing-issues/{issue_id}/resolve", response_model=HealingIssueResponse)
+async def resolve_healing_issue(
+    issue_id: str,
+    resolution_notes: str,
+    request_touch_up: bool = False,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role([UserRole.OWNER, UserRole.ARTIST])),
+):
+    """
+    Mark a healing issue as resolved.
+
+    Optionally flag for touch-up scheduling.
+    """
+    from app.services.email import email_service
+
+    studio = await get_user_studio(current_user, db)
+
+    stmt = select(HealingIssueReport).where(
+        HealingIssueReport.id == issue_id,
+        HealingIssueReport.studio_id == studio.id,
+    ).options(
+        selectinload(HealingIssueReport.aftercare_sent),
+    )
+    result = await db.execute(stmt)
+    issue = result.scalar_one_or_none()
+
+    if not issue:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Healing issue not found"
+        )
+
+    if issue.status == HealingIssueStatus.RESOLVED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Issue is already resolved"
+        )
+
+    # Update status
+    issue.status = HealingIssueStatus.RESOLVED
+    issue.resolved_at = datetime.utcnow()
+    issue.resolution_notes = resolution_notes
+    issue.touch_up_requested = request_touch_up
+
+    if issue.responded_by_id is None:
+        issue.responded_by_id = current_user.id
+        issue.responded_at = datetime.utcnow()
+
+    await db.commit()
+    await db.refresh(issue)
+
+    # Send resolution email to client
+    sent_record = issue.aftercare_sent
+    if sent_record:
+        touch_up_message = """
+            <p style="margin-top: 15px; padding: 15px; background: #FEF3C7; border-radius: 8px;">
+                <strong>Touch-up Recommended:</strong> Based on our assessment, we recommend scheduling a touch-up session once your tattoo is fully healed. Please contact us when you're ready to book.
+            </p>
+        """ if request_touch_up else ""
+
+        await email_service.send_email(
+            to_email=sent_record.client_email,
+            subject=f"Update on your healing concern - {studio.name}",
+            html_content=f"""
+                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2>Your Healing Concern Has Been Resolved</h2>
+                    <p>Hi {sent_record.client_name},</p>
+                    <p>We wanted to follow up on the healing concern you reported.</p>
+
+                    <div style="background: #D1FAE5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                        <strong>Resolution Notes:</strong>
+                        <p style="margin: 10px 0 0 0; white-space: pre-wrap;">{resolution_notes}</p>
+                    </div>
+
+                    {touch_up_message}
+
+                    <p>If you have any further questions or concerns, don't hesitate to reach out.</p>
+
+                    <p>Best regards,<br>{current_user.full_name}<br>{studio.name}</p>
+                </div>
+            """,
+            plain_content=f"""
+Your Healing Concern Has Been Resolved
+
+Hi {sent_record.client_name},
+
+We wanted to follow up on the healing concern you reported.
+
+Resolution Notes:
+{resolution_notes}
+
+{'Touch-up Recommended: Based on our assessment, we recommend scheduling a touch-up session once your tattoo is fully healed. Please contact us when you are ready to book.' if request_touch_up else ''}
+
+If you have any further questions or concerns, don't hesitate to reach out.
+
+Best regards,
+{current_user.full_name}
+{studio.name}
+            """,
+        )
+
+    return healing_issue_to_response(issue)
+
+
+@router.get("/healing-issues/by-aftercare/{access_token}", response_model=list[HealingIssueSummary])
+async def get_issues_by_aftercare(
+    access_token: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Public endpoint to get healing issues for a specific aftercare record.
+
+    Used by clients to see their reported issues and status.
+    """
+    # Find the aftercare record by token
+    stmt = select(AftercareSent).where(
+        AftercareSent.access_token == access_token,
+    )
+    result = await db.execute(stmt)
+    sent_record = result.scalar_one_or_none()
+
+    if not sent_record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Aftercare record not found"
+        )
+
+    # Get all issues for this aftercare
+    issues_stmt = select(HealingIssueReport).where(
+        HealingIssueReport.aftercare_sent_id == sent_record.id,
+    ).order_by(HealingIssueReport.created_at.desc())
+
+    issues_result = await db.execute(issues_stmt)
+    issues = issues_result.scalars().all()
+
+    return [healing_issue_to_summary(i) for i in issues]

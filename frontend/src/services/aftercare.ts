@@ -24,6 +24,11 @@ import type {
   CancelFollowUpResponse,
   FollowUpStatus,
   FollowUpType,
+  HealingIssueListResponse,
+  HealingIssueResponse,
+  HealingIssueUpdate,
+  HealingIssueSeverity,
+  HealingIssueStatus,
 } from '../types/api';
 
 // === Pre-built Templates ===
@@ -265,3 +270,112 @@ export function getFollowUpStatusColor(status: FollowUpStatus): string {
   };
   return colors[status] || 'bg-ink-600 text-ink-400';
 }
+
+// === Healing Issue Management ===
+
+export async function listHealingIssues(params?: {
+  page?: number;
+  page_size?: number;
+  status?: HealingIssueStatus;
+  severity?: HealingIssueSeverity;
+}): Promise<HealingIssueListResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.page) searchParams.set('page', params.page.toString());
+  if (params?.page_size) searchParams.set('page_size', params.page_size.toString());
+  if (params?.status) searchParams.set('status', params.status);
+  if (params?.severity) searchParams.set('severity', params.severity);
+
+  const query = searchParams.toString();
+  return api.get<HealingIssueListResponse>(`/aftercare/healing-issues${query ? `?${query}` : ''}`);
+}
+
+export async function getHealingIssue(issueId: string): Promise<HealingIssueResponse> {
+  return api.get<HealingIssueResponse>(`/aftercare/healing-issues/${issueId}`);
+}
+
+export async function updateHealingIssue(
+  issueId: string,
+  data: HealingIssueUpdate
+): Promise<HealingIssueResponse> {
+  return api.patch<HealingIssueResponse>(`/aftercare/healing-issues/${issueId}`, data);
+}
+
+export async function acknowledgeHealingIssue(
+  issueId: string,
+  staffNotes?: string
+): Promise<HealingIssueResponse> {
+  const query = staffNotes ? `?staff_notes=${encodeURIComponent(staffNotes)}` : '';
+  return api.post<HealingIssueResponse>(`/aftercare/healing-issues/${issueId}/acknowledge${query}`, {});
+}
+
+export async function resolveHealingIssue(
+  issueId: string,
+  resolutionNotes: string,
+  requestTouchUp: boolean = false
+): Promise<HealingIssueResponse> {
+  const params = new URLSearchParams();
+  params.set('resolution_notes', resolutionNotes);
+  params.set('request_touch_up', requestTouchUp.toString());
+  return api.post<HealingIssueResponse>(
+    `/aftercare/healing-issues/${issueId}/resolve?${params.toString()}`,
+    {}
+  );
+}
+
+// === Healing Issue Helper Functions ===
+
+export function getHealingIssueSeverityLabel(severity: HealingIssueSeverity): string {
+  const labels: Record<HealingIssueSeverity, string> = {
+    minor: 'Minor',
+    moderate: 'Moderate',
+    concerning: 'Concerning',
+    urgent: 'Urgent',
+  };
+  return labels[severity] || severity;
+}
+
+export function getHealingIssueSeverityColor(severity: HealingIssueSeverity): string {
+  const colors: Record<HealingIssueSeverity, string> = {
+    minor: 'bg-green-500/10 text-green-400',
+    moderate: 'bg-yellow-500/10 text-yellow-400',
+    concerning: 'bg-orange-500/10 text-orange-400',
+    urgent: 'bg-red-500/10 text-red-400',
+  };
+  return colors[severity] || 'bg-ink-600 text-ink-400';
+}
+
+export function getHealingIssueStatusLabel(status: HealingIssueStatus): string {
+  const labels: Record<HealingIssueStatus, string> = {
+    reported: 'Reported',
+    acknowledged: 'Acknowledged',
+    in_progress: 'In Progress',
+    resolved: 'Resolved',
+    escalated: 'Escalated',
+  };
+  return labels[status] || status;
+}
+
+export function getHealingIssueStatusColor(status: HealingIssueStatus): string {
+  const colors: Record<HealingIssueStatus, string> = {
+    reported: 'bg-red-500/10 text-red-400',
+    acknowledged: 'bg-blue-500/10 text-blue-400',
+    in_progress: 'bg-yellow-500/10 text-yellow-400',
+    resolved: 'bg-green-500/10 text-green-400',
+    escalated: 'bg-purple-500/10 text-purple-400',
+  };
+  return colors[status] || 'bg-ink-600 text-ink-400';
+}
+
+// Symptoms list for UI
+export const HEALING_ISSUE_SYMPTOMS = [
+  { id: 'redness', label: 'Excessive Redness' },
+  { id: 'swelling', label: 'Swelling' },
+  { id: 'itching', label: 'Intense Itching' },
+  { id: 'oozing', label: 'Oozing or Discharge' },
+  { id: 'scabbing', label: 'Excessive Scabbing' },
+  { id: 'color_loss', label: 'Color Loss or Fading' },
+  { id: 'infection_signs', label: 'Signs of Infection' },
+  { id: 'pain', label: 'Unusual Pain' },
+  { id: 'bumps', label: 'Bumps or Raised Areas' },
+  { id: 'bleeding', label: 'Bleeding' },
+];

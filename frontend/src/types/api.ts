@@ -1611,3 +1611,49 @@ export interface FollowUpCreate {
   message_plain: string;
   send_via?: 'email' | 'sms';
 }
+
+// === Healing Issue Types ===
+
+export interface HealingIssueSummary {
+  id: string;
+  aftercare_sent_id: string;
+  description: string;
+  severity: HealingIssueSeverity;
+  symptoms: string[];
+  days_since_appointment: number;
+  status: HealingIssueStatus;
+  created_at: string;
+}
+
+export interface HealingIssueResponse extends HealingIssueSummary {
+  studio_id: string;
+  photo_urls: string[];
+  resolved_at: string | null;
+  resolution_notes: string | null;
+  responded_by_id: string | null;
+  responded_at: string | null;
+  staff_notes: string | null;
+  touch_up_requested: boolean;
+  touch_up_booking_id: string | null;
+}
+
+export interface HealingIssueListResponse {
+  items: HealingIssueSummary[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
+export interface ReportIssueInput {
+  description: string;
+  severity?: HealingIssueSeverity;
+  symptoms?: string[];
+}
+
+export interface HealingIssueUpdate {
+  status?: HealingIssueStatus;
+  staff_notes?: string;
+  resolution_notes?: string;
+  touch_up_requested?: boolean;
+}
