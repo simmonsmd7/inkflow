@@ -10,6 +10,7 @@ export { Availability } from './Availability';
 export { BookingForm } from './BookingForm';
 export { BookingQueue } from './BookingQueue';
 export { ClientBookingHistory } from './ClientBookingHistory';
+export { ClientConsentForms } from './ClientConsentForms';
 export { ClientLogin } from './ClientLogin';
 export { ClientPortal } from './ClientPortal';
 export { ClientRegister } from './ClientRegister';

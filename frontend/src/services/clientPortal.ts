@@ -8,6 +8,11 @@ import type {
   ClientBookingDetail,
   ClientBookingsListResponse,
   ClientBookingStats,
+  ClientConsentPendingResponse,
+  ClientSignedConsentsResponse,
+  ClientConsentTemplateResponse,
+  ClientConsentSignInput,
+  ClientConsentSignResponse,
 } from '../types/api';
 
 export interface GetBookingsParams {
@@ -67,6 +72,56 @@ export const clientPortalService = {
   async getBookingStats(): Promise<ClientBookingStats> {
     return api.get<ClientBookingStats>(
       '/api/v1/client/portal/bookings/stats/summary',
+      { headers: getClientAuthHeaders() }
+    );
+  },
+
+  // ============ Consent Form Functions ============
+
+  /**
+   * Get bookings that need consent forms signed.
+   */
+  async getPendingConsentForms(): Promise<ClientConsentPendingResponse> {
+    return api.get<ClientConsentPendingResponse>(
+      '/api/v1/client/portal/consent/pending',
+      { headers: getClientAuthHeaders() }
+    );
+  },
+
+  /**
+   * Get previously signed consent forms.
+   */
+  async getSignedConsentForms(params: { page?: number; per_page?: number } = {}): Promise<ClientSignedConsentsResponse> {
+    const { page = 1, per_page = 10 } = params;
+
+    const queryParams = new URLSearchParams({
+      page: page.toString(),
+      per_page: per_page.toString(),
+    });
+
+    return api.get<ClientSignedConsentsResponse>(
+      `/api/v1/client/portal/consent/signed?${queryParams.toString()}`,
+      { headers: getClientAuthHeaders() }
+    );
+  },
+
+  /**
+   * Get consent form template for a booking.
+   */
+  async getConsentTemplate(bookingId: string): Promise<ClientConsentTemplateResponse> {
+    return api.get<ClientConsentTemplateResponse>(
+      `/api/v1/client/portal/consent/template/${bookingId}`,
+      { headers: getClientAuthHeaders() }
+    );
+  },
+
+  /**
+   * Sign a consent form for a booking.
+   */
+  async signConsentForm(data: ClientConsentSignInput): Promise<ClientConsentSignResponse> {
+    return api.post<ClientConsentSignResponse>(
+      '/api/v1/client/portal/consent/sign',
+      data,
       { headers: getClientAuthHeaders() }
     );
   },

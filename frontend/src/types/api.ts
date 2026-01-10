@@ -1930,3 +1930,84 @@ export interface ClientBookingStats {
   total_spent_cents: number;
   status_breakdown: Record<string, number>;
 }
+
+// ============ Client Portal Consent Types ============
+
+export interface ClientConsentPendingBooking {
+  id: string;
+  design_idea: string;
+  placement: string;
+  size: string;
+  status: string;
+  scheduled_date: string | null;
+  artist_name: string | null;
+  studio_id: string;
+  studio_name: string;
+  template_id: string | null;
+  template_name: string | null;
+}
+
+export interface ClientConsentPendingResponse {
+  bookings: ClientConsentPendingBooking[];
+  total: number;
+}
+
+export interface ClientSignedConsentSummary {
+  id: string;
+  template_name: string;
+  submitted_at: string;
+  booking_id: string | null;
+  booking_design_idea: string | null;
+  booking_scheduled_date: string | null;
+  studio_name: string;
+  has_signature: boolean;
+  access_token: string;
+}
+
+export interface ClientSignedConsentsResponse {
+  submissions: ClientSignedConsentSummary[];
+  total: number;
+  page: number;
+  per_page: number;
+  pages: number;
+}
+
+export interface ClientConsentFormField {
+  id: string;
+  type: string;
+  label: string;
+  required: boolean;
+  order: number;
+  placeholder?: string | null;
+  help_text?: string | null;
+  options?: string[] | null;
+  content?: string | null;
+}
+
+export interface ClientConsentTemplateResponse {
+  id: string;
+  name: string;
+  description: string | null;
+  header_text: string | null;
+  footer_text: string | null;
+  requires_photo_id: boolean;
+  requires_signature: boolean;
+  age_requirement: number;
+  fields: ClientConsentFormField[];
+}
+
+export interface ClientConsentSignInput {
+  booking_id: string;
+  template_id: string;
+  client_name: string;
+  client_phone?: string | null;
+  date_of_birth?: string | null;
+  responses: Record<string, unknown>;
+  signature_data: string;
+}
+
+export interface ClientConsentSignResponse {
+  submission_id: string;
+  access_token: string;
+  message: string;
+}
