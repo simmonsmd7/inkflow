@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useLocation, Link } from 'react-router-dom';
+import { useAuth } from '../../hooks/useAuth';
+import type { UserRole } from '../../types/api';
 
 interface NavItem {
   id: string;
@@ -6,6 +8,7 @@ interface NavItem {
   icon: React.ReactNode;
   href: string;
   badge?: number;
+  roles?: UserRole[]; // If set, only show to these roles
 }
 
 const navItems: NavItem[] = [
@@ -62,6 +65,17 @@ const navItems: NavItem[] = [
     href: '/artists',
   },
   {
+    id: 'team',
+    label: 'Team',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+      </svg>
+    ),
+    href: '/team',
+    roles: ['owner'],
+  },
+  {
     id: 'commissions',
     label: 'Commissions',
     icon: (
@@ -100,7 +114,20 @@ interface SidebarProps {
 }
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
-  const [activeItem, setActiveItem] = useState('dashboard');
+  const location = useLocation();
+  const { user } = useAuth();
+
+  // Filter nav items based on user role
+  const filteredNavItems = navItems.filter((item) => {
+    if (!item.roles) return true; // No role restriction
+    if (!user) return false; // No user, hide restricted items
+    return item.roles.includes(user.role);
+  });
+
+  // Get user initials
+  const userInitials = user
+    ? `${user.first_name[0]}${user.last_name[0]}`.toUpperCase()
+    : 'U';
 
   return (
     <aside
@@ -111,21 +138,21 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       {/* Logo */}
       <div className="h-16 flex items-center justify-between px-4 border-b border-ink-700">
         {!collapsed && (
-          <div className="flex items-center gap-2">
+          <Link to="/" className="flex items-center gap-2">
             <div className="w-8 h-8 bg-accent-primary rounded-lg flex items-center justify-center">
               <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
               </svg>
             </div>
             <span className="font-bold text-lg text-ink-100">InkFlow</span>
-          </div>
+          </Link>
         )}
         {collapsed && (
-          <div className="w-8 h-8 mx-auto bg-accent-primary rounded-lg flex items-center justify-center">
+          <Link to="/" className="w-8 h-8 mx-auto bg-accent-primary rounded-lg flex items-center justify-center">
             <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
             </svg>
-          </div>
+          </Link>
         )}
       </div>
 
@@ -146,47 +173,50 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
       {/* Navigation */}
       <nav className="p-3 space-y-1">
-        {navItems.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => setActiveItem(item.id)}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
-              activeItem === item.id
-                ? 'bg-accent-primary/20 text-accent-primary'
-                : 'text-ink-300 hover:bg-ink-700 hover:text-ink-100'
-            }`}
-          >
-            <span className="shrink-0">{item.icon}</span>
-            {!collapsed && (
-              <>
-                <span className="flex-1 text-left text-sm font-medium">{item.label}</span>
-                {item.badge && (
-                  <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-accent-primary text-white">
-                    {item.badge}
-                  </span>
-                )}
-              </>
-            )}
-            {collapsed && item.badge && (
-              <span className="absolute left-10 top-1 w-2 h-2 bg-accent-primary rounded-full" />
-            )}
-          </button>
-        ))}
+        {filteredNavItems.map((item) => {
+          const isActive = location.pathname === item.href;
+          return (
+            <Link
+              key={item.id}
+              to={item.href}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
+                isActive
+                  ? 'bg-accent-primary/20 text-accent-primary'
+                  : 'text-ink-300 hover:bg-ink-700 hover:text-ink-100'
+              }`}
+            >
+              <span className="shrink-0">{item.icon}</span>
+              {!collapsed && (
+                <>
+                  <span className="flex-1 text-left text-sm font-medium">{item.label}</span>
+                  {item.badge && (
+                    <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-accent-primary text-white">
+                      {item.badge}
+                    </span>
+                  )}
+                </>
+              )}
+              {collapsed && item.badge && (
+                <span className="absolute left-10 top-1 w-2 h-2 bg-accent-primary rounded-full" />
+              )}
+            </Link>
+          );
+        })}
       </nav>
 
       {/* User Section at Bottom */}
       <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-ink-700">
-        <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-ink-300 hover:bg-ink-700 hover:text-ink-100 transition-colors">
+        <div className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-ink-300">
           <div className="w-8 h-8 rounded-full bg-accent-secondary flex items-center justify-center text-white font-medium text-sm shrink-0">
-            JD
+            {userInitials}
           </div>
-          {!collapsed && (
+          {!collapsed && user && (
             <div className="flex-1 text-left">
-              <p className="text-sm font-medium text-ink-100">John Doe</p>
-              <p className="text-xs text-ink-400">Artist</p>
+              <p className="text-sm font-medium text-ink-100">{user.first_name} {user.last_name}</p>
+              <p className="text-xs text-ink-400 capitalize">{user.role}</p>
             </div>
           )}
-        </button>
+        </div>
       </div>
     </aside>
   );

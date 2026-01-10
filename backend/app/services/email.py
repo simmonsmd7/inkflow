@@ -184,5 +184,61 @@ The InkFlow Team
         )
 
 
+    async def send_invite_email(
+        self, to_email: str, first_name: str, token: str
+    ) -> bool:
+        """Send team member invite email."""
+        setup_url = f"{settings.frontend_url}/reset-password?token={token}"
+
+        body_text = f"""Hi {first_name},
+
+You've been invited to join the team on InkFlow!
+
+Click the link below to set your password and access your account:
+
+{setup_url}
+
+This link will expire in 1 hour.
+
+Welcome aboard!
+
+Best,
+The InkFlow Team
+"""
+
+        body_html = f"""
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+    <h2 style="color: #1a1a1a;">Welcome to InkFlow!</h2>
+    <p>Hi {first_name},</p>
+    <p>You've been invited to join the team on InkFlow!</p>
+    <p>Click the button below to set your password and access your account:</p>
+    <p style="text-align: center; margin: 30px 0;">
+        <a href="{setup_url}"
+           style="background-color: #e11d48; color: white; padding: 12px 24px;
+                  text-decoration: none; border-radius: 6px; font-weight: bold;">
+            Set Up Your Account
+        </a>
+    </p>
+    <p style="color: #666; font-size: 14px;">
+        Or copy this link: <a href="{setup_url}">{setup_url}</a>
+    </p>
+    <p style="color: #666; font-size: 14px;">This link expires in 1 hour.</p>
+    <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+    <p style="color: #999; font-size: 12px;">
+        If you weren't expecting this invitation, please contact your studio manager.
+    </p>
+</div>
+"""
+
+        return await self.send(
+            EmailMessage(
+                to_email=to_email,
+                subject="You're invited to join InkFlow",
+                body_text=body_text,
+                body_html=body_html,
+            )
+        )
+
+
 # Singleton instance
 email_service = EmailService()

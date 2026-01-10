@@ -1,6 +1,6 @@
 import { Routes, Route } from 'react-router-dom';
 import { Layout } from './components/layout';
-import { Dashboard, ForgotPassword, Login, Register, ResetPassword } from './pages';
+import { Dashboard, ForgotPassword, Login, Register, ResetPassword, Team } from './pages';
 
 function App() {
   return (
@@ -18,7 +18,7 @@ function App() {
           <Layout>
             <Routes>
               <Route path="/" element={<Dashboard />} />
-              {/* Future routes will be added here */}
+              <Route path="/team" element={<Team />} />
             </Routes>
           </Layout>
         }

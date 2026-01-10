@@ -59,6 +59,34 @@ class PasswordChange(BaseModel):
     new_password: str = Field(..., min_length=8, max_length=100)
 
 
+class UserUpdate(BaseModel):
+    """Schema for updating user details (owner only)."""
+
+    first_name: str | None = Field(None, min_length=1, max_length=100)
+    last_name: str | None = Field(None, min_length=1, max_length=100)
+    phone: str | None = Field(None, max_length=20)
+    role: UserRole | None = None
+    is_active: bool | None = None
+
+
+class UserInvite(BaseModel):
+    """Schema for inviting a new team member (owner only)."""
+
+    email: EmailStr
+    first_name: str = Field(..., min_length=1, max_length=100)
+    last_name: str = Field(..., min_length=1, max_length=100)
+    role: UserRole = UserRole.ARTIST
+
+
+class UsersListResponse(BaseModel):
+    """Schema for paginated users list."""
+
+    users: list["UserResponse"]
+    total: int
+    skip: int
+    limit: int
+
+
 # Response schemas
 class UserResponse(UserBase):
     """Schema for user response (public info)."""

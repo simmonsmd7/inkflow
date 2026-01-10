@@ -73,3 +73,26 @@ export interface AuthResponse {
   token_type: string;
   user: User;
 }
+
+// User management types
+export interface UserUpdate {
+  first_name?: string;
+  last_name?: string;
+  phone?: string | null;
+  role?: UserRole;
+  is_active?: boolean;
+}
+
+export interface UserInvite {
+  email: string;
+  first_name: string;
+  last_name: string;
+  role?: UserRole;
+}
+
+export interface UsersListResponse {
+  users: User[];
+  total: number;
+  skip: number;
+  limit: number;
+}

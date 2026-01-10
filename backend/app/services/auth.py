@@ -79,6 +79,21 @@ async def get_user_by_email(db: AsyncSession, email: str) -> User | None:
     return result.scalar_one_or_none()
 
 
+async def list_users(
+    db: AsyncSession,
+    skip: int = 0,
+    limit: int = 100,
+    include_inactive: bool = False,
+) -> list[User]:
+    """List all users with pagination."""
+    query = select(User).where(User.deleted_at.is_(None))
+    if not include_inactive:
+        query = query.where(User.is_active.is_(True))
+    query = query.order_by(User.created_at.desc()).offset(skip).limit(limit)
+    result = await db.execute(query)
+    return list(result.scalars().all())
+
+
 async def get_user_by_id(db: AsyncSession, user_id: uuid.UUID) -> User | None:
     """Get a user by ID."""
     result = await db.execute(
@@ -224,3 +239,40 @@ async def reset_user_password(
     user.hashed_password = hash_password(new_password)
     user.clear_password_reset()
     await db.flush()
+
+
+def require_role(*allowed_roles: str):
+    """
+    Create a dependency that requires the current user to have one of the specified roles.
+
+    Usage:
+        @router.get("/admin-only", dependencies=[Depends(require_role("owner"))])
+        async def admin_endpoint():
+            ...
+
+        # Or use the return value directly:
+        @router.get("/settings")
+        async def settings(user: User = Depends(require_role("owner", "artist"))):
+            ...
+    """
+    from app.models.user import UserRole
+
+    async def role_checker(
+        current_user: Annotated[User, Depends(get_current_user)],
+    ) -> User:
+        # Normalize role values for comparison
+        user_role = current_user.role.value if isinstance(current_user.role, UserRole) else current_user.role
+        if user_role not in allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Access denied. Required role(s): {', '.join(allowed_roles)}",
+            )
+        return current_user
+
+    return role_checker
+
+
+# Pre-built role dependencies for common use cases
+require_owner = require_role("owner")
+require_artist_or_owner = require_role("owner", "artist")
+require_any_staff = require_role("owner", "artist", "receptionist")
