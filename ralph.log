@@ -1982,3 +1982,66 @@ Navigation & Routes:
 - Verified: Heatmap, charts, and all UI elements display properly
 Status: COMPLETE
 Next: P9.1 - Client portal login/registration
+
+=== ITERATION 45 ===
+Date: 2026-01-10
+Task: P9.1 - Client portal login/registration
+
+Changes:
+Backend Model (client.py - NEW):
+- Client model separate from User (staff) model
+- Fields: email, first_name, last_name, phone, password_hash, is_active, is_verified
+- Email verification token with expiration (24h)
+- Password reset token with expiration (1h)
+- Last login tracking, date of birth, address, emergency contact, medical notes
+- Relationship to primary studio
+- Soft delete support via SoftDeleteMixin
+
+Backend Schemas (client.py - NEW):
+- ClientBase, ClientCreate, ClientLogin, ClientResponse, ClientDetailResponse
+- ClientAuthResponse with access_token and client data
+- ClientEmailVerification, ClientPasswordResetRequest, ClientPasswordReset
+- ClientUpdate for profile changes
+
+Backend Service (client_auth.py - NEW):
+- create_client_access_token(): JWT with "type": "client_access" (distinct from staff)
+- decode_client_access_token(): Validates client token type
+- get_client_by_email(), get_client_by_id(), get_client_by_verification_token
+- create_client(): New client with hashed password, verification token
+- authenticate_client(): Validates credentials and active status
+- get_current_client(): FastAPI dependency for authenticated client routes
+- get_current_active_verified_client(): Requires email verification
+- reset_client_password(): Updates hash and clears reset token
+
+Backend Router (client_auth.py - NEW):
+- POST /api/v1/client/auth/register: Client registration (auto-verify in dev)
+- POST /api/v1/client/auth/verify-email: Email verification with token
+- POST /api/v1/client/auth/login: Returns JWT access token
+- POST /api/v1/client/auth/logout: Placeholder for future token invalidation
+- GET /api/v1/client/auth/me: Get current client profile
+- POST /api/v1/client/auth/forgot-password: Request password reset
+- POST /api/v1/client/auth/reset-password: Reset with token
+
+Frontend Types (api.ts):
+- Client, ClientDetailResponse, ClientAuthResponse interfaces
+
+Frontend Service (clientAuth.ts - NEW):
+- Separate token storage: 'inkflow_client_token'
+- register(), login(), logout(), getMe() methods
+- isAuthenticated(), getToken() helpers
+
+Frontend Pages:
+- ClientLogin.tsx: Dark theme login form, links to register/staff login
+- ClientRegister.tsx: Registration with name, email, phone, password fields
+- ClientPortal.tsx: Dashboard with quick action cards, account info display
+
+Frontend Routes (App.tsx):
+- /client/login, /client/register, /client portal routes
+- No layout wrapper (standalone pages like staff auth)
+
+- Verified: Backend endpoints tested via curl (register, login work)
+- Verified: Frontend build passes with no TypeScript errors
+- Verified: Login redirects to /client portal showing user data
+- Verified: Logout functionality works
+Status: COMPLETE
+Next: P9.2 - Booking history view
