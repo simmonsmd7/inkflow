@@ -182,6 +182,44 @@ export async function uploadPhotoIdWithToken(
   return response.json();
 }
 
+// === Secure Data Access ===
+
+/**
+ * Get decrypted signature data for a submission.
+ * Returns the base64 signature image data.
+ */
+export async function getDecryptedSignature(
+  submissionId: string
+): Promise<{ signature_data: string }> {
+  return api.get<{ signature_data: string }>(
+    `/consent/submissions/${submissionId}/signature/decrypt`
+  );
+}
+
+/**
+ * Get decrypted photo ID image URL for a submission.
+ * Returns a blob URL that can be used as an image src.
+ */
+export async function getDecryptedPhotoId(submissionId: string): Promise<string> {
+  const token = localStorage.getItem('token');
+  const response = await fetch(
+    `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/v1/consent/submissions/${submissionId}/photo-id/decrypt`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.detail || 'Failed to decrypt photo ID');
+  }
+
+  const blob = await response.blob();
+  return URL.createObjectURL(blob);
+}
+
 // === Helper Functions ===
 
 export function generateFieldId(): string {

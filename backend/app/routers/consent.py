@@ -47,6 +47,7 @@ from app.schemas.consent import (
     VoidConsentResponse,
 )
 from app.services.auth import get_current_user, require_role
+from app.services.encryption import get_encryption_service
 
 router = APIRouter(prefix="/consent", tags=["consent"])
 
@@ -835,6 +836,12 @@ async def submit_signed_consent(
     client_ip = request.client.host if request.client else None
     user_agent = request.headers.get("user-agent")
 
+    # Encrypt signature data if provided
+    encrypted_signature = None
+    if data.signature_data:
+        encryption_service = get_encryption_service()
+        encrypted_signature = encryption_service.encrypt(data.signature_data)
+
     # Create submission
     submission = ConsentFormSubmission(
         template_id=template.id,
@@ -848,7 +855,7 @@ async def submit_signed_consent(
         client_phone=data.client_phone,
         client_date_of_birth=data.client_date_of_birth,
         responses=data.responses,
-        signature_data=data.signature_data,
+        signature_data=encrypted_signature,  # Store encrypted signature
         signature_timestamp=datetime.utcnow() if data.signature_data else None,
         age_verified=age_verified,
         age_at_signing=age_at_signing,
@@ -929,22 +936,22 @@ async def upload_photo_id_public(
             detail="File too large. Maximum size is 5MB",
         )
 
-    # Save file
+    # Encrypt and save file
+    encryption_service = get_encryption_service()
     ext = file.filename.split(".")[-1] if file.filename and "." in file.filename else "jpg"
-    filename = f"{submission.id}_photo_id.{ext}"
+    filename = f"{submission.id}_photo_id.{ext}.enc"  # Add .enc extension for encrypted files
     upload_dir = Path("uploads/photo_ids")
     upload_dir.mkdir(parents=True, exist_ok=True)
 
     file_path = upload_dir / filename
-    with open(file_path, "wb") as f:
-        f.write(content)
+    encryption_service.encrypt_and_save(content, file_path)
 
     submission.photo_id_url = f"/uploads/photo_ids/{filename}"
     await db.commit()
 
     return PhotoIdUploadResponse(
         photo_id_url=submission.photo_id_url,
-        message="Photo ID uploaded successfully",
+        message="Photo ID uploaded and encrypted successfully",
     )
 
 
@@ -1024,23 +1031,138 @@ async def upload_photo_id(
             detail="File too large. Maximum size is 5MB",
         )
 
-    # Save file
+    # Encrypt and save file
+    encryption_service = get_encryption_service()
     ext = file.filename.split(".")[-1] if file.filename and "." in file.filename else "jpg"
-    filename = f"{submission.id}_photo_id.{ext}"
+    filename = f"{submission.id}_photo_id.{ext}.enc"  # Add .enc extension for encrypted files
     upload_dir = Path("uploads/photo_ids")
     upload_dir.mkdir(parents=True, exist_ok=True)
 
     file_path = upload_dir / filename
-    with open(file_path, "wb") as f:
-        f.write(content)
+    encryption_service.encrypt_and_save(content, file_path)
 
     submission.photo_id_url = f"/uploads/photo_ids/{filename}"
     await db.commit()
 
     return PhotoIdUploadResponse(
         photo_id_url=submission.photo_id_url,
-        message="Photo ID uploaded successfully",
+        message="Photo ID uploaded and encrypted successfully",
     )
+
+
+# === Secure Data Access Endpoints ===
+
+@router.get("/submissions/{submission_id}/photo-id/decrypt")
+async def get_decrypted_photo_id(
+    submission_id: uuid.UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role(["owner", "artist"])),
+):
+    """Get decrypted photo ID for a submission (staff only).
+
+    Returns the decrypted image file for viewing/verification.
+    """
+    from fastapi.responses import Response
+
+    studio = await _get_user_studio(db, current_user)
+    submission = await _get_submission(db, submission_id, studio.id)
+
+    if not submission.photo_id_url:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No photo ID uploaded for this submission",
+        )
+
+    # Get file path from URL
+    file_path = Path(submission.photo_id_url.lstrip("/"))
+    if not file_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Photo ID file not found",
+        )
+
+    # Decrypt the file
+    encryption_service = get_encryption_service()
+    try:
+        decrypted_content = encryption_service.decrypt_file_to_bytes(file_path)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to decrypt photo ID",
+        ) from e
+
+    # Log audit
+    await _create_audit_log(
+        db,
+        submission.id,
+        ConsentAuditAction.VIEWED,
+        current_user.id,
+        current_user.full_name,
+        request,
+        notes="Decrypted photo ID viewed",
+    )
+
+    # Determine content type from filename (before .enc)
+    original_ext = file_path.stem.split(".")[-1].lower() if "." in file_path.stem else "jpg"
+    content_type_map = {
+        "jpg": "image/jpeg",
+        "jpeg": "image/jpeg",
+        "png": "image/png",
+        "gif": "image/gif",
+        "webp": "image/webp",
+    }
+    content_type = content_type_map.get(original_ext, "image/jpeg")
+
+    return Response(
+        content=decrypted_content,
+        media_type=content_type,
+        headers={"Content-Disposition": f"inline; filename=photo_id.{original_ext}"},
+    )
+
+
+@router.get("/submissions/{submission_id}/signature/decrypt")
+async def get_decrypted_signature(
+    submission_id: uuid.UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role(["owner", "artist", "receptionist"])),
+):
+    """Get decrypted signature data for a submission (staff only).
+
+    Returns the decrypted base64 signature data.
+    """
+    studio = await _get_user_studio(db, current_user)
+    submission = await _get_submission(db, submission_id, studio.id)
+
+    if not submission.signature_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No signature data for this submission",
+        )
+
+    # Decrypt the signature data
+    encryption_service = get_encryption_service()
+    try:
+        decrypted_signature = encryption_service.decrypt(submission.signature_data)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to decrypt signature data",
+        ) from e
+
+    # Log audit
+    await _create_audit_log(
+        db,
+        submission.id,
+        ConsentAuditAction.VIEWED,
+        current_user.id,
+        current_user.full_name,
+        request,
+        notes="Decrypted signature viewed",
+    )
+
+    return {"signature_data": decrypted_signature}
 
 
 # === Helper Functions ===
@@ -1178,7 +1300,12 @@ def _submission_to_summary(submission: ConsentFormSubmission) -> ConsentSubmissi
 
 
 def _submission_to_response(submission: ConsentFormSubmission) -> ConsentSubmissionResponse:
-    """Convert submission to full response."""
+    """Convert submission to full response.
+
+    Note: signature_data contains encrypted data and is not included directly.
+    Use the /submissions/{id}/signature/decrypt endpoint to retrieve decrypted signatures.
+    Photo ID files are encrypted at rest and accessible via /submissions/{id}/photo-id/decrypt.
+    """
     return ConsentSubmissionResponse(
         id=submission.id,
         template_id=submission.template_id,
@@ -1192,9 +1319,9 @@ def _submission_to_response(submission: ConsentFormSubmission) -> ConsentSubmiss
         client_phone=submission.client_phone,
         client_date_of_birth=submission.client_date_of_birth,
         responses=submission.responses,
-        signature_data=submission.signature_data,
+        signature_data="[ENCRYPTED]" if submission.signature_data else None,  # Don't expose encrypted data
         signature_timestamp=submission.signature_timestamp,
-        photo_id_url=submission.photo_id_url,
+        photo_id_url=submission.photo_id_url,  # URL still shown for reference, but file is encrypted
         photo_id_verified=submission.photo_id_verified,
         photo_id_verified_at=submission.photo_id_verified_at,
         age_verified=submission.age_verified,

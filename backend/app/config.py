@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
 
+    # Encryption - Fernet key for sensitive data (empty = auto-generate dev key)
+    encryption_key: str = ""
+
     # Stripe
     stripe_secret_key: str = ""
     stripe_publishable_key: str = ""
@@ -62,6 +65,11 @@ class Settings(BaseSettings):
     def is_sms_configured(self) -> bool:
         """Check if SMS sending is configured."""
         return bool(self.twilio_account_sid and self.twilio_auth_token)
+
+    @property
+    def is_encryption_configured(self) -> bool:
+        """Check if encryption key is configured."""
+        return bool(self.encryption_key)
 
 
 @lru_cache
