@@ -2593,7 +2593,7 @@ async def get_no_show_report(
     artist_result = await db.execute(
         select(
             User.id.label("artist_id"),
-            User.full_name.label("artist_name"),
+            func.concat(User.first_name, ' ', User.last_name).label("artist_name"),
             func.count(BookingRequest.id).filter(
                 BookingRequest.status.in_([
                     BookingRequestStatus.CONFIRMED,
@@ -2618,14 +2618,14 @@ async def get_no_show_report(
                 ), 0
             ).label("revenue_lost"),
         )
-        .join(User, BookingRequest.artist_id == User.id)
+        .join(User, BookingRequest.assigned_artist_id == User.id)
         .where(
             and_(
                 *base_filter,
-                BookingRequest.artist_id.isnot(None),
+                BookingRequest.assigned_artist_id.isnot(None),
             )
         )
-        .group_by(User.id, User.full_name)
+        .group_by(User.id, User.first_name, User.last_name)
         .order_by(func.count(BookingRequest.id).filter(
             BookingRequest.status == BookingRequestStatus.NO_SHOW
         ).desc())

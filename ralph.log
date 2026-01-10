@@ -18,3 +18,68 @@ Previous work completed:
 - Phase 12 access audit started
 
 === CONTINUOUS IMPROVEMENT BEGINS ===
+
+--- Session: 2026-01-10 ---
+Category A - Bug Hunting
+
+BUG #1: Conversion Rate showing 460% on Dashboard
+- Location: backend/app/routers/analytics.py:383
+- Cause: Formula counted completed_bookings + confirmed_count against only this month's requests
+- Fix: Added min() to cap conversion rate at 100%
+- Status: FIXED
+
+BUG #2: Price display showing raw cents ($35000 instead of $350.00) in BookingQueue
+- Location: frontend/src/pages/BookingQueue.tsx
+- Cause: Raw cents values displayed with $ prefix instead of formatCurrency()
+- Fix: Added formatCurrency import and updated 5 display locations, plus fixed form dollar/cents conversion
+- Status: FIXED
+
+BUG #3: UUID validation error on Commissions page
+- Location: backend/app/routers/commissions.py
+- Cause: Route /{rule_id} at line 294 matched before /pay-periods at line 935
+- Fix: Refactored routes to use /rules/{rule_id} pattern, updated frontend to match
+- Status: FIXED
+
+Commit: 6d208c8 - "fix: resolve multiple bugs found during production readiness audit"
+
+BUG #4: Dead navigation links (Artists, Clients) in sidebar
+- Location: frontend/src/App.tsx
+- Cause: Sidebar had links to /artists and /clients but no routes existed
+- Fix: Added redirects: /artists -> /team, /clients -> /bookings
+- Status: FIXED
+
+Commit: 83c4608 - "fix: add redirects for dead navigation links"
+
+BUG #5: Artist Performance page failing to load (404 errors)
+- Location: frontend/src/services/analytics.ts:323,338
+- Cause: API calls missing /api/v1 prefix (/analytics/artists instead of /api/v1/analytics/artists)
+- Fix: Added /api/v1 prefix to getArtistPerformanceList and getArtistDetailedPerformance
+- Status: FIXED
+
+Commit: fc327f8 - "fix: add missing /api/v1 prefix to artist analytics endpoints"
+
+BUG #6: Client Retention page crashing with 503 error
+- Location: backend/app/routers/analytics.py (lines 2256, 2284-2298)
+- Cause: Two SQL bugs:
+  1. Nested aggregate functions: max(sum(...)) is invalid SQL
+  2. GROUP BY clause error with to_char() function
+- Fix:
+  1. Used subquery to first sum per client, then get max
+  2. Stored to_char expression in variable for consistent usage
+- Status: FIXED
+
+Commit: a9a1684 - "fix: resolve SQL bugs in client retention report"
+
+BUG #7: No-Show Tracking page crashing with 500 error
+- Location: backend/app/routers/analytics.py (lines 2596, 2621, 2625, 2628)
+- Cause: Multiple SQL bugs:
+  1. User.full_name is a Python property, not SQLAlchemy column (can't use .label())
+  2. BookingRequest.artist_id doesn't exist (correct field is assigned_artist_id)
+  3. GROUP BY clause had User.full_name which is not a real column
+- Fix:
+  1. Used func.concat(User.first_name, ' ', User.last_name) instead of User.full_name
+  2. Changed artist_id to assigned_artist_id in join and where clauses
+  3. Changed GROUP BY to use User.first_name, User.last_name
+- Status: FIXED
+
+Continuing to test other pages...
