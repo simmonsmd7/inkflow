@@ -125,7 +125,10 @@ export function ClientPortal() {
         {/* Quick actions grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           {/* Upcoming Appointments */}
-          <div className="bg-ink-800 rounded-xl border border-ink-700 p-6">
+          <Link
+            to="/client/appointments"
+            className="bg-ink-800 rounded-xl border border-ink-700 p-6 hover:border-ink-600 transition-colors block"
+          >
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 bg-accent-primary/20 rounded-lg flex items-center justify-center">
                 <svg
@@ -145,10 +148,10 @@ export function ClientPortal() {
               <h2 className="text-lg font-semibold text-ink-100">Appointments</h2>
             </div>
             <p className="text-ink-400 text-sm mb-4">
-              View your upcoming and past appointments
+              View your upcoming scheduled appointments
             </p>
-            <span className="text-ink-500 text-sm">Coming soon</span>
-          </div>
+            <span className="text-accent-primary text-sm font-medium">View Appointments &rarr;</span>
+          </Link>
 
           {/* Booking History */}
           <Link

@@ -13,6 +13,7 @@ export { ClientBookingHistory } from './ClientBookingHistory';
 export { ClientLogin } from './ClientLogin';
 export { ClientPortal } from './ClientPortal';
 export { ClientRegister } from './ClientRegister';
+export { ClientUpcomingAppointments } from './ClientUpcomingAppointments';
 export { Commissions } from './Commissions';
 export { ConsentForms } from './ConsentForms';
 export { ConsentSigning } from './ConsentSigning';

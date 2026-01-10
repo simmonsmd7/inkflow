@@ -11,6 +11,7 @@ import {
   ClientLogin,
   ClientPortal,
   ClientRegister,
+  ClientUpcomingAppointments,
   ClientRetention,
   Commissions,
   ConsentForms,
@@ -56,6 +57,7 @@ function App() {
       <Route path="/client/register" element={<ClientRegister />} />
       <Route path="/client" element={<ClientPortal />} />
       <Route path="/client/bookings" element={<ClientBookingHistory />} />
+      <Route path="/client/appointments" element={<ClientUpcomingAppointments />} />
 
       {/* App routes - with layout */}
       <Route
