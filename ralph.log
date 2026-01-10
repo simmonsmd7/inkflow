@@ -420,6 +420,52 @@ Database Migration:
 Status: COMPLETE
 Next: P3.5 - Stripe integration for deposit collection
 
+=== ITERATION 16 ===
+Date: 2026-01-10
+Task: P3.5 - Stripe integration for deposit collection
+Changes:
+Backend:
+- backend/app/services/stripe_service.py: NEW - Stripe service with:
+  - Checkout session creation (real Stripe or stub mode)
+  - Webhook event construction and validation
+  - Payment success handling
+  - Stub mode that logs to console when STRIPE_SECRET_KEY not configured
+- backend/app/routers/bookings.py: Added endpoints:
+  - POST /bookings/deposit/{token}/create-checkout - Create Stripe checkout session
+  - POST /bookings/deposit/{token}/confirm-stub - Confirm stub payment (dev mode)
+- backend/app/schemas/booking.py: Added CheckoutSessionResponse, StubPaymentConfirmation schemas
+
+Frontend:
+- frontend/src/pages/DepositPayment.tsx: NEW - Deposit payment page showing:
+  - Client name, studio name, artist name
+  - Design summary and artist notes
+  - Quoted price and deposit amount due
+  - Expiry date with is_expired handling
+  - Pay button that creates checkout session
+  - Error state for invalid/expired tokens
+- frontend/src/pages/StubCheckout.tsx: NEW - Simulated checkout for dev mode:
+  - Fake card form with test values
+  - Development mode warning banner
+  - Confirm Payment button that calls confirm-stub endpoint
+- frontend/src/pages/PaymentSuccess.tsx: NEW - Success page with:
+  - Green checkmark and "Payment Successful!" message
+  - "What happens next?" list
+  - Reference ID display
+- frontend/src/services/bookings.ts: Added createCheckoutSession(), confirmStubPayment() functions
+- frontend/src/pages/index.ts: Export new pages
+- frontend/src/App.tsx: Added routes:
+  - /pay-deposit/:token - Deposit payment page
+  - /pay-deposit/:token/stub-checkout - Stub checkout page
+  - /pay-deposit/:token/success - Payment success page
+
+- Verified: Frontend build passes with no TypeScript errors
+- Verified: StubCheckout page renders correctly with simulated card form
+- Verified: DepositPayment page shows proper error for invalid tokens
+- Verified: PaymentSuccess page renders with confirmation and next steps
+- Verified: All endpoints registered in OpenAPI spec
+Status: COMPLETE
+Next: P3.6 - Booking confirmation with calendar invite
+
 ---
 PROJECT: InkFlow - Tattoo Studio Management Platform
 TARGET: Solo artists and 2-5 artist studios at $29-69/month
