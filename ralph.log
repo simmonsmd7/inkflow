@@ -252,7 +252,49 @@ Frontend:
 - Verified: Backend logs show successful PUT /api/v1/artists/me/profile returning 200 OK
 - Verified: Profile page accessible at /profile with proper RBAC enforcement
 Status: COMPLETE
-Next: P2.7 - Basic booking/consultation form
+Next: P3.1 - Availability calendar for artists
+
+=== ITERATION 12 ===
+Date: 2026-01-10
+Task: P3.1 - Availability calendar for artists
+Changes:
+Backend:
+- backend/app/models/availability.py: NEW - ArtistAvailability model (user_id, day_of_week, start_time, end_time, is_available) + ArtistTimeOff model (user_id, start_date, end_date, reason, notes, all_day)
+- backend/app/models/user.py: Added availability_slots and time_off_periods relationships
+- backend/app/models/__init__.py: Export new models
+- backend/app/schemas/availability.py: NEW - Pydantic schemas for AvailabilitySlot, TimeOff, WeeklySchedule, BulkAvailabilityUpdate, and API response types with validation
+- backend/app/schemas/__init__.py: Export new schemas
+- backend/app/routers/availability.py: NEW - Availability router with endpoints:
+  - GET /availability/me - Get current artist's weekly schedule
+  - PUT /availability/me - Bulk update weekly schedule
+  - POST /availability/me/slot - Add single availability slot
+  - PUT /availability/me/slot/{id} - Update single slot
+  - DELETE /availability/me/slot/{id} - Delete single slot
+  - GET /availability/{artist_id} - Get artist's public availability
+  - GET/POST/PUT/DELETE /availability/me/time-off - Manage time-off periods
+  - GET /availability/{artist_id}/time-off - Get artist's public time-off
+- backend/app/routers/__init__.py: Export availability_router
+- backend/app/main.py: Include availability router
+
+Frontend:
+- frontend/src/types/api.ts: Added AvailabilitySlot, TimeOff, WeeklySchedule, and related types
+- frontend/src/services/availability.ts: NEW - API service for availability and time-off management
+- frontend/src/pages/Availability.tsx: NEW - Availability page with:
+  - Weekly schedule editor with toggle switches for each day
+  - Time selectors (10:00-18:00 default) for open/close times
+  - Time-off section with add/delete functionality
+  - Modal for adding new time-off periods with date pickers
+  - RBAC check (only artists and owners can access)
+- frontend/src/pages/index.ts: Export Availability
+- frontend/src/App.tsx: Added /availability route
+- frontend/src/components/layout/Sidebar.tsx: Added "Availability" nav item for artists and owners
+
+- Verified: Frontend build passes with no TypeScript errors
+- Verified: Availability page renders correctly with weekly schedule and time-off sections
+- Verified: Toggle switches work to enable/disable days
+- Verified: Time selectors appear when day is enabled
+Status: COMPLETE
+Next: P3.2 - Booking request form
 
 ---
 PROJECT: InkFlow - Tattoo Studio Management Platform
