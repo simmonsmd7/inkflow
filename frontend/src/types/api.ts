@@ -178,3 +178,69 @@ export interface StudioListResponse {
 export interface StudioLogoResponse {
   logo_url: string;
 }
+
+// Artist types
+export interface PortfolioImage {
+  id: string;
+  image_url: string;
+  thumbnail_url: string | null;
+  title: string | null;
+  description: string | null;
+  style: string | null;
+  placement: string | null;
+  display_order: number;
+  created_at: string;
+}
+
+export interface ArtistSummary {
+  id: string;
+  first_name: string;
+  last_name: string;
+  role: string;
+  specialties: string[];
+  years_experience: number | null;
+  hourly_rate: number | null;
+  portfolio_count: number;
+}
+
+export interface ArtistDetail {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string | null;
+  bio: string | null;
+  specialties: string[];
+  years_experience: number | null;
+  hourly_rate: number | null;
+  minimum_booking_hours: number | null;
+  instagram_handle: string | null;
+  website_url: string | null;
+  portfolio_images: PortfolioImage[];
+}
+
+export interface ArtistProfileUpdate {
+  bio?: string | null;
+  specialties?: string[];
+  years_experience?: number | null;
+  hourly_rate?: number | null;
+  minimum_booking_hours?: number | null;
+  instagram_handle?: string | null;
+  website_url?: string | null;
+}
+
+export interface PortfolioImageUpdate {
+  title?: string | null;
+  description?: string | null;
+  style?: string | null;
+  placement?: string | null;
+  display_order?: number;
+}
+
+export interface ArtistsListResponse {
+  artists: ArtistSummary[];
+  total: number;
+  page: number;
+  per_page: number;
+  pages: number;
+}

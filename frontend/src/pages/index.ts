@@ -2,6 +2,7 @@
  * Pages barrel export.
  */
 
+export { ArtistProfile } from './ArtistProfile';
 export { Dashboard } from './Dashboard';
 export { ForgotPassword } from './ForgotPassword';
 export { Login } from './Login';

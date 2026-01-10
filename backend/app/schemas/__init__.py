@@ -1,5 +1,17 @@
 """Pydantic schemas package."""
 
+from app.schemas.artist import (
+    ArtistDetailResponse,
+    ArtistProfileCreate,
+    ArtistProfileResponse,
+    ArtistProfileUpdate,
+    ArtistsListResponse,
+    ArtistSummary,
+    PortfolioImageCreate,
+    PortfolioImageResponse,
+    PortfolioImageUpdate,
+    ReorderPortfolioRequest,
+)
 from app.schemas.studio import (
     BusinessHours,
     BusinessHoursDay,
@@ -23,6 +35,17 @@ from app.schemas.user import (
 )
 
 __all__ = [
+    # Artist schemas
+    "ArtistDetailResponse",
+    "ArtistProfileCreate",
+    "ArtistProfileResponse",
+    "ArtistProfileUpdate",
+    "ArtistsListResponse",
+    "ArtistSummary",
+    "PortfolioImageCreate",
+    "PortfolioImageResponse",
+    "PortfolioImageUpdate",
+    "ReorderPortfolioRequest",
     # Studio schemas
     "BusinessHours",
     "BusinessHoursDay",

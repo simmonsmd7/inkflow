@@ -11,6 +11,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import BaseModel, SoftDeleteMixin
 
 if TYPE_CHECKING:
+    from app.models.artist import ArtistProfile
     from app.models.studio import Studio
 
 
@@ -69,6 +70,9 @@ class User(BaseModel, SoftDeleteMixin):
     # Relationships
     owned_studios: Mapped[list["Studio"]] = relationship(
         "Studio", back_populates="owner", lazy="selectin"
+    )
+    artist_profile: Mapped["ArtistProfile | None"] = relationship(
+        "ArtistProfile", back_populates="user", uselist=False, lazy="selectin"
     )
 
     @property

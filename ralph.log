@@ -211,6 +211,49 @@ Frontend:
 Status: COMPLETE
 Next: P2.6 - Artist profiles (bio, portfolio gallery, specialties)
 
+=== ITERATION 11 ===
+Date: 2026-01-10
+Task: P2.6 - Artist profiles (bio, portfolio gallery, specialties)
+Changes:
+Backend:
+- backend/app/models/artist.py: NEW - ArtistProfile model (bio, specialties, years_experience, hourly_rate, minimum_booking_hours, instagram_handle, website_url) + PortfolioImage model (image_url, thumbnail_url, title, description, style, placement, display_order)
+- backend/app/models/user.py: Added artist_profile relationship (one-to-one)
+- backend/app/models/__init__.py: Export new models
+- backend/app/schemas/artist.py: NEW - Pydantic schemas for ArtistProfile, PortfolioImage, ArtistSummary, ArtistDetailResponse, ArtistsListResponse, ReorderPortfolioRequest
+- backend/app/schemas/__init__.py: Export new schemas
+- backend/app/routers/artists.py: NEW - Artists router with endpoints:
+  - GET /artists - List all artists with pagination and specialty filter
+  - GET /artists/me/profile - Get current artist's profile
+  - PUT /artists/me/profile - Update current artist's profile (creates if doesn't exist)
+  - GET /artists/{id} - Get specific artist's public profile
+  - POST /artists/me/portfolio - Upload portfolio image (10MB max, JPEG/PNG/GIF/WebP)
+  - PUT /artists/me/portfolio/{id} - Update portfolio image metadata
+  - DELETE /artists/me/portfolio/{id} - Delete portfolio image
+  - PUT /artists/me/portfolio/reorder - Reorder portfolio images
+- backend/app/routers/__init__.py: Export artists_router
+- backend/app/main.py: Include artists router, create uploads/portfolio directory
+
+Frontend:
+- frontend/src/types/api.ts: Added PortfolioImage, ArtistSummary, ArtistDetail, ArtistProfileUpdate, PortfolioImageUpdate, ArtistsListResponse types
+- frontend/src/services/artists.ts: NEW - API service for artist profile and portfolio management
+- frontend/src/pages/ArtistProfile.tsx: NEW - Profile editing page with:
+  - Bio textarea for describing style and approach
+  - Years of experience, hourly rate, min booking hours inputs
+  - Specialties management with dropdown and tags
+  - Instagram handle and website URL inputs
+  - Portfolio gallery with upload, edit, delete, and reorder functionality
+  - RBAC check (only artists and owners can access)
+- frontend/src/pages/index.ts: Export ArtistProfile
+- frontend/src/App.tsx: Added /profile route
+- frontend/src/components/layout/Sidebar.tsx: Added "My Profile" nav item for artists and owners
+
+- Verified: Frontend build passes with no TypeScript errors
+- Verified: Profile save works correctly (tested in browser)
+- Verified: Backend logs show successful PUT /api/v1/artists/me/profile returning 200 OK
+- Verified: Profile page accessible at /profile with proper RBAC enforcement
+Status: COMPLETE
+Next: P2.7 - Basic booking/consultation form
+
 ---
 PROJECT: InkFlow - Tattoo Studio Management Platform
 TARGET: Solo artists and 2-5 artist studios at $29-69/month
