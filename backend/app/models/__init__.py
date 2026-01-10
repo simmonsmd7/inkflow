@@ -9,6 +9,7 @@ from app.models.booking import (
     BookingRequestStatus,
     TattooSize,
 )
+from app.models.commission import CommissionRule, CommissionTier, CommissionType
 from app.models.message import (
     Conversation,
     ConversationStatus,
@@ -28,6 +29,9 @@ __all__ = [
     "BookingReferenceImage",
     "BookingRequest",
     "BookingRequestStatus",
+    "CommissionRule",
+    "CommissionTier",
+    "CommissionType",
     "Conversation",
     "ConversationStatus",
     "Message",

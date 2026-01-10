@@ -16,6 +16,7 @@ from app.routers import (
     auth_router,
     availability_router,
     bookings_router,
+    commissions_router,
     messages_router,
     reminders_router,
     studios_router,
@@ -60,6 +61,7 @@ app.include_router(artists_router, prefix="/api/v1")
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(availability_router, prefix="/api/v1")
 app.include_router(bookings_router, prefix="/api/v1")
+app.include_router(commissions_router, prefix="/api/v1")
 app.include_router(messages_router, prefix="/api/v1")
 app.include_router(reminders_router, prefix="/api/v1")
 app.include_router(studios_router, prefix="/api/v1")

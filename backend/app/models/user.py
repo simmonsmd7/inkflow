@@ -3,9 +3,11 @@
 import enum
 import secrets
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING
+import uuid
+from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import Boolean, DateTime, Enum, String
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import BaseModel, SoftDeleteMixin
@@ -14,6 +16,7 @@ if TYPE_CHECKING:
     from app.models.artist import ArtistProfile
     from app.models.availability import ArtistAvailability, ArtistTimeOff
     from app.models.booking import BookingRequest
+    from app.models.commission import CommissionRule
     from app.models.message import Conversation, Message
     from app.models.studio import Studio
 
@@ -70,6 +73,14 @@ class User(BaseModel, SoftDeleteMixin):
         DateTime(timezone=True), nullable=True
     )
 
+    # Commission rule assignment (for artists)
+    commission_rule_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("commission_rules.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
     # Relationships
     owned_studios: Mapped[list["Studio"]] = relationship(
         "Studio", back_populates="owner", lazy="selectin"
@@ -105,6 +116,12 @@ class User(BaseModel, SoftDeleteMixin):
         "Message",
         back_populates="sender",
         foreign_keys="Message.sender_id",
+        lazy="selectin",
+    )
+    commission_rule: Mapped[Optional["CommissionRule"]] = relationship(
+        "CommissionRule",
+        back_populates="assigned_artists",
+        foreign_keys=[commission_rule_id],
         lazy="selectin",
     )
 

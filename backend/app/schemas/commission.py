@@ -1,0 +1,217 @@
+"""Pydantic schemas for commission rules."""
+
+from datetime import datetime
+from enum import Enum
+from typing import Optional
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+
+class CommissionType(str, Enum):
+    """Type of commission calculation."""
+
+    PERCENTAGE = "percentage"
+    FLAT_FEE = "flat_fee"
+    TIERED = "tiered"
+
+
+# ============ Commission Tier Schemas ============
+
+
+class CommissionTierBase(BaseModel):
+    """Base schema for commission tier."""
+
+    min_revenue: int = Field(ge=0, description="Minimum revenue in cents (inclusive)")
+    max_revenue: Optional[int] = Field(
+        None, ge=0, description="Maximum revenue in cents (exclusive, null = unlimited)"
+    )
+    percentage: float = Field(ge=0, le=100, description="Commission percentage for this tier")
+
+
+class CommissionTierCreate(CommissionTierBase):
+    """Schema for creating a commission tier."""
+
+    pass
+
+
+class CommissionTierUpdate(BaseModel):
+    """Schema for updating a commission tier."""
+
+    min_revenue: Optional[int] = Field(None, ge=0)
+    max_revenue: Optional[int] = Field(None, ge=0)
+    percentage: Optional[float] = Field(None, ge=0, le=100)
+
+
+class CommissionTierResponse(CommissionTierBase):
+    """Schema for commission tier response."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    created_at: datetime
+
+
+# ============ Commission Rule Schemas ============
+
+
+class CommissionRuleBase(BaseModel):
+    """Base schema for commission rule."""
+
+    name: str = Field(min_length=1, max_length=100, description="Name of the commission rule")
+    description: Optional[str] = Field(None, description="Description of the rule")
+    commission_type: CommissionType = Field(
+        default=CommissionType.PERCENTAGE, description="Type of commission calculation"
+    )
+    percentage: Optional[float] = Field(
+        None,
+        ge=0,
+        le=100,
+        description="Commission percentage (for percentage type)",
+    )
+    flat_fee_amount: Optional[int] = Field(
+        None,
+        ge=0,
+        description="Flat fee amount in cents (for flat_fee type)",
+    )
+    is_default: bool = Field(default=False, description="Is this the default rule for the studio?")
+    is_active: bool = Field(default=True, description="Is this rule active?")
+
+
+class CommissionRuleCreate(CommissionRuleBase):
+    """Schema for creating a commission rule."""
+
+    tiers: Optional[list[CommissionTierCreate]] = Field(
+        None, description="Tiers for tiered commission (required for tiered type)"
+    )
+
+    @model_validator(mode="after")
+    def validate_commission_type_fields(self) -> "CommissionRuleCreate":
+        """Validate that required fields are present based on commission type."""
+        if self.commission_type == CommissionType.PERCENTAGE:
+            if self.percentage is None:
+                raise ValueError("percentage is required for percentage commission type")
+        elif self.commission_type == CommissionType.FLAT_FEE:
+            if self.flat_fee_amount is None:
+                raise ValueError("flat_fee_amount is required for flat_fee commission type")
+        elif self.commission_type == CommissionType.TIERED:
+            if not self.tiers or len(self.tiers) == 0:
+                raise ValueError("tiers are required for tiered commission type")
+            # Validate tiers are properly ordered and non-overlapping
+            sorted_tiers = sorted(self.tiers, key=lambda t: t.min_revenue)
+            for i, tier in enumerate(sorted_tiers):
+                if i > 0:
+                    prev_tier = sorted_tiers[i - 1]
+                    if prev_tier.max_revenue is None:
+                        raise ValueError(
+                            "Only the last tier can have unlimited max_revenue"
+                        )
+                    if tier.min_revenue != prev_tier.max_revenue:
+                        raise ValueError(
+                            f"Tier gap detected: tier {i} min_revenue ({tier.min_revenue}) "
+                            f"!= tier {i-1} max_revenue ({prev_tier.max_revenue})"
+                        )
+        return self
+
+
+class CommissionRuleUpdate(BaseModel):
+    """Schema for updating a commission rule."""
+
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    description: Optional[str] = None
+    commission_type: Optional[CommissionType] = None
+    percentage: Optional[float] = Field(None, ge=0, le=100)
+    flat_fee_amount: Optional[int] = Field(None, ge=0)
+    is_default: Optional[bool] = None
+    is_active: Optional[bool] = None
+    tiers: Optional[list[CommissionTierCreate]] = None
+
+
+class CommissionRuleSummary(BaseModel):
+    """Summary schema for commission rule (for lists)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    name: str
+    description: Optional[str]
+    commission_type: CommissionType
+    percentage: Optional[float]
+    flat_fee_amount: Optional[int]
+    is_default: bool
+    is_active: bool
+    assigned_artist_count: int = Field(default=0, description="Number of artists using this rule")
+    created_at: datetime
+
+
+class CommissionRuleResponse(CommissionRuleBase):
+    """Full schema for commission rule response."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    studio_id: UUID
+    created_by_id: Optional[UUID]
+    created_at: datetime
+    updated_at: Optional[datetime]
+    tiers: list[CommissionTierResponse] = []
+
+
+class CommissionRulesListResponse(BaseModel):
+    """Response schema for listing commission rules."""
+
+    rules: list[CommissionRuleSummary]
+    total: int
+    page: int
+    page_size: int
+
+
+# ============ Artist Commission Assignment ============
+
+
+class AssignCommissionRuleInput(BaseModel):
+    """Input for assigning a commission rule to an artist."""
+
+    commission_rule_id: Optional[UUID] = Field(
+        None, description="Commission rule ID (null to remove assignment)"
+    )
+
+
+class ArtistCommissionInfo(BaseModel):
+    """Artist info with commission rule assignment."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    first_name: str
+    last_name: str
+    email: str
+    commission_rule_id: Optional[UUID]
+    commission_rule_name: Optional[str] = None
+
+
+class ArtistsWithCommissionResponse(BaseModel):
+    """Response for listing artists with their commission rules."""
+
+    artists: list[ArtistCommissionInfo]
+    total: int
+
+
+# ============ Commission Calculation ============
+
+
+class CommissionCalculationInput(BaseModel):
+    """Input for calculating commission on an amount."""
+
+    service_total: int = Field(ge=0, description="Total service amount in cents")
+
+
+class CommissionCalculationResult(BaseModel):
+    """Result of commission calculation."""
+
+    service_total: int = Field(description="Total service amount in cents")
+    commission_amount: int = Field(description="Commission amount in cents")
+    artist_payout: int = Field(description="Artist payout amount in cents")
+    rule_name: str = Field(description="Name of the commission rule used")
+    commission_type: CommissionType
+    calculation_details: str = Field(description="Human-readable calculation breakdown")
