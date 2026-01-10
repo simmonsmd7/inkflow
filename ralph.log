@@ -387,6 +387,39 @@ Frontend:
 Status: COMPLETE
 Next: P3.4 - Quote and deposit system
 
+=== ITERATION 15 ===
+Date: 2026-01-10
+Task: P3.4 - Quote and deposit request workflow
+Changes:
+Backend:
+- backend/app/models/booking.py: Added deposit tracking fields (deposit_payment_token, deposit_requested_at, deposit_request_expires_at, deposit_paid_at, deposit_stripe_payment_intent_id)
+- backend/app/schemas/booking.py: Added SendDepositRequestInput, SendDepositRequestResponse, DepositPaymentInfo schemas with deposit tracking fields
+- backend/app/services/email.py: Added send_deposit_request_email() with professional HTML email template including payment link
+- backend/app/routers/bookings.py: Added endpoints:
+  - POST /bookings/requests/{id}/send-deposit-request - Send deposit request to client (authenticated)
+  - GET /bookings/deposit/{token} - Get deposit payment info by token (public)
+  - Fixed timezone-aware datetime comparison for is_expired check
+
+Frontend:
+- frontend/src/types/api.ts: Added deposit tracking fields to BookingRequest, plus SendDepositRequestInput, SendDepositRequestResponse, DepositPaymentInfo types
+- frontend/src/services/bookings.ts: Added sendDepositRequest(), getDepositInfo() functions
+- frontend/src/pages/BookingQueue.tsx: Added:
+  - "Send Deposit Request" button (shows when quote exists and status is reviewing/quoted)
+  - Deposit request modal with amount input, expiration days, custom message
+  - Success state showing payment link
+  - Deposit status display section showing when deposit was requested
+
+Database Migration:
+- Added columns: deposit_payment_token, deposit_requested_at, deposit_request_expires_at, deposit_paid_at, deposit_stripe_payment_intent_id
+- Added index on deposit_payment_token for token lookup
+
+- Verified: Send deposit request endpoint works correctly
+- Verified: Email stub logs professional email with payment link to console
+- Verified: Public deposit info endpoint returns correct data for payment page
+- Verified: Frontend build passes with no TypeScript errors
+Status: COMPLETE
+Next: P3.5 - Stripe integration for deposit collection
+
 ---
 PROJECT: InkFlow - Tattoo Studio Management Platform
 TARGET: Solo artists and 2-5 artist studios at $29-69/month
