@@ -732,3 +732,42 @@ Frontend:
 - Verified: Messages correctly tracked with channel and direction
 Status: COMPLETE
 Next: P4.4 - Conversation threading and assignment to artists
+
+=== ITERATION 24 ===
+Date: 2026-01-10
+Task: P4.4 - Conversation threading and assignment to artists
+Changes:
+Backend:
+- backend/app/schemas/message.py: Added new schemas for team assignment and booking context
+  - TeamMember: id, full_name, email, role
+  - TeamMembersResponse: List of team members for dropdown
+  - BookingBrief: Compact booking info (id, reference_id, status, client info, scheduled_date)
+  - ConversationWithBooking: Extended conversation with booking details
+  - CreateConversationFromBookingInput: For linking conversations to bookings
+- backend/app/routers/messages.py: Added endpoints
+  - GET /team-members - List active users for assignment dropdown
+  - POST /from-booking - Create conversation linked to booking request
+  - Updated GET /conversations/{id} to return booking context (ConversationWithBooking)
+  - Fixed ordering bug: changed User.full_name (property) to User.first_name, User.last_name (columns)
+
+Frontend:
+- frontend/src/types/api.ts: Added TypeScript types
+  - TeamMember, TeamMembersResponse
+  - BookingBrief, ConversationWithBooking
+  - CreateConversationFromBookingInput
+- frontend/src/services/messages.ts: Added service functions
+  - getTeamMembers() - Fetch team for assignment dropdown
+  - createConversationFromBooking() - Create linked conversation
+  - Updated getConversation() return type to ConversationWithBooking
+- frontend/src/pages/Inbox.tsx: Added UI components
+  - Assignment dropdown in conversation header showing team members
+  - Booking context section showing linked booking details (when present)
+  - Assigned person shown in conversation list items
+  - Proper handling of ConversationWithBooking type
+
+- Verified: Frontend build passes with no TypeScript errors
+- Verified: Team members endpoint returns correct data
+- Verified: Assignment dropdown displays in conversation header
+- Verified: Inbox page works correctly in browser
+Status: COMPLETE
+Next: P4.5 - Reply templates and canned responses
