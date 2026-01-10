@@ -5,6 +5,7 @@ import {
   Availability,
   BookingForm,
   BookingQueue,
+  Commissions,
   Dashboard,
   DepositPayment,
   ForgotPassword,
@@ -45,6 +46,7 @@ function App() {
               <Route path="/profile" element={<ArtistProfile />} />
               <Route path="/availability" element={<Availability />} />
               <Route path="/team" element={<Team />} />
+              <Route path="/commissions" element={<Commissions />} />
               <Route path="/settings" element={<StudioSettings />} />
             </Routes>
           </Layout>

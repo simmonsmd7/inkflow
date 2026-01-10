@@ -105,6 +105,7 @@ const navItems: NavItem[] = [
       </svg>
     ),
     href: '/commissions',
+    roles: ['owner'],
   },
   {
     id: 'consent',

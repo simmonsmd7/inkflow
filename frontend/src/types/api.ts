@@ -737,3 +737,101 @@ export interface ReplyTemplatesListResponse {
 export interface TemplateCategoriesResponse {
   categories: string[];
 }
+
+// ============ Commission Types ============
+
+export type CommissionType = 'percentage' | 'flat_fee' | 'tiered';
+
+export interface CommissionTier {
+  id: string;
+  min_revenue: number; // In cents
+  max_revenue: number | null; // In cents, null = unlimited
+  percentage: number;
+  created_at: string;
+}
+
+export interface CommissionTierCreate {
+  min_revenue: number;
+  max_revenue: number | null;
+  percentage: number;
+}
+
+export interface CommissionRuleSummary {
+  id: string;
+  name: string;
+  description: string | null;
+  commission_type: CommissionType;
+  percentage: number | null;
+  flat_fee_amount: number | null; // In cents
+  is_default: boolean;
+  is_active: boolean;
+  assigned_artist_count: number;
+  created_at: string;
+}
+
+export interface CommissionRule extends CommissionRuleSummary {
+  studio_id: string;
+  created_by_id: string | null;
+  updated_at: string | null;
+  tiers: CommissionTier[];
+}
+
+export interface CommissionRuleCreate {
+  name: string;
+  description?: string | null;
+  commission_type: CommissionType;
+  percentage?: number | null;
+  flat_fee_amount?: number | null;
+  is_default?: boolean;
+  is_active?: boolean;
+  tiers?: CommissionTierCreate[] | null;
+}
+
+export interface CommissionRuleUpdate {
+  name?: string | null;
+  description?: string | null;
+  commission_type?: CommissionType | null;
+  percentage?: number | null;
+  flat_fee_amount?: number | null;
+  is_default?: boolean | null;
+  is_active?: boolean | null;
+  tiers?: CommissionTierCreate[] | null;
+}
+
+export interface CommissionRulesListResponse {
+  rules: CommissionRuleSummary[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface ArtistCommissionInfo {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  commission_rule_id: string | null;
+  commission_rule_name: string | null;
+}
+
+export interface ArtistsWithCommissionResponse {
+  artists: ArtistCommissionInfo[];
+  total: number;
+}
+
+export interface AssignCommissionRuleInput {
+  commission_rule_id: string | null;
+}
+
+export interface CommissionCalculationInput {
+  service_total: number; // In cents
+}
+
+export interface CommissionCalculationResult {
+  service_total: number;
+  commission_amount: number;
+  artist_payout: number;
+  rule_name: string;
+  commission_type: CommissionType;
+  calculation_details: string;
+}
