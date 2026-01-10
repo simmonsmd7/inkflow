@@ -1441,3 +1441,72 @@ Frontend UI (ConsentForms.tsx):
 - Verified: Backend Python syntax check passes
 Status: COMPLETE
 Next: P6.8 - Minor consent forms with guardian signature
+
+=== ITERATION 32 ===
+Date: 2026-01-10
+Task: P7.1 - Aftercare instruction templates (by tattoo type/location)
+Changes:
+Backend Models (aftercare.py):
+- TattooType enum: traditional, fine_line, blackwork, watercolor, realism, neo_traditional, geometric, tribal, dotwork, script, cover_up, touch_up, other
+- TattooPlacement enum: arm_upper, arm_lower, arm_inner, hand, finger, leg_upper, leg_lower, foot, chest, back, ribs, stomach, neck, face, head, shoulder, hip, other
+- AftercareSentStatus enum: pending, sent, delivered, viewed, failed
+- FollowUpType enum: check_in, feedback, healing_report
+- FollowUpStatus enum: pending, sent, completed, skipped
+- HealingIssueSeverity enum: minor, moderate, severe
+- HealingIssueStatus enum: reported, acknowledged, resolved
+- AftercareTemplate model: studio_id, name, tattoo_type, placement, instructions_html, instructions_plain, extra_data, is_active, is_default
+- AftercareSent model: Links template to booking, tracks delivery status
+- AftercareFollowUp model: Scheduled check-ins and feedback collection
+- HealingIssueReport model: Client-reported healing issues with photos
+
+Backend Schemas (aftercare.py):
+- AftercareExtraData: Optional metadata for templates
+- AftercareTemplateCreate/Update: Input schemas for template CRUD
+- AftercareTemplateSummary: List view schema
+- AftercareTemplateResponse: Full template details
+- AftercareTemplateListResponse: Paginated list response
+- PrebuiltAftercareTemplate: Pre-built template structure
+- PrebuiltAftercareTemplatesResponse: Available pre-built templates
+
+Backend Router (aftercare.py):
+- GET /prebuilt - List 4 pre-built templates (standard, fine_line, hand_finger, color)
+- POST /prebuilt/{id}/create - Create template from pre-built
+- GET /templates - List templates with filtering (page, is_active, tattoo_type, placement)
+- POST /templates - Create custom template
+- GET /templates/{id} - Get template details
+- PATCH /templates/{id} - Update template
+- DELETE /templates/{id} - Soft delete template
+- GET /tattoo-types - List all tattoo type options
+- GET /placements - List all placement options
+
+Frontend Types (api.ts):
+- TattooType, TattooPlacement enums
+- AftercareSentStatus, FollowUpType, FollowUpStatus, HealingIssueSeverity, HealingIssueStatus enums
+- AftercareExtraData, AftercareTemplateSummary, AftercareTemplateResponse interfaces
+- AftercareTemplateCreate, AftercareTemplateUpdate input types
+- PrebuiltAftercareTemplate, PrebuiltAftercareTemplatesResponse interfaces
+
+Frontend Service (aftercare.ts):
+- listPrebuiltTemplates() - Fetch pre-built templates
+- createFromPrebuilt() - Create template from pre-built
+- listTemplates() - Paginated template listing with filters
+- getTemplate(), createTemplate(), updateTemplate(), deleteTemplate()
+- getTattooTypeLabel(), getPlacementLabel() - Human-readable labels
+
+Frontend UI (Aftercare.tsx):
+- Template grid view with cards showing name, type, placement, status
+- Template detail modal with HTML preview
+- Edit/Create modal with form for all template fields
+- Pre-built templates modal for quick template creation
+- Delete confirmation modal
+- RBAC: View for all authenticated users, edit for owner/artist, delete for owner only
+- Filter by active/inactive, tattoo type, placement
+
+Navigation:
+- Added Aftercare nav item with heart icon to Sidebar.tsx
+- Added /aftercare route to App.tsx
+
+- Verified: Frontend build passes with no TypeScript errors
+- Verified: Page renders in browser with proper navigation and auth handling
+Status: COMPLETE
+Next: P7.2 - Automatic aftercare email scheduling
