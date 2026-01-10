@@ -835,3 +835,122 @@ export interface CommissionCalculationResult {
   commission_type: CommissionType;
   calculation_details: string;
 }
+
+// ============ Pay Period Types ============
+
+export type PayPeriodSchedule = 'weekly' | 'biweekly' | 'semimonthly' | 'monthly';
+
+export type PayPeriodStatus = 'open' | 'closed' | 'paid';
+
+export interface PayPeriodSettings {
+  pay_period_schedule: PayPeriodSchedule;
+  pay_period_start_day: number;
+}
+
+export interface PayPeriodSettingsUpdate {
+  pay_period_schedule: PayPeriodSchedule;
+  pay_period_start_day: number;
+}
+
+export interface PayPeriodCreate {
+  start_date: string;
+  end_date: string;
+}
+
+export interface PayPeriodSummary {
+  id: string;
+  start_date: string;
+  end_date: string;
+  status: PayPeriodStatus;
+  total_service: number;
+  total_studio_commission: number;
+  total_artist_payout: number;
+  total_tips: number;
+  commission_count: number;
+  closed_at: string | null;
+  paid_at: string | null;
+  payout_reference: string | null;
+  created_at: string;
+}
+
+export interface PayPeriod extends PayPeriodSummary {
+  studio_id: string;
+  payment_notes: string | null;
+  updated_at: string | null;
+}
+
+export interface EarnedCommission {
+  id: string;
+  booking_request_id: string;
+  artist_id: string | null;
+  studio_id: string;
+  commission_rule_id: string | null;
+  commission_rule_name: string;
+  commission_type: CommissionType;
+  service_total: number;
+  studio_commission: number;
+  artist_payout: number;
+  tips_amount: number;
+  calculation_details: string;
+  completed_at: string;
+  created_at: string;
+  pay_period_start: string | null;
+  pay_period_end: string | null;
+  paid_at: string | null;
+  payout_reference: string | null;
+  // Extended fields for list views
+  client_name?: string;
+  design_idea?: string | null;
+  artist_name?: string | null;
+}
+
+export interface EarnedCommissionsListResponse {
+  commissions: EarnedCommission[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_service: number;
+  total_studio_commission: number;
+  total_artist_payout: number;
+  total_tips: number;
+}
+
+export interface PayPeriodWithCommissions extends PayPeriod {
+  commissions: EarnedCommission[];
+}
+
+export interface PayPeriodsListResponse {
+  pay_periods: PayPeriodSummary[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface AssignToPayPeriodInput {
+  commission_ids: string[];
+}
+
+export interface AssignToPayPeriodResponse {
+  message: string;
+  assigned_count: number;
+  pay_period: PayPeriodSummary;
+}
+
+export interface ClosePayPeriodInput {
+  notes?: string | null;
+}
+
+export interface ClosePayPeriodResponse {
+  message: string;
+  pay_period: PayPeriodSummary;
+}
+
+export interface MarkPayPeriodPaidInput {
+  payout_reference?: string | null;
+  payment_notes?: string | null;
+}
+
+export interface MarkPayPeriodPaidResponse {
+  message: string;
+  pay_period: PayPeriodSummary;
+}

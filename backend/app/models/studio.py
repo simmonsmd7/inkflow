@@ -3,15 +3,16 @@
 import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, String, Text
+from sqlalchemy import Enum, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSON, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import BaseModel, SoftDeleteMixin
+from app.models.commission import PayPeriodSchedule
 
 if TYPE_CHECKING:
     from app.models.booking import BookingRequest
-    from app.models.commission import CommissionRule, EarnedCommission
+    from app.models.commission import CommissionRule, EarnedCommission, PayPeriod
     from app.models.message import Conversation
     from app.models.user import User
 
@@ -49,6 +50,16 @@ class Studio(BaseModel, SoftDeleteMixin):
     # Timezone for display
     timezone: Mapped[str] = mapped_column(String(50), default="America/New_York", nullable=False)
 
+    # Pay period settings
+    pay_period_schedule: Mapped[PayPeriodSchedule | None] = mapped_column(
+        Enum(PayPeriodSchedule, name="pay_period_schedule"),
+        nullable=True,
+        default=PayPeriodSchedule.BIWEEKLY,
+    )
+    # For weekly/biweekly: 0=Monday, 1=Tuesday, ..., 6=Sunday
+    # For monthly/semimonthly: 1-28 (day of month)
+    pay_period_start_day: Mapped[int] = mapped_column(Integer, default=1)
+
     # Owner reference (the user who created/owns the studio)
     owner_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -79,6 +90,12 @@ class Studio(BaseModel, SoftDeleteMixin):
         "EarnedCommission",
         back_populates="studio",
         lazy="selectin",
+    )
+    pay_periods: Mapped[list["PayPeriod"]] = relationship(
+        "PayPeriod",
+        back_populates="studio",
+        lazy="selectin",
+        cascade="all, delete-orphan",
     )
 
     @property

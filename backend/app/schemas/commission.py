@@ -16,6 +16,23 @@ class CommissionType(str, Enum):
     TIERED = "tiered"
 
 
+class PayPeriodSchedule(str, Enum):
+    """Pay period schedule types."""
+
+    WEEKLY = "weekly"
+    BIWEEKLY = "biweekly"
+    SEMIMONTHLY = "semimonthly"
+    MONTHLY = "monthly"
+
+
+class PayPeriodStatus(str, Enum):
+    """Status of a pay period."""
+
+    OPEN = "open"
+    CLOSED = "closed"
+    PAID = "paid"
+
+
 # ============ Commission Tier Schemas ============
 
 
@@ -298,3 +315,134 @@ class CompleteBookingWithCommissionResponse(BaseModel):
     booking_id: UUID
     status: str
     commission: EarnedCommissionResponse
+
+
+# ============ Pay Period Schemas ============
+
+
+class PayPeriodSettingsBase(BaseModel):
+    """Base schema for studio pay period settings."""
+
+    pay_period_schedule: PayPeriodSchedule = Field(
+        default=PayPeriodSchedule.BIWEEKLY,
+        description="Pay period schedule type",
+    )
+    pay_period_start_day: int = Field(
+        default=1,
+        ge=0,
+        le=28,
+        description="Start day (0-6 for weekly/biweekly, 1-28 for monthly/semimonthly)",
+    )
+
+
+class PayPeriodSettingsUpdate(PayPeriodSettingsBase):
+    """Schema for updating studio pay period settings."""
+
+    pass
+
+
+class PayPeriodSettingsResponse(PayPeriodSettingsBase):
+    """Response schema for studio pay period settings."""
+
+    pass
+
+
+class PayPeriodBase(BaseModel):
+    """Base schema for pay period."""
+
+    start_date: datetime = Field(description="Start date of the pay period")
+    end_date: datetime = Field(description="End date of the pay period")
+
+
+class PayPeriodCreate(PayPeriodBase):
+    """Schema for creating a pay period manually."""
+
+    pass
+
+
+class PayPeriodSummary(BaseModel):
+    """Summary schema for pay period (for lists)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    start_date: datetime
+    end_date: datetime
+    status: PayPeriodStatus
+    total_service: int = Field(description="Total service revenue in cents")
+    total_studio_commission: int = Field(description="Studio commission in cents")
+    total_artist_payout: int = Field(description="Artist payouts in cents")
+    total_tips: int = Field(description="Tips in cents")
+    commission_count: int = Field(description="Number of commissions")
+    closed_at: Optional[datetime] = None
+    paid_at: Optional[datetime] = None
+    payout_reference: Optional[str] = None
+    created_at: datetime
+
+
+class PayPeriodResponse(PayPeriodSummary):
+    """Full response schema for pay period."""
+
+    studio_id: UUID
+    payment_notes: Optional[str] = None
+    updated_at: Optional[datetime] = None
+
+
+class PayPeriodWithCommissions(PayPeriodResponse):
+    """Pay period with its commissions."""
+
+    commissions: list[EarnedCommissionWithDetails] = []
+
+
+class PayPeriodsListResponse(BaseModel):
+    """Response for listing pay periods."""
+
+    pay_periods: list[PayPeriodSummary]
+    total: int
+    page: int
+    page_size: int
+
+
+class ClosePayPeriodInput(BaseModel):
+    """Input for closing a pay period."""
+
+    notes: Optional[str] = Field(None, description="Notes about closing the period")
+
+
+class ClosePayPeriodResponse(BaseModel):
+    """Response for closing a pay period."""
+
+    message: str
+    pay_period: PayPeriodSummary
+
+
+class MarkPayPeriodPaidInput(BaseModel):
+    """Input for marking a pay period as paid."""
+
+    payout_reference: Optional[str] = Field(
+        None, max_length=255, description="External reference (check #, transfer ID, etc.)"
+    )
+    payment_notes: Optional[str] = Field(None, description="Notes about the payment")
+
+
+class MarkPayPeriodPaidResponse(BaseModel):
+    """Response for marking a pay period as paid."""
+
+    message: str
+    pay_period: PayPeriodSummary
+
+
+class AssignToPayPeriodInput(BaseModel):
+    """Input for assigning commissions to a pay period."""
+
+    commission_ids: list[UUID] = Field(
+        min_length=1, description="List of commission IDs to assign"
+    )
+
+
+class AssignToPayPeriodResponse(BaseModel):
+    """Response for assigning commissions to a pay period."""
+
+    message: str
+    assigned_count: int
+    pay_period: PayPeriodSummary

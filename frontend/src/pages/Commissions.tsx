@@ -15,6 +15,16 @@ import {
   calculateCommission,
   formatCentsToDollars,
   parseDollarsToCents,
+  listPayPeriods,
+  createPayPeriod,
+  getPayPeriod,
+  closePayPeriod,
+  markPayPeriodPaid,
+  deletePayPeriod,
+  listUnassignedCommissions,
+  assignToPayPeriod,
+  getPayPeriodSettings,
+  updatePayPeriodSettings,
 } from '../services/commissions';
 import type {
   CommissionRuleSummary,
@@ -25,6 +35,12 @@ import type {
   CommissionTierCreate,
   ArtistCommissionInfo,
   CommissionCalculationResult,
+  PayPeriodSummary,
+  PayPeriodWithCommissions,
+  PayPeriodSchedule,
+  PayPeriodStatus,
+  PayPeriodSettings,
+  EarnedCommission,
 } from '../types/api';
 
 // ============ Commission Rule Modal ============
@@ -499,7 +515,20 @@ function TypeBadge({ type }: { type: CommissionType }) {
 
 // ============ Main Commissions Page ============
 
-type TabType = 'rules' | 'assignments';
+type TabType = 'rules' | 'assignments' | 'pay_periods';
+
+const SCHEDULE_LABELS: Record<PayPeriodSchedule, string> = {
+  weekly: 'Weekly',
+  biweekly: 'Bi-weekly',
+  semimonthly: 'Semi-monthly (1st & 15th)',
+  monthly: 'Monthly',
+};
+
+const STATUS_CONFIG: Record<PayPeriodStatus, { label: string; color: string }> = {
+  open: { label: 'Open', color: 'bg-blue-500/10 text-blue-400' },
+  closed: { label: 'Closed', color: 'bg-yellow-500/10 text-yellow-400' },
+  paid: { label: 'Paid', color: 'bg-green-500/10 text-green-400' },
+};
 
 export function Commissions() {
   const { user: currentUser } = useAuth();
@@ -513,11 +542,22 @@ export function Commissions() {
   const [artists, setArtists] = useState<ArtistCommissionInfo[]>([]);
   const [loadingArtists, setLoadingArtists] = useState(true);
 
+  // Pay periods state
+  const [payPeriods, setPayPeriods] = useState<PayPeriodSummary[]>([]);
+  const [loadingPayPeriods, setLoadingPayPeriods] = useState(true);
+  const [payPeriodSettings, setPayPeriodSettings] = useState<PayPeriodSettings | null>(null);
+  const [unassignedCommissions, setUnassignedCommissions] = useState<EarnedCommission[]>([]);
+  const [selectedPayPeriod, setSelectedPayPeriod] = useState<PayPeriodWithCommissions | null>(null);
+
   // Modal state
   const [ruleModalOpen, setRuleModalOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<CommissionRule | null>(null);
   const [calculatorModalOpen, setCalculatorModalOpen] = useState(false);
   const [calculatorRule, setCalculatorRule] = useState<CommissionRuleSummary | null>(null);
+  const [payPeriodModalOpen, setPayPeriodModalOpen] = useState(false);
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+  const [payModalOpen, setPayModalOpen] = useState(false);
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
 
   // Messages
   const [error, setError] = useState('');
@@ -526,6 +566,8 @@ export function Commissions() {
   useEffect(() => {
     loadRules();
     loadArtists();
+    loadPayPeriods();
+    loadPayPeriodSettings();
   }, []);
 
   const loadRules = async () => {
@@ -547,6 +589,130 @@ export function Commissions() {
       setError(err instanceof Error ? err.message : 'Failed to load artists');
     } finally {
       setLoadingArtists(false);
+    }
+  };
+
+  const loadPayPeriods = async () => {
+    try {
+      const response = await listPayPeriods(1, 50);
+      setPayPeriods(response.pay_periods);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load pay periods');
+    } finally {
+      setLoadingPayPeriods(false);
+    }
+  };
+
+  const loadPayPeriodSettings = async () => {
+    try {
+      const settings = await getPayPeriodSettings();
+      setPayPeriodSettings(settings);
+    } catch (err) {
+      // Settings might not exist yet, that's okay
+      console.log('No pay period settings found');
+    }
+  };
+
+  const loadUnassignedCommissions = async () => {
+    try {
+      const response = await listUnassignedCommissions(1, 100);
+      setUnassignedCommissions(response.commissions);
+    } catch (err) {
+      console.error('Failed to load unassigned commissions:', err);
+    }
+  };
+
+  const handleCreatePayPeriod = async (startDate: string, endDate: string) => {
+    try {
+      await createPayPeriod({ start_date: startDate, end_date: endDate });
+      setSuccessMessage('Pay period created successfully');
+      setTimeout(() => setSuccessMessage(''), 5000);
+      setPayPeriodModalOpen(false);
+      loadPayPeriods();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create pay period');
+    }
+  };
+
+  const handleViewPayPeriod = async (payPeriod: PayPeriodSummary) => {
+    try {
+      const fullPayPeriod = await getPayPeriod(payPeriod.id);
+      setSelectedPayPeriod(fullPayPeriod);
+      loadUnassignedCommissions();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load pay period details');
+    }
+  };
+
+  const handleClosePayPeriod = async (payPeriodId: string, notes?: string) => {
+    try {
+      await closePayPeriod(payPeriodId, { notes });
+      setSuccessMessage('Pay period closed successfully');
+      setTimeout(() => setSuccessMessage(''), 5000);
+      setSelectedPayPeriod(null);
+      loadPayPeriods();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to close pay period');
+    }
+  };
+
+  const handleMarkPaid = async (payPeriodId: string, payoutReference?: string, paymentNotes?: string) => {
+    try {
+      await markPayPeriodPaid(payPeriodId, {
+        payout_reference: payoutReference,
+        payment_notes: paymentNotes,
+      });
+      setSuccessMessage('Pay period marked as paid');
+      setTimeout(() => setSuccessMessage(''), 5000);
+      setPayModalOpen(false);
+      setSelectedPayPeriod(null);
+      loadPayPeriods();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to mark pay period as paid');
+    }
+  };
+
+  const handleDeletePayPeriod = async (payPeriodId: string) => {
+    if (!confirm('Are you sure you want to delete this pay period?')) return;
+    try {
+      await deletePayPeriod(payPeriodId);
+      setSuccessMessage('Pay period deleted successfully');
+      setTimeout(() => setSuccessMessage(''), 5000);
+      setSelectedPayPeriod(null);
+      loadPayPeriods();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete pay period');
+    }
+  };
+
+  const handleAssignCommissions = async (payPeriodId: string, commissionIds: string[]) => {
+    try {
+      await assignToPayPeriod(payPeriodId, { commission_ids: commissionIds });
+      setSuccessMessage('Commissions assigned successfully');
+      setTimeout(() => setSuccessMessage(''), 5000);
+      setAssignModalOpen(false);
+      // Reload the pay period to see updated totals
+      const updatedPayPeriod = await getPayPeriod(payPeriodId);
+      setSelectedPayPeriod(updatedPayPeriod);
+      loadUnassignedCommissions();
+      loadPayPeriods();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to assign commissions');
+    }
+  };
+
+  const handleUpdateSettings = async (schedule: PayPeriodSchedule, startDay: number) => {
+    try {
+      await updatePayPeriodSettings({
+        pay_period_schedule: schedule,
+        pay_period_start_day: startDay,
+      });
+      setPayPeriodSettings({ pay_period_schedule: schedule, pay_period_start_day: startDay });
+      setSuccessMessage('Pay period settings updated');
+      setTimeout(() => setSuccessMessage(''), 5000);
+      setSettingsModalOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update settings');
     }
   };
 
@@ -634,6 +800,29 @@ export function Commissions() {
             Create Rule
           </button>
         )}
+        {activeTab === 'pay_periods' && !selectedPayPeriod && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSettingsModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-ink-700 hover:bg-ink-600 text-ink-200 rounded-lg transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              Settings
+            </button>
+            <button
+              onClick={() => setPayPeriodModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-white rounded-lg transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              Create Pay Period
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Success Message */}
@@ -683,6 +872,16 @@ export function Commissions() {
             }`}
           >
             Artist Assignments
+          </button>
+          <button
+            onClick={() => setActiveTab('pay_periods')}
+            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'pay_periods'
+                ? 'border-accent-primary text-accent-primary'
+                : 'border-transparent text-ink-400 hover:text-ink-200'
+            }`}
+          >
+            Pay Periods
           </button>
         </nav>
       </div>
@@ -870,6 +1069,230 @@ export function Commissions() {
         </div>
       )}
 
+      {/* Pay Periods Tab */}
+      {activeTab === 'pay_periods' && !selectedPayPeriod && (
+        <div className="space-y-4">
+          {/* Settings Summary */}
+          {payPeriodSettings && (
+            <div className="bg-ink-800 rounded-xl border border-ink-700 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-medium text-ink-300">Pay Period Schedule</h3>
+                  <p className="text-ink-100 mt-1">
+                    {SCHEDULE_LABELS[payPeriodSettings.pay_period_schedule]}
+                    {payPeriodSettings.pay_period_schedule === 'weekly' || payPeriodSettings.pay_period_schedule === 'biweekly'
+                      ? ` (starting ${['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][payPeriodSettings.pay_period_start_day]})`
+                      : ` (starting on day ${payPeriodSettings.pay_period_start_day})`}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setSettingsModalOpen(true)}
+                  className="text-sm text-accent-primary hover:text-accent-primary/80"
+                >
+                  Change
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Pay Periods List */}
+          <div className="bg-ink-800 rounded-xl border border-ink-700 overflow-hidden">
+            {loadingPayPeriods ? (
+              <div className="p-8 text-center">
+                <div className="animate-spin w-8 h-8 border-2 border-accent-primary border-t-transparent rounded-full mx-auto"></div>
+                <p className="text-ink-400 mt-2">Loading pay periods...</p>
+              </div>
+            ) : payPeriods.length === 0 ? (
+              <div className="p-8 text-center">
+                <svg className="w-12 h-12 text-ink-500 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <h3 className="text-lg font-medium text-ink-200">No pay periods yet</h3>
+                <p className="text-ink-400 mt-1">Create your first pay period to start tracking payouts.</p>
+                <button
+                  onClick={() => setPayPeriodModalOpen(true)}
+                  className="mt-4 px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-white rounded-lg transition-colors"
+                >
+                  Create Your First Pay Period
+                </button>
+              </div>
+            ) : (
+              <table className="w-full">
+                <thead className="bg-ink-700/50 border-b border-ink-700">
+                  <tr>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-ink-300">Period</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-ink-300">Status</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-ink-300">Commissions</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-ink-300">Artist Payout</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-ink-300">Studio Commission</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-ink-300">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-ink-700">
+                  {payPeriods.map((pp) => (
+                    <tr key={pp.id} className="hover:bg-ink-700/30 transition-colors cursor-pointer" onClick={() => handleViewPayPeriod(pp)}>
+                      <td className="py-3 px-4">
+                        <p className="font-medium text-ink-100">
+                          {new Date(pp.start_date).toLocaleDateString()} - {new Date(pp.end_date).toLocaleDateString()}
+                        </p>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className={`text-xs font-medium px-2 py-1 rounded-full ${STATUS_CONFIG[pp.status].color}`}>
+                          {STATUS_CONFIG[pp.status].label}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-right text-sm text-ink-200">{pp.commission_count}</td>
+                      <td className="py-3 px-4 text-right text-sm text-ink-200">{formatCentsToDollars(pp.total_artist_payout)}</td>
+                      <td className="py-3 px-4 text-right text-sm text-ink-200">{formatCentsToDollars(pp.total_studio_commission)}</td>
+                      <td className="py-3 px-4 text-right">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleViewPayPeriod(pp);
+                          }}
+                          className="text-accent-primary hover:text-accent-primary/80 text-sm"
+                        >
+                          View Details
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Pay Period Detail View */}
+      {activeTab === 'pay_periods' && selectedPayPeriod && (
+        <div className="space-y-4">
+          {/* Back Button */}
+          <button
+            onClick={() => setSelectedPayPeriod(null)}
+            className="flex items-center gap-2 text-ink-400 hover:text-ink-200 transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Back to Pay Periods
+          </button>
+
+          {/* Period Header */}
+          <div className="bg-ink-800 rounded-xl border border-ink-700 p-6">
+            <div className="flex items-start justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-ink-100">
+                  {new Date(selectedPayPeriod.start_date).toLocaleDateString()} - {new Date(selectedPayPeriod.end_date).toLocaleDateString()}
+                </h2>
+                <span className={`inline-block mt-2 text-xs font-medium px-2 py-1 rounded-full ${STATUS_CONFIG[selectedPayPeriod.status].color}`}>
+                  {STATUS_CONFIG[selectedPayPeriod.status].label}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                {selectedPayPeriod.status === 'open' && (
+                  <>
+                    <button
+                      onClick={() => setAssignModalOpen(true)}
+                      className="px-3 py-1.5 bg-ink-700 hover:bg-ink-600 text-ink-200 rounded-lg text-sm transition-colors"
+                    >
+                      Assign Commissions
+                    </button>
+                    <button
+                      onClick={() => handleClosePayPeriod(selectedPayPeriod.id)}
+                      className="px-3 py-1.5 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-400 rounded-lg text-sm transition-colors"
+                    >
+                      Close Period
+                    </button>
+                    <button
+                      onClick={() => handleDeletePayPeriod(selectedPayPeriod.id)}
+                      className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg text-sm transition-colors"
+                    >
+                      Delete
+                    </button>
+                  </>
+                )}
+                {selectedPayPeriod.status === 'closed' && (
+                  <button
+                    onClick={() => setPayModalOpen(true)}
+                    className="px-3 py-1.5 bg-green-500/10 hover:bg-green-500/20 text-green-400 rounded-lg text-sm transition-colors"
+                  >
+                    Mark as Paid
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Summary Stats */}
+            <div className="grid grid-cols-4 gap-4 mt-6">
+              <div className="bg-ink-900 rounded-lg p-4">
+                <p className="text-sm text-ink-400">Total Service</p>
+                <p className="text-xl font-semibold text-ink-100 mt-1">{formatCentsToDollars(selectedPayPeriod.total_service)}</p>
+              </div>
+              <div className="bg-ink-900 rounded-lg p-4">
+                <p className="text-sm text-ink-400">Studio Commission</p>
+                <p className="text-xl font-semibold text-ink-100 mt-1">{formatCentsToDollars(selectedPayPeriod.total_studio_commission)}</p>
+              </div>
+              <div className="bg-ink-900 rounded-lg p-4">
+                <p className="text-sm text-ink-400">Artist Payouts</p>
+                <p className="text-xl font-semibold text-ink-100 mt-1">{formatCentsToDollars(selectedPayPeriod.total_artist_payout)}</p>
+              </div>
+              <div className="bg-ink-900 rounded-lg p-4">
+                <p className="text-sm text-ink-400">Tips</p>
+                <p className="text-xl font-semibold text-ink-100 mt-1">{formatCentsToDollars(selectedPayPeriod.total_tips)}</p>
+              </div>
+            </div>
+
+            {selectedPayPeriod.payout_reference && (
+              <div className="mt-4 p-3 bg-green-500/10 rounded-lg">
+                <p className="text-sm text-green-400">
+                  Payout Reference: <span className="font-mono">{selectedPayPeriod.payout_reference}</span>
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Commissions Table */}
+          <div className="bg-ink-800 rounded-xl border border-ink-700 overflow-hidden">
+            <div className="p-4 border-b border-ink-700">
+              <h3 className="font-medium text-ink-100">Commissions in this Period ({selectedPayPeriod.commission_count})</h3>
+            </div>
+            {selectedPayPeriod.commissions.length === 0 ? (
+              <div className="p-8 text-center text-ink-400">
+                No commissions assigned to this pay period yet.
+              </div>
+            ) : (
+              <table className="w-full">
+                <thead className="bg-ink-700/50 border-b border-ink-700">
+                  <tr>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-ink-300">Artist</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-ink-300">Client</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-ink-300">Completed</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-ink-300">Service</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-ink-300">Studio</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-ink-300">Artist</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-ink-300">Tips</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-ink-700">
+                  {selectedPayPeriod.commissions.map((comm) => (
+                    <tr key={comm.id} className="hover:bg-ink-700/30">
+                      <td className="py-3 px-4 text-sm text-ink-200">{comm.artist_name || 'Unknown'}</td>
+                      <td className="py-3 px-4 text-sm text-ink-200">{comm.client_name}</td>
+                      <td className="py-3 px-4 text-sm text-ink-400">{new Date(comm.completed_at).toLocaleDateString()}</td>
+                      <td className="py-3 px-4 text-sm text-ink-200 text-right">{formatCentsToDollars(comm.service_total)}</td>
+                      <td className="py-3 px-4 text-sm text-ink-200 text-right">{formatCentsToDollars(comm.studio_commission)}</td>
+                      <td className="py-3 px-4 text-sm text-ink-200 text-right">{formatCentsToDollars(comm.artist_payout)}</td>
+                      <td className="py-3 px-4 text-sm text-ink-200 text-right">{formatCentsToDollars(comm.tips_amount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Modals */}
       <RuleModal
         isOpen={ruleModalOpen}
@@ -888,6 +1311,454 @@ export function Commissions() {
           setCalculatorRule(null);
         }}
       />
+
+      {/* Create Pay Period Modal */}
+      {payPeriodModalOpen && (
+        <PayPeriodModal
+          onClose={() => setPayPeriodModalOpen(false)}
+          onSave={handleCreatePayPeriod}
+        />
+      )}
+
+      {/* Pay Period Settings Modal */}
+      {settingsModalOpen && payPeriodSettings && (
+        <SettingsModal
+          settings={payPeriodSettings}
+          onClose={() => setSettingsModalOpen(false)}
+          onSave={handleUpdateSettings}
+        />
+      )}
+
+      {/* Mark as Paid Modal */}
+      {payModalOpen && selectedPayPeriod && (
+        <MarkPaidModal
+          payPeriod={selectedPayPeriod}
+          onClose={() => setPayModalOpen(false)}
+          onSave={(ref, notes) => handleMarkPaid(selectedPayPeriod.id, ref, notes)}
+        />
+      )}
+
+      {/* Assign Commissions Modal */}
+      {assignModalOpen && selectedPayPeriod && (
+        <AssignCommissionsModal
+          payPeriod={selectedPayPeriod}
+          unassignedCommissions={unassignedCommissions}
+          onClose={() => setAssignModalOpen(false)}
+          onSave={(ids) => handleAssignCommissions(selectedPayPeriod.id, ids)}
+          formatCentsToDollars={formatCentsToDollars}
+        />
+      )}
+    </div>
+  );
+}
+
+// ============ Pay Period Modals ============
+
+interface PayPeriodModalProps {
+  onClose: () => void;
+  onSave: (startDate: string, endDate: string) => Promise<void>;
+}
+
+function PayPeriodModal({ onClose, onSave }: PayPeriodModalProps) {
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await onSave(startDate + 'T00:00:00Z', endDate + 'T23:59:59Z');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+      <div className="bg-ink-800 rounded-xl border border-ink-700 p-6 w-full max-w-md mx-4">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-ink-100">Create Pay Period</h2>
+          <button onClick={onClose} className="text-ink-400 hover:text-ink-200">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-ink-300 mb-1.5">Start Date</label>
+            <input
+              type="date"
+              required
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="w-full px-3 py-2 bg-ink-900 border border-ink-600 rounded-lg text-ink-100 focus:ring-2 focus:ring-accent-primary focus:border-transparent transition-all"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-ink-300 mb-1.5">End Date</label>
+            <input
+              type="date"
+              required
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              min={startDate}
+              className="w-full px-3 py-2 bg-ink-900 border border-ink-600 rounded-lg text-ink-100 focus:ring-2 focus:ring-accent-primary focus:border-transparent transition-all"
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-ink-400 hover:text-ink-200 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading || !startDate || !endDate}
+              className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-white rounded-lg transition-colors disabled:opacity-50"
+            >
+              {loading ? 'Creating...' : 'Create Pay Period'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+interface SettingsModalProps {
+  settings: PayPeriodSettings;
+  onClose: () => void;
+  onSave: (schedule: PayPeriodSchedule, startDay: number) => Promise<void>;
+}
+
+function SettingsModal({ settings, onClose, onSave }: SettingsModalProps) {
+  const [schedule, setSchedule] = useState<PayPeriodSchedule>(settings.pay_period_schedule);
+  const [startDay, setStartDay] = useState(settings.pay_period_start_day);
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await onSave(schedule, startDay);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const isWeeklySchedule = schedule === 'weekly' || schedule === 'biweekly';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+      <div className="bg-ink-800 rounded-xl border border-ink-700 p-6 w-full max-w-md mx-4">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-ink-100">Pay Period Settings</h2>
+          <button onClick={onClose} className="text-ink-400 hover:text-ink-200">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-ink-300 mb-1.5">Schedule</label>
+            <select
+              value={schedule}
+              onChange={(e) => {
+                setSchedule(e.target.value as PayPeriodSchedule);
+                setStartDay(e.target.value === 'weekly' || e.target.value === 'biweekly' ? 0 : 1);
+              }}
+              className="w-full px-3 py-2 bg-ink-900 border border-ink-600 rounded-lg text-ink-100 focus:ring-2 focus:ring-accent-primary focus:border-transparent transition-all"
+            >
+              <option value="weekly">Weekly</option>
+              <option value="biweekly">Bi-weekly</option>
+              <option value="semimonthly">Semi-monthly (1st & 15th)</option>
+              <option value="monthly">Monthly</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-ink-300 mb-1.5">
+              {isWeeklySchedule ? 'Start Day' : 'Start Day of Month'}
+            </label>
+            {isWeeklySchedule ? (
+              <select
+                value={startDay}
+                onChange={(e) => setStartDay(parseInt(e.target.value))}
+                className="w-full px-3 py-2 bg-ink-900 border border-ink-600 rounded-lg text-ink-100 focus:ring-2 focus:ring-accent-primary focus:border-transparent transition-all"
+              >
+                <option value="0">Monday</option>
+                <option value="1">Tuesday</option>
+                <option value="2">Wednesday</option>
+                <option value="3">Thursday</option>
+                <option value="4">Friday</option>
+                <option value="5">Saturday</option>
+                <option value="6">Sunday</option>
+              </select>
+            ) : (
+              <input
+                type="number"
+                min="1"
+                max="28"
+                value={startDay}
+                onChange={(e) => setStartDay(parseInt(e.target.value))}
+                className="w-full px-3 py-2 bg-ink-900 border border-ink-600 rounded-lg text-ink-100 focus:ring-2 focus:ring-accent-primary focus:border-transparent transition-all"
+              />
+            )}
+            <p className="text-xs text-ink-500 mt-1">
+              {isWeeklySchedule
+                ? 'The day of the week when pay periods start.'
+                : 'Day of the month when pay periods start (1-28).'}
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-ink-400 hover:text-ink-200 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-white rounded-lg transition-colors disabled:opacity-50"
+            >
+              {loading ? 'Saving...' : 'Save Settings'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+interface MarkPaidModalProps {
+  payPeriod: PayPeriodWithCommissions;
+  onClose: () => void;
+  onSave: (payoutReference?: string, paymentNotes?: string) => Promise<void>;
+}
+
+function MarkPaidModal({ payPeriod, onClose, onSave }: MarkPaidModalProps) {
+  const [payoutReference, setPayoutReference] = useState('');
+  const [paymentNotes, setPaymentNotes] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await onSave(payoutReference || undefined, paymentNotes || undefined);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+      <div className="bg-ink-800 rounded-xl border border-ink-700 p-6 w-full max-w-md mx-4">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-ink-100">Mark Pay Period as Paid</h2>
+          <button onClick={onClose} className="text-ink-400 hover:text-ink-200">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="mb-4 p-3 bg-ink-900 rounded-lg">
+          <p className="text-sm text-ink-400">Total Artist Payout</p>
+          <p className="text-2xl font-semibold text-ink-100">{formatCentsToDollars(payPeriod.total_artist_payout)}</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-ink-300 mb-1.5">
+              Payout Reference <span className="text-ink-500">(optional)</span>
+            </label>
+            <input
+              type="text"
+              value={payoutReference}
+              onChange={(e) => setPayoutReference(e.target.value)}
+              placeholder="Check #, transfer ID, etc."
+              className="w-full px-3 py-2 bg-ink-900 border border-ink-600 rounded-lg text-ink-100 placeholder-ink-500 focus:ring-2 focus:ring-accent-primary focus:border-transparent transition-all"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-ink-300 mb-1.5">
+              Notes <span className="text-ink-500">(optional)</span>
+            </label>
+            <textarea
+              value={paymentNotes}
+              onChange={(e) => setPaymentNotes(e.target.value)}
+              rows={3}
+              placeholder="Any additional notes about this payment..."
+              className="w-full px-3 py-2 bg-ink-900 border border-ink-600 rounded-lg text-ink-100 placeholder-ink-500 focus:ring-2 focus:ring-accent-primary focus:border-transparent transition-all resize-none"
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-ink-400 hover:text-ink-200 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors disabled:opacity-50"
+            >
+              {loading ? 'Processing...' : 'Mark as Paid'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+interface AssignCommissionsModalProps {
+  payPeriod: PayPeriodWithCommissions;
+  unassignedCommissions: EarnedCommission[];
+  onClose: () => void;
+  onSave: (commissionIds: string[]) => Promise<void>;
+  formatCentsToDollars: (cents: number) => string;
+}
+
+function AssignCommissionsModal({
+  payPeriod,
+  unassignedCommissions,
+  onClose,
+  onSave,
+  formatCentsToDollars,
+}: AssignCommissionsModalProps) {
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(false);
+
+  const toggleSelection = (id: string) => {
+    const newSet = new Set(selectedIds);
+    if (newSet.has(id)) {
+      newSet.delete(id);
+    } else {
+      newSet.add(id);
+    }
+    setSelectedIds(newSet);
+  };
+
+  const selectAll = () => {
+    setSelectedIds(new Set(unassignedCommissions.map(c => c.id)));
+  };
+
+  const selectNone = () => {
+    setSelectedIds(new Set());
+  };
+
+  const handleSubmit = async () => {
+    if (selectedIds.size === 0) return;
+    setLoading(true);
+    try {
+      await onSave(Array.from(selectedIds));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm overflow-y-auto py-8">
+      <div className="bg-ink-800 rounded-xl border border-ink-700 p-6 w-full max-w-2xl mx-4 my-auto">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-ink-100">Assign Commissions to Pay Period</h2>
+          <button onClick={onClose} className="text-ink-400 hover:text-ink-200">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="mb-4 text-sm text-ink-400">
+          Select commissions to add to the pay period: {new Date(payPeriod.start_date).toLocaleDateString()} - {new Date(payPeriod.end_date).toLocaleDateString()}
+        </div>
+
+        {unassignedCommissions.length === 0 ? (
+          <div className="p-8 text-center text-ink-400">
+            No unassigned commissions available.
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center gap-4 mb-4">
+              <button
+                onClick={selectAll}
+                className="text-sm text-accent-primary hover:text-accent-primary/80"
+              >
+                Select All
+              </button>
+              <button
+                onClick={selectNone}
+                className="text-sm text-ink-400 hover:text-ink-200"
+              >
+                Select None
+              </button>
+              <span className="text-sm text-ink-400">
+                {selectedIds.size} of {unassignedCommissions.length} selected
+              </span>
+            </div>
+
+            <div className="max-h-64 overflow-y-auto border border-ink-700 rounded-lg divide-y divide-ink-700">
+              {unassignedCommissions.map((comm) => (
+                <label
+                  key={comm.id}
+                  className="flex items-center gap-3 p-3 hover:bg-ink-700/30 cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(comm.id)}
+                    onChange={() => toggleSelection(comm.id)}
+                    className="w-4 h-4 rounded border-ink-600 bg-ink-900 text-accent-primary focus:ring-accent-primary focus:ring-offset-0"
+                  />
+                  <div className="flex-1">
+                    <p className="text-sm text-ink-100">{comm.client_name}</p>
+                    <p className="text-xs text-ink-400">
+                      {comm.artist_name} - {new Date(comm.completed_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-ink-200">{formatCentsToDollars(comm.artist_payout)}</p>
+                    <p className="text-xs text-ink-500">artist payout</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </>
+        )}
+
+        <div className="flex justify-end gap-3 pt-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-ink-400 hover:text-ink-200 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={loading || selectedIds.size === 0}
+            className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-white rounded-lg transition-colors disabled:opacity-50"
+          >
+            {loading ? 'Assigning...' : `Assign ${selectedIds.size} Commission${selectedIds.size !== 1 ? 's' : ''}`}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

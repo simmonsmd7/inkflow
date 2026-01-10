@@ -32,6 +32,23 @@ class CommissionType(str, enum.Enum):
     TIERED = "tiered"  # Tiered percentages based on revenue
 
 
+class PayPeriodSchedule(str, enum.Enum):
+    """Pay period schedule types."""
+
+    WEEKLY = "weekly"  # Every week
+    BIWEEKLY = "biweekly"  # Every two weeks
+    SEMIMONTHLY = "semimonthly"  # Twice per month (1st and 15th)
+    MONTHLY = "monthly"  # Once per month
+
+
+class PayPeriodStatus(str, enum.Enum):
+    """Status of a pay period."""
+
+    OPEN = "open"  # Accepting new commissions
+    CLOSED = "closed"  # Closed, pending payment
+    PAID = "paid"  # Marked as paid
+
+
 class CommissionRule(BaseModel, SoftDeleteMixin):
     """Commission rule for calculating artist payouts."""
 
@@ -178,7 +195,14 @@ class EarnedCommission(BaseModel):
         DateTime(timezone=True), nullable=False
     )
 
-    # Pay period tracking (for P5.4)
+    # Pay period tracking
+    pay_period_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("pay_periods.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    # Legacy fields kept for backwards compatibility
     pay_period_start: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
@@ -204,6 +228,66 @@ class EarnedCommission(BaseModel):
     )
     commission_rule: Mapped[Optional["CommissionRule"]] = relationship(
         "CommissionRule", foreign_keys=[commission_rule_id]
+    )
+    pay_period: Mapped[Optional["PayPeriod"]] = relationship(
+        "PayPeriod", back_populates="commissions"
+    )
+
+
+class PayPeriod(BaseModel):
+    """Pay period for grouping and paying out commissions."""
+
+    __tablename__ = "pay_periods"
+
+    # Studio relationship
+    studio_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("studios.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    # Period dates
+    start_date: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+    end_date: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+
+    # Status
+    status: Mapped[PayPeriodStatus] = mapped_column(
+        Enum(PayPeriodStatus, name="pay_period_status"),
+        nullable=False,
+        default=PayPeriodStatus.OPEN,
+        index=True,
+    )
+
+    # Calculated totals (denormalized for quick access)
+    total_service: Mapped[int] = mapped_column(Integer, default=0)  # Total service revenue in cents
+    total_studio_commission: Mapped[int] = mapped_column(Integer, default=0)  # Studio commission in cents
+    total_artist_payout: Mapped[int] = mapped_column(Integer, default=0)  # Artist payouts in cents
+    total_tips: Mapped[int] = mapped_column(Integer, default=0)  # Tips in cents
+    commission_count: Mapped[int] = mapped_column(Integer, default=0)  # Number of commissions
+
+    # Payment tracking
+    closed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    paid_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    payout_reference: Mapped[Optional[str]] = mapped_column(
+        String(255), nullable=True
+    )  # External reference (check #, transfer ID, etc.)
+    payment_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Relationships
+    studio: Mapped["Studio"] = relationship("Studio", back_populates="pay_periods")
+    commissions: Mapped[list["EarnedCommission"]] = relationship(
+        "EarnedCommission",
+        back_populates="pay_period",
+        foreign_keys="EarnedCommission.pay_period_id",
     )
 
 

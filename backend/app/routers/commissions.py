@@ -1,6 +1,7 @@
 """Commission rules router for managing artist commission structures."""
 
 import uuid
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -9,13 +10,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.models.commission import CommissionRule, CommissionTier, CommissionType
+from app.models.commission import (
+    CommissionRule,
+    CommissionTier,
+    CommissionType,
+    EarnedCommission,
+    PayPeriod,
+    PayPeriodStatus,
+)
 from app.models.studio import Studio
 from app.models.user import User, UserRole
 from app.schemas.commission import (
     ArtistCommissionInfo,
     ArtistsWithCommissionResponse,
     AssignCommissionRuleInput,
+    AssignToPayPeriodInput,
+    AssignToPayPeriodResponse,
+    ClosePayPeriodInput,
+    ClosePayPeriodResponse,
     CommissionCalculationInput,
     CommissionCalculationResult,
     CommissionRuleCreate,
@@ -26,6 +38,17 @@ from app.schemas.commission import (
     CommissionTierCreate,
     EarnedCommissionsListResponse,
     EarnedCommissionWithDetails,
+    MarkPayPeriodPaidInput,
+    MarkPayPeriodPaidResponse,
+    PayPeriodCreate,
+    PayPeriodResponse,
+    PayPeriodSchedule,
+    PayPeriodSettingsResponse,
+    PayPeriodSettingsUpdate,
+    PayPeriodStatus as PayPeriodStatusSchema,
+    PayPeriodSummary,
+    PayPeriodsListResponse,
+    PayPeriodWithCommissions,
 )
 from app.schemas.user import MessageResponse
 from app.services.auth import get_current_user, require_owner
@@ -752,6 +775,555 @@ async def list_my_earned_commissions(
                 client_name=booking.client_name if booking else "Unknown",
                 design_idea=booking.design_idea[:100] if booking else None,
                 artist_name=current_user.full_name,
+            )
+        )
+
+    return EarnedCommissionsListResponse(
+        commissions=items,
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_service=sums.total_service if sums else 0,
+        total_studio_commission=sums.total_studio_commission if sums else 0,
+        total_artist_payout=sums.total_artist_payout if sums else 0,
+        total_tips=sums.total_tips if sums else 0,
+    )
+
+
+# ============ Pay Period Settings ============
+
+
+@router.get("/pay-periods/settings", response_model=PayPeriodSettingsResponse)
+async def get_pay_period_settings(
+    current_user: User = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+) -> PayPeriodSettingsResponse:
+    """
+    Get pay period settings for the studio.
+    Owner only.
+    """
+    studio = await get_user_studio(db, current_user)
+    return PayPeriodSettingsResponse(
+        pay_period_schedule=studio.pay_period_schedule or PayPeriodSchedule.BIWEEKLY,
+        pay_period_start_day=studio.pay_period_start_day or 1,
+    )
+
+
+@router.put("/pay-periods/settings", response_model=PayPeriodSettingsResponse)
+async def update_pay_period_settings(
+    data: PayPeriodSettingsUpdate,
+    current_user: User = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+) -> PayPeriodSettingsResponse:
+    """
+    Update pay period settings for the studio.
+    Owner only.
+    """
+    from app.models.commission import PayPeriodSchedule as PayPeriodScheduleModel
+
+    studio = await get_user_studio(db, current_user)
+
+    # Validate start_day based on schedule type
+    if data.pay_period_schedule in [PayPeriodSchedule.WEEKLY, PayPeriodSchedule.BIWEEKLY]:
+        if data.pay_period_start_day > 6:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="For weekly/biweekly schedules, start_day must be 0-6 (Monday-Sunday)",
+            )
+    else:
+        if data.pay_period_start_day < 1 or data.pay_period_start_day > 28:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="For monthly/semimonthly schedules, start_day must be 1-28",
+            )
+
+    # Convert schema enum to model enum
+    studio.pay_period_schedule = PayPeriodScheduleModel(data.pay_period_schedule.value)
+    studio.pay_period_start_day = data.pay_period_start_day
+    await db.commit()
+    await db.refresh(studio)
+
+    return PayPeriodSettingsResponse(
+        pay_period_schedule=data.pay_period_schedule,
+        pay_period_start_day=data.pay_period_start_day,
+    )
+
+
+# ============ Pay Periods CRUD ============
+
+
+async def get_pay_period(
+    db: AsyncSession, pay_period_id: uuid.UUID, studio_id: uuid.UUID
+) -> PayPeriod:
+    """Get a pay period by ID and verify it belongs to the studio."""
+    query = select(PayPeriod).where(
+        PayPeriod.id == pay_period_id,
+        PayPeriod.studio_id == studio_id,
+    )
+    result = await db.execute(query)
+    pay_period = result.scalar_one_or_none()
+    if not pay_period:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Pay period not found",
+        )
+    return pay_period
+
+
+async def recalculate_pay_period_totals(db: AsyncSession, pay_period: PayPeriod) -> None:
+    """Recalculate denormalized totals for a pay period."""
+    query = select(
+        func.coalesce(func.sum(EarnedCommission.service_total), 0).label("total_service"),
+        func.coalesce(func.sum(EarnedCommission.studio_commission), 0).label("total_studio_commission"),
+        func.coalesce(func.sum(EarnedCommission.artist_payout), 0).label("total_artist_payout"),
+        func.coalesce(func.sum(EarnedCommission.tips_amount), 0).label("total_tips"),
+        func.count(EarnedCommission.id).label("count"),
+    ).where(EarnedCommission.pay_period_id == pay_period.id)
+
+    result = await db.execute(query)
+    totals = result.first()
+
+    pay_period.total_service = totals.total_service if totals else 0
+    pay_period.total_studio_commission = totals.total_studio_commission if totals else 0
+    pay_period.total_artist_payout = totals.total_artist_payout if totals else 0
+    pay_period.total_tips = totals.total_tips if totals else 0
+    pay_period.commission_count = totals.count if totals else 0
+
+
+@router.get("/pay-periods", response_model=PayPeriodsListResponse)
+async def list_pay_periods(
+    current_user: User = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    status_filter: Optional[PayPeriodStatusSchema] = Query(None, alias="status"),
+) -> PayPeriodsListResponse:
+    """
+    List all pay periods for the studio.
+    Owner only.
+    """
+    studio = await get_user_studio(db, current_user)
+
+    # Build query
+    base_query = select(PayPeriod).where(PayPeriod.studio_id == studio.id)
+
+    if status_filter:
+        base_query = base_query.where(PayPeriod.status == PayPeriodStatus(status_filter.value))
+
+    # Count total
+    count_query = select(func.count()).select_from(base_query.subquery())
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+
+    # Get paginated results
+    query = (
+        base_query
+        .order_by(PayPeriod.start_date.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    result = await db.execute(query)
+    pay_periods = result.scalars().all()
+
+    return PayPeriodsListResponse(
+        pay_periods=[PayPeriodSummary.model_validate(pp) for pp in pay_periods],
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.post("/pay-periods", response_model=PayPeriodResponse, status_code=status.HTTP_201_CREATED)
+async def create_pay_period(
+    data: PayPeriodCreate,
+    current_user: User = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+) -> PayPeriodResponse:
+    """
+    Create a new pay period manually.
+    Owner only.
+    """
+    studio = await get_user_studio(db, current_user)
+
+    # Validate dates
+    if data.end_date <= data.start_date:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="End date must be after start date",
+        )
+
+    # Check for overlapping pay periods
+    overlap_query = select(PayPeriod).where(
+        PayPeriod.studio_id == studio.id,
+        PayPeriod.start_date < data.end_date,
+        PayPeriod.end_date > data.start_date,
+    )
+    result = await db.execute(overlap_query)
+    if result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This pay period overlaps with an existing pay period",
+        )
+
+    # Create the pay period
+    pay_period = PayPeriod(
+        studio_id=studio.id,
+        start_date=data.start_date,
+        end_date=data.end_date,
+        status=PayPeriodStatus.OPEN,
+    )
+    db.add(pay_period)
+    await db.commit()
+    await db.refresh(pay_period)
+
+    return PayPeriodResponse.model_validate(pay_period)
+
+
+@router.get("/pay-periods/{pay_period_id}", response_model=PayPeriodWithCommissions)
+async def get_pay_period_by_id(
+    pay_period_id: uuid.UUID,
+    current_user: User = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+) -> PayPeriodWithCommissions:
+    """
+    Get a pay period with its commissions.
+    Owner only.
+    """
+    studio = await get_user_studio(db, current_user)
+    pay_period = await get_pay_period(db, pay_period_id, studio.id)
+
+    # Get commissions for this pay period
+    query = (
+        select(EarnedCommission)
+        .options(
+            selectinload(EarnedCommission.booking_request),
+            selectinload(EarnedCommission.artist),
+        )
+        .where(EarnedCommission.pay_period_id == pay_period.id)
+        .order_by(EarnedCommission.completed_at.desc())
+    )
+    result = await db.execute(query)
+    commissions = result.scalars().all()
+
+    # Build commission details
+    commission_details = []
+    for comm in commissions:
+        booking = comm.booking_request
+        artist = comm.artist
+        commission_details.append(
+            EarnedCommissionWithDetails(
+                id=comm.id,
+                booking_request_id=comm.booking_request_id,
+                artist_id=comm.artist_id,
+                studio_id=comm.studio_id,
+                commission_rule_id=comm.commission_rule_id,
+                commission_rule_name=comm.commission_rule_name,
+                commission_type=comm.commission_type,
+                service_total=comm.service_total,
+                studio_commission=comm.studio_commission,
+                artist_payout=comm.artist_payout,
+                tips_amount=comm.tips_amount,
+                calculation_details=comm.calculation_details,
+                completed_at=comm.completed_at,
+                created_at=comm.created_at,
+                pay_period_start=comm.pay_period_start,
+                pay_period_end=comm.pay_period_end,
+                paid_at=comm.paid_at,
+                payout_reference=comm.payout_reference,
+                client_name=booking.client_name if booking else "Unknown",
+                design_idea=booking.design_idea[:100] if booking else None,
+                artist_name=artist.full_name if artist else None,
+            )
+        )
+
+    return PayPeriodWithCommissions(
+        id=pay_period.id,
+        studio_id=pay_period.studio_id,
+        start_date=pay_period.start_date,
+        end_date=pay_period.end_date,
+        status=pay_period.status,
+        total_service=pay_period.total_service,
+        total_studio_commission=pay_period.total_studio_commission,
+        total_artist_payout=pay_period.total_artist_payout,
+        total_tips=pay_period.total_tips,
+        commission_count=pay_period.commission_count,
+        closed_at=pay_period.closed_at,
+        paid_at=pay_period.paid_at,
+        payout_reference=pay_period.payout_reference,
+        payment_notes=pay_period.payment_notes,
+        created_at=pay_period.created_at,
+        updated_at=pay_period.updated_at,
+        commissions=commission_details,
+    )
+
+
+@router.post("/pay-periods/{pay_period_id}/assign", response_model=AssignToPayPeriodResponse)
+async def assign_commissions_to_pay_period(
+    pay_period_id: uuid.UUID,
+    data: AssignToPayPeriodInput,
+    current_user: User = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+) -> AssignToPayPeriodResponse:
+    """
+    Assign commissions to a pay period.
+    Owner only. Only works for open pay periods.
+    """
+    studio = await get_user_studio(db, current_user)
+    pay_period = await get_pay_period(db, pay_period_id, studio.id)
+
+    if pay_period.status != PayPeriodStatus.OPEN:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Can only assign commissions to open pay periods",
+        )
+
+    # Get the commissions to assign
+    query = select(EarnedCommission).where(
+        EarnedCommission.id.in_(data.commission_ids),
+        EarnedCommission.studio_id == studio.id,
+    )
+    result = await db.execute(query)
+    commissions = result.scalars().all()
+
+    if len(commissions) != len(data.commission_ids):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Some commission IDs were not found",
+        )
+
+    # Check if any are already assigned to a different pay period
+    for comm in commissions:
+        if comm.pay_period_id and comm.pay_period_id != pay_period_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Commission {comm.id} is already assigned to another pay period",
+            )
+
+    # Assign commissions
+    assigned_count = 0
+    for comm in commissions:
+        if comm.pay_period_id != pay_period_id:
+            comm.pay_period_id = pay_period_id
+            comm.pay_period_start = pay_period.start_date
+            comm.pay_period_end = pay_period.end_date
+            assigned_count += 1
+
+    # Recalculate totals
+    await recalculate_pay_period_totals(db, pay_period)
+    await db.commit()
+    await db.refresh(pay_period)
+
+    return AssignToPayPeriodResponse(
+        message=f"Assigned {assigned_count} commission(s) to pay period",
+        assigned_count=assigned_count,
+        pay_period=PayPeriodSummary.model_validate(pay_period),
+    )
+
+
+@router.post("/pay-periods/{pay_period_id}/close", response_model=ClosePayPeriodResponse)
+async def close_pay_period(
+    pay_period_id: uuid.UUID,
+    data: ClosePayPeriodInput,
+    current_user: User = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+) -> ClosePayPeriodResponse:
+    """
+    Close a pay period (no more commissions can be assigned).
+    Owner only.
+    """
+    studio = await get_user_studio(db, current_user)
+    pay_period = await get_pay_period(db, pay_period_id, studio.id)
+
+    if pay_period.status != PayPeriodStatus.OPEN:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Pay period is already closed or paid",
+        )
+
+    # Recalculate totals before closing
+    await recalculate_pay_period_totals(db, pay_period)
+
+    pay_period.status = PayPeriodStatus.CLOSED
+    pay_period.closed_at = datetime.now(timezone.utc)
+    if data.notes:
+        pay_period.payment_notes = data.notes
+
+    await db.commit()
+    await db.refresh(pay_period)
+
+    return ClosePayPeriodResponse(
+        message="Pay period closed successfully",
+        pay_period=PayPeriodSummary.model_validate(pay_period),
+    )
+
+
+@router.post("/pay-periods/{pay_period_id}/mark-paid", response_model=MarkPayPeriodPaidResponse)
+async def mark_pay_period_paid(
+    pay_period_id: uuid.UUID,
+    data: MarkPayPeriodPaidInput,
+    current_user: User = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+) -> MarkPayPeriodPaidResponse:
+    """
+    Mark a pay period as paid.
+    Owner only. Pay period must be closed first.
+    """
+    studio = await get_user_studio(db, current_user)
+    pay_period = await get_pay_period(db, pay_period_id, studio.id)
+
+    if pay_period.status == PayPeriodStatus.PAID:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Pay period is already marked as paid",
+        )
+
+    if pay_period.status == PayPeriodStatus.OPEN:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Pay period must be closed before marking as paid",
+        )
+
+    now = datetime.now(timezone.utc)
+    pay_period.status = PayPeriodStatus.PAID
+    pay_period.paid_at = now
+    pay_period.payout_reference = data.payout_reference
+    if data.payment_notes:
+        if pay_period.payment_notes:
+            pay_period.payment_notes += f"\n\n{data.payment_notes}"
+        else:
+            pay_period.payment_notes = data.payment_notes
+
+    # Also mark all commissions in this pay period as paid
+    query = select(EarnedCommission).where(
+        EarnedCommission.pay_period_id == pay_period.id,
+    )
+    result = await db.execute(query)
+    commissions = result.scalars().all()
+
+    for comm in commissions:
+        comm.paid_at = now
+        comm.payout_reference = data.payout_reference
+
+    await db.commit()
+    await db.refresh(pay_period)
+
+    return MarkPayPeriodPaidResponse(
+        message=f"Pay period marked as paid. {len(commissions)} commission(s) updated.",
+        pay_period=PayPeriodSummary.model_validate(pay_period),
+    )
+
+
+@router.delete("/pay-periods/{pay_period_id}", response_model=MessageResponse)
+async def delete_pay_period(
+    pay_period_id: uuid.UUID,
+    current_user: User = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+) -> MessageResponse:
+    """
+    Delete a pay period.
+    Owner only. Can only delete open pay periods with no assigned commissions.
+    """
+    studio = await get_user_studio(db, current_user)
+    pay_period = await get_pay_period(db, pay_period_id, studio.id)
+
+    if pay_period.status != PayPeriodStatus.OPEN:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Can only delete open pay periods",
+        )
+
+    if pay_period.commission_count > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete pay period with assigned commissions. Unassign them first.",
+        )
+
+    await db.delete(pay_period)
+    await db.commit()
+
+    return MessageResponse(message="Pay period deleted successfully")
+
+
+@router.get("/pay-periods/unassigned", response_model=EarnedCommissionsListResponse)
+async def list_unassigned_commissions(
+    current_user: User = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+) -> EarnedCommissionsListResponse:
+    """
+    List commissions that are not assigned to any pay period.
+    Useful for knowing which commissions need to be added to a pay period.
+    Owner only.
+    """
+    studio = await get_user_studio(db, current_user)
+
+    # Build query for unassigned commissions
+    base_query = select(EarnedCommission).where(
+        EarnedCommission.studio_id == studio.id,
+        EarnedCommission.pay_period_id.is_(None),
+    )
+
+    # Count total
+    count_query = select(func.count()).select_from(base_query.subquery())
+    count_result = await db.execute(count_query)
+    total = count_result.scalar() or 0
+
+    # Get summary totals
+    sum_query = select(
+        func.coalesce(func.sum(EarnedCommission.service_total), 0).label("total_service"),
+        func.coalesce(func.sum(EarnedCommission.studio_commission), 0).label("total_studio_commission"),
+        func.coalesce(func.sum(EarnedCommission.artist_payout), 0).label("total_artist_payout"),
+        func.coalesce(func.sum(EarnedCommission.tips_amount), 0).label("total_tips"),
+    ).where(
+        EarnedCommission.studio_id == studio.id,
+        EarnedCommission.pay_period_id.is_(None),
+    )
+    sum_result = await db.execute(sum_query)
+    sums = sum_result.first()
+
+    # Get paginated results
+    query = (
+        base_query
+        .options(
+            selectinload(EarnedCommission.booking_request),
+            selectinload(EarnedCommission.artist),
+        )
+        .order_by(EarnedCommission.completed_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    result = await db.execute(query)
+    commissions = result.scalars().all()
+
+    # Build response
+    items = []
+    for comm in commissions:
+        booking = comm.booking_request
+        artist = comm.artist
+        items.append(
+            EarnedCommissionWithDetails(
+                id=comm.id,
+                booking_request_id=comm.booking_request_id,
+                artist_id=comm.artist_id,
+                studio_id=comm.studio_id,
+                commission_rule_id=comm.commission_rule_id,
+                commission_rule_name=comm.commission_rule_name,
+                commission_type=comm.commission_type,
+                service_total=comm.service_total,
+                studio_commission=comm.studio_commission,
+                artist_payout=comm.artist_payout,
+                tips_amount=comm.tips_amount,
+                calculation_details=comm.calculation_details,
+                completed_at=comm.completed_at,
+                created_at=comm.created_at,
+                pay_period_start=comm.pay_period_start,
+                pay_period_end=comm.pay_period_end,
+                paid_at=comm.paid_at,
+                payout_reference=comm.payout_reference,
+                client_name=booking.client_name if booking else "Unknown",
+                design_idea=booking.design_idea[:100] if booking else None,
+                artist_name=artist.full_name if artist else None,
             )
         )
 
