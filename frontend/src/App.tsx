@@ -8,6 +8,7 @@ import {
   Dashboard,
   DepositPayment,
   ForgotPassword,
+  Inbox,
   Login,
   PaymentSuccess,
   Register,
@@ -39,6 +40,7 @@ function App() {
           <Layout>
             <Routes>
               <Route path="/" element={<Dashboard />} />
+              <Route path="/inbox" element={<Inbox />} />
               <Route path="/bookings" element={<BookingQueue />} />
               <Route path="/profile" element={<ArtistProfile />} />
               <Route path="/availability" element={<Availability />} />

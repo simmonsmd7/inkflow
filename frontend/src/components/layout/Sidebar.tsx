@@ -64,7 +64,6 @@ const navItems: NavItem[] = [
       </svg>
     ),
     href: '/inbox',
-    badge: 12,
   },
   {
     id: 'clients',

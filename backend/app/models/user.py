@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from app.models.artist import ArtistProfile
     from app.models.availability import ArtistAvailability, ArtistTimeOff
     from app.models.booking import BookingRequest
+    from app.models.message import Conversation, Message
     from app.models.studio import Studio
 
 
@@ -92,6 +93,18 @@ class User(BaseModel, SoftDeleteMixin):
         "BookingRequest",
         foreign_keys="BookingRequest.assigned_artist_id",
         back_populates="assigned_artist",
+        lazy="selectin",
+    )
+    assigned_conversations: Mapped[list["Conversation"]] = relationship(
+        "Conversation",
+        back_populates="assigned_to",
+        foreign_keys="Conversation.assigned_to_id",
+        lazy="selectin",
+    )
+    sent_messages: Mapped[list["Message"]] = relationship(
+        "Message",
+        back_populates="sender",
+        foreign_keys="Message.sender_id",
         lazy="selectin",
     )
 

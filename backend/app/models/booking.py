@@ -19,6 +19,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import BaseModel, SoftDeleteMixin
 
 if TYPE_CHECKING:
+    from app.models.message import Conversation
     from app.models.user import User
 
 
@@ -192,6 +193,11 @@ class BookingRequest(BaseModel, SoftDeleteMixin):
         back_populates="booking_request",
         cascade="all, delete-orphan",
         order_by="BookingReferenceImage.display_order",
+    )
+    conversation: Mapped[Optional["Conversation"]] = relationship(
+        "Conversation",
+        back_populates="booking_request",
+        uselist=False,
     )
 
 

@@ -9,6 +9,7 @@ export { BookingQueue } from './BookingQueue';
 export { Dashboard } from './Dashboard';
 export { DepositPayment } from './DepositPayment';
 export { ForgotPassword } from './ForgotPassword';
+export { Inbox } from './Inbox';
 export { Login } from './Login';
 export { PaymentSuccess } from './PaymentSuccess';
 export { Register } from './Register';

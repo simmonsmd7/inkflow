@@ -9,6 +9,13 @@ from app.models.booking import (
     BookingRequestStatus,
     TattooSize,
 )
+from app.models.message import (
+    Conversation,
+    ConversationStatus,
+    Message,
+    MessageChannel,
+    MessageDirection,
+)
 from app.models.studio import Studio
 from app.models.user import User, UserRole
 
@@ -20,6 +27,11 @@ __all__ = [
     "BookingReferenceImage",
     "BookingRequest",
     "BookingRequestStatus",
+    "Conversation",
+    "ConversationStatus",
+    "Message",
+    "MessageChannel",
+    "MessageDirection",
     "PortfolioImage",
     "SoftDeleteMixin",
     "Studio",

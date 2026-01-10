@@ -560,3 +560,98 @@ export interface ClientNoShowHistory {
   total_forfeited_deposits: number;
   no_shows: ClientNoShowHistoryItem[];
 }
+
+// ============ Messaging Types ============
+
+export type ConversationStatus = 'unread' | 'pending' | 'resolved';
+
+export type MessageChannel = 'internal' | 'email' | 'sms';
+
+export type MessageDirection = 'inbound' | 'outbound';
+
+export interface InboxMessage {
+  id: string;
+  conversation_id: string;
+  content: string;
+  channel: MessageChannel;
+  direction: MessageDirection;
+  sender_id: string | null;
+  sender_name: string | null;
+  external_id: string | null;
+  is_read: boolean;
+  read_at: string | null;
+  delivered_at: string | null;
+  failed_at: string | null;
+  failure_reason: string | null;
+  created_at: string;
+}
+
+export interface ConversationSummary {
+  id: string;
+  client_name: string;
+  client_email: string | null;
+  client_phone: string | null;
+  status: ConversationStatus;
+  subject: string | null;
+  last_message_at: string | null;
+  last_message_preview: string | null;
+  unread_count: number;
+  assigned_to_id: string | null;
+  assigned_to_name: string | null;
+  booking_request_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Conversation extends ConversationSummary {
+  studio_id: string | null;
+  messages: InboxMessage[];
+}
+
+export interface ConversationCreate {
+  client_name: string;
+  client_email?: string | null;
+  client_phone?: string | null;
+  subject?: string | null;
+  studio_id?: string | null;
+  booking_request_id?: string | null;
+  initial_message?: string | null;
+}
+
+export interface ConversationUpdate {
+  status?: ConversationStatus | null;
+  assigned_to_id?: string | null;
+  subject?: string | null;
+}
+
+export interface MessageCreate {
+  content: string;
+  channel?: MessageChannel;
+}
+
+export interface ConversationsListResponse {
+  conversations: ConversationSummary[];
+  total: number;
+  skip: number;
+  limit: number;
+}
+
+export interface MarkReadResponse {
+  conversation_id: string;
+  messages_marked_read: number;
+  success: boolean;
+}
+
+export interface AssignConversationResponse {
+  conversation_id: string;
+  assigned_to_id: string | null;
+  assigned_to_name: string | null;
+  success: boolean;
+}
+
+export interface InboxStats {
+  status_counts: Record<ConversationStatus, number>;
+  assigned_to_me: number;
+  total_unread: number;
+  total_conversations: number;
+}
