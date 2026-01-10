@@ -20,6 +20,7 @@ from app.models.base import BaseModel, SoftDeleteMixin
 
 if TYPE_CHECKING:
     from app.models.commission import EarnedCommission
+    from app.models.consent import ConsentFormSubmission
     from app.models.message import Conversation
     from app.models.user import User
 
@@ -202,6 +203,11 @@ class BookingRequest(BaseModel, SoftDeleteMixin):
     )
     earned_commission: Mapped[Optional["EarnedCommission"]] = relationship(
         "EarnedCommission",
+        back_populates="booking_request",
+        uselist=False,
+    )
+    consent_submission: Mapped[Optional["ConsentFormSubmission"]] = relationship(
+        "ConsentFormSubmission",
         back_populates="booking_request",
         uselist=False,
     )

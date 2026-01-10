@@ -17,6 +17,7 @@ from app.routers import (
     availability_router,
     bookings_router,
     commissions_router,
+    consent_router,
     messages_router,
     reminders_router,
     studios_router,
@@ -62,18 +63,20 @@ app.include_router(auth_router, prefix="/api/v1")
 app.include_router(availability_router, prefix="/api/v1")
 app.include_router(bookings_router, prefix="/api/v1")
 app.include_router(commissions_router, prefix="/api/v1")
+app.include_router(consent_router, prefix="/api/v1")
 app.include_router(messages_router, prefix="/api/v1")
 app.include_router(reminders_router, prefix="/api/v1")
 app.include_router(studios_router, prefix="/api/v1")
 app.include_router(users_router, prefix="/api/v1")
 app.include_router(webhooks_router, prefix="/api/v1")
 
-# Static files for uploads (logos, portfolio, references, etc.)
+# Static files for uploads (logos, portfolio, references, photo IDs, etc.)
 uploads_dir = Path("uploads")
 uploads_dir.mkdir(exist_ok=True)
 (uploads_dir / "logos").mkdir(exist_ok=True)
 (uploads_dir / "portfolio").mkdir(exist_ok=True)
 (uploads_dir / "references").mkdir(exist_ok=True)
+(uploads_dir / "photo_ids").mkdir(exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 

@@ -5,6 +5,7 @@ from app.routers.auth import router as auth_router
 from app.routers.availability import router as availability_router
 from app.routers.bookings import router as bookings_router
 from app.routers.commissions import router as commissions_router
+from app.routers.consent import router as consent_router
 from app.routers.messages import router as messages_router
 from app.routers.reminders import router as reminders_router
 from app.routers.studios import router as studios_router
@@ -17,6 +18,7 @@ __all__ = [
     "availability_router",
     "bookings_router",
     "commissions_router",
+    "consent_router",
     "messages_router",
     "reminders_router",
     "studios_router",

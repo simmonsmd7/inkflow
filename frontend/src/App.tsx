@@ -6,6 +6,7 @@ import {
   BookingForm,
   BookingQueue,
   Commissions,
+  ConsentForms,
   Dashboard,
   DepositPayment,
   ForgotPassword,
@@ -47,6 +48,7 @@ function App() {
               <Route path="/availability" element={<Availability />} />
               <Route path="/team" element={<Team />} />
               <Route path="/commissions" element={<Commissions />} />
+              <Route path="/consent" element={<ConsentForms />} />
               <Route path="/settings" element={<StudioSettings />} />
             </Routes>
           </Layout>

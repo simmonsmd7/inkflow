@@ -19,6 +19,13 @@ from app.models.commission import (
     PayPeriodStatus,
     TipPaymentMethod,
 )
+from app.models.consent import (
+    ConsentAuditAction,
+    ConsentAuditLog,
+    ConsentFieldType,
+    ConsentFormSubmission,
+    ConsentFormTemplate,
+)
 from app.models.message import (
     Conversation,
     ConversationStatus,
@@ -41,6 +48,11 @@ __all__ = [
     "CommissionRule",
     "CommissionTier",
     "CommissionType",
+    "ConsentAuditAction",
+    "ConsentAuditLog",
+    "ConsentFieldType",
+    "ConsentFormSubmission",
+    "ConsentFormTemplate",
     "Conversation",
     "ConversationStatus",
     "EarnedCommission",

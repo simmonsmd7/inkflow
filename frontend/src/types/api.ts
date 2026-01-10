@@ -1056,3 +1056,248 @@ export interface TipReportResponse {
   start_date: string | null;
   end_date: string | null;
 }
+
+// ============ Consent Form Types ============
+
+export type ConsentFieldType =
+  | 'text'
+  | 'textarea'
+  | 'checkbox'
+  | 'signature'
+  | 'date'
+  | 'select'
+  | 'radio'
+  | 'photo_id'
+  | 'heading'
+  | 'paragraph';
+
+export type ConsentAuditAction =
+  | 'created'
+  | 'viewed'
+  | 'downloaded'
+  | 'verified'
+  | 'voided'
+  | 'exported';
+
+export interface FormField {
+  id: string;
+  type: ConsentFieldType;
+  label: string;
+  required: boolean;
+  order: number;
+  placeholder?: string | null;
+  help_text?: string | null;
+  options?: string[] | null;
+  content?: string | null;
+}
+
+export interface FormFieldCreate {
+  id: string;
+  type: ConsentFieldType;
+  label: string;
+  required?: boolean;
+  order?: number;
+  placeholder?: string | null;
+  help_text?: string | null;
+  options?: string[] | null;
+  content?: string | null;
+}
+
+export interface ConsentFormTemplateCreate {
+  name: string;
+  description?: string | null;
+  header_text?: string | null;
+  footer_text?: string | null;
+  requires_photo_id?: boolean;
+  requires_signature?: boolean;
+  age_requirement?: number;
+  fields?: FormFieldCreate[];
+  is_active?: boolean;
+  is_default?: boolean;
+}
+
+export interface ConsentFormTemplateUpdate {
+  name?: string | null;
+  description?: string | null;
+  header_text?: string | null;
+  footer_text?: string | null;
+  requires_photo_id?: boolean | null;
+  requires_signature?: boolean | null;
+  age_requirement?: number | null;
+  fields?: FormFieldCreate[] | null;
+  is_active?: boolean | null;
+  is_default?: boolean | null;
+}
+
+export interface ConsentFormTemplateSummary {
+  id: string;
+  name: string;
+  description: string | null;
+  version: number;
+  is_active: boolean;
+  is_default: boolean;
+  requires_photo_id: boolean;
+  requires_signature: boolean;
+  field_count: number;
+  use_count: number;
+  last_used_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConsentFormTemplate {
+  id: string;
+  studio_id: string;
+  name: string;
+  description: string | null;
+  header_text: string | null;
+  footer_text: string | null;
+  requires_photo_id: boolean;
+  requires_signature: boolean;
+  age_requirement: number;
+  version: number;
+  is_active: boolean;
+  is_default: boolean;
+  fields: FormField[];
+  use_count: number;
+  last_used_at: string | null;
+  created_by_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConsentFormTemplatesListResponse {
+  templates: ConsentFormTemplateSummary[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface PrebuiltTemplateInfo {
+  id: string;
+  name: string;
+  description: string;
+  field_count: number;
+}
+
+export interface PrebuiltTemplatesListResponse {
+  templates: PrebuiltTemplateInfo[];
+}
+
+export interface CreateFromPrebuiltInput {
+  prebuilt_id: string;
+  name?: string | null;
+  is_default?: boolean;
+}
+
+export interface ConsentSubmissionSummary {
+  id: string;
+  template_name: string;
+  template_version: number;
+  client_name: string;
+  client_email: string;
+  submitted_at: string;
+  has_signature: boolean;
+  has_photo_id: boolean;
+  photo_id_verified: boolean;
+  age_verified: boolean;
+  is_voided: boolean;
+  booking_request_id: string | null;
+  created_at: string;
+}
+
+export interface ConsentSubmission {
+  id: string;
+  template_id: string | null;
+  template_name: string;
+  template_version: number;
+  template_fields_snapshot: FormField[];
+  studio_id: string;
+  booking_request_id: string | null;
+  client_name: string;
+  client_email: string;
+  client_phone: string | null;
+  client_date_of_birth: string | null;
+  responses: Record<string, unknown>;
+  signature_data: string | null;
+  signature_timestamp: string | null;
+  photo_id_url: string | null;
+  photo_id_verified: boolean;
+  photo_id_verified_at: string | null;
+  age_verified: boolean;
+  age_at_signing: number | null;
+  ip_address: string | null;
+  submitted_at: string;
+  access_token: string;
+  is_voided: boolean;
+  voided_at: string | null;
+  voided_reason: string | null;
+  created_at: string;
+}
+
+export interface ConsentSubmissionsListResponse {
+  submissions: ConsentSubmissionSummary[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface VerifyPhotoIdInput {
+  notes?: string | null;
+}
+
+export interface VerifyPhotoIdResponse {
+  verified: boolean;
+  verified_at: string;
+  verified_by_id: string;
+  verified_by_name: string;
+}
+
+export interface VoidConsentInput {
+  reason: string;
+}
+
+export interface VoidConsentResponse {
+  voided: boolean;
+  voided_at: string;
+  voided_by_id: string;
+  voided_by_name: string;
+  reason: string;
+}
+
+export interface ConsentAuditLog {
+  id: string;
+  submission_id: string;
+  action: ConsentAuditAction;
+  performed_by_id: string | null;
+  performed_by_name: string | null;
+  is_client_access: boolean;
+  ip_address: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface ConsentAuditLogsListResponse {
+  logs: ConsentAuditLog[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface SubmitSigningInput {
+  template_id: string;
+  booking_request_id?: string | null;
+  client_name: string;
+  client_email: string;
+  client_phone?: string | null;
+  client_date_of_birth?: string | null;
+  responses: Record<string, unknown>;
+  signature_data: string;
+  confirms_of_age?: boolean;
+}
+
+export interface SubmitSigningResponse {
+  submission_id: string;
+  access_token: string;
+  message: string;
+}

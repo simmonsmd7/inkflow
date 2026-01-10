@@ -7,6 +7,7 @@ export { Availability } from './Availability';
 export { BookingForm } from './BookingForm';
 export { BookingQueue } from './BookingQueue';
 export { Commissions } from './Commissions';
+export { ConsentForms } from './ConsentForms';
 export { Dashboard } from './Dashboard';
 export { DepositPayment } from './DepositPayment';
 export { ForgotPassword } from './ForgotPassword';

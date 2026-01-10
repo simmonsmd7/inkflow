@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from app.models.availability import ArtistAvailability, ArtistTimeOff
     from app.models.booking import BookingRequest
     from app.models.commission import CommissionRule, EarnedCommission
+    from app.models.consent import ConsentAuditLog, ConsentFormSubmission, ConsentFormTemplate
     from app.models.message import Conversation, Message
     from app.models.studio import Studio
 
@@ -128,6 +129,30 @@ class User(BaseModel, SoftDeleteMixin):
         "EarnedCommission",
         back_populates="artist",
         foreign_keys="EarnedCommission.artist_id",
+        lazy="selectin",
+    )
+    created_consent_templates: Mapped[list["ConsentFormTemplate"]] = relationship(
+        "ConsentFormTemplate",
+        back_populates="created_by",
+        foreign_keys="ConsentFormTemplate.created_by_id",
+        lazy="selectin",
+    )
+    verified_photo_ids: Mapped[list["ConsentFormSubmission"]] = relationship(
+        "ConsentFormSubmission",
+        back_populates="photo_id_verified_by",
+        foreign_keys="ConsentFormSubmission.photo_id_verified_by_id",
+        lazy="selectin",
+    )
+    voided_consent_forms: Mapped[list["ConsentFormSubmission"]] = relationship(
+        "ConsentFormSubmission",
+        back_populates="voided_by",
+        foreign_keys="ConsentFormSubmission.voided_by_id",
+        lazy="selectin",
+    )
+    consent_audit_logs: Mapped[list["ConsentAuditLog"]] = relationship(
+        "ConsentAuditLog",
+        back_populates="performed_by",
+        foreign_keys="ConsentAuditLog.performed_by_id",
         lazy="selectin",
     )
 
