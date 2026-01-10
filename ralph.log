@@ -76,6 +76,33 @@ Changes:
 Status: COMPLETE
 Next: P2.1 - User registration (stub email verification)
 
+=== ITERATION 6 ===
+Date: 2026-01-10
+Task: P2.1 - User registration with email verification stub
+Changes:
+Backend:
+- backend/app/models/user.py: User model with email, password, verification tokens, roles (owner/artist/receptionist)
+- backend/app/schemas/user.py: Pydantic schemas for UserCreate, AuthResponse, MessageResponse, etc.
+- backend/app/services/email.py: Email service with SendGrid integration and console stub for dev mode
+- backend/app/services/auth.py: Auth service with argon2 password hashing, JWT token generation
+- backend/app/routers/auth.py: Auth endpoints (register, verify-email, resend-verification, login)
+- backend/app/main.py: Included auth router
+- Auto-verify users in development mode when SENDGRID_API_KEY is not configured
+
+Frontend:
+- frontend/src/pages/Register.tsx: Registration form with client-side validation
+- frontend/src/pages/Login.tsx: Login page stub
+- frontend/src/pages/Dashboard.tsx: Extracted dashboard from App.tsx
+- frontend/src/services/auth.ts: Auth service for frontend API calls
+- frontend/src/App.tsx: React Router setup with auth and app routes
+- frontend/src/main.tsx: Added BrowserRouter wrapper
+- frontend/src/services/api.ts: Improved error handling for FastAPI validation errors
+
+- Verified: API registration works via curl and direct browser calls
+- Verified: Frontend renders registration form with dark theme styling
+Status: COMPLETE
+Next: P2.2 - Login/logout with JWT tokens
+
 ---
 PROJECT: InkFlow - Tattoo Studio Management Platform
 TARGET: Solo artists and 2-5 artist studios at $29-69/month
