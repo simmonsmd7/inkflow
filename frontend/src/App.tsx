@@ -19,6 +19,7 @@ import {
   Login,
   NoShowTracking,
   PaymentSuccess,
+  PopularTimeSlots,
   Register,
   ResetPassword,
   RevenueReports,
@@ -64,6 +65,7 @@ function App() {
               <Route path="/client-retention" element={<ClientRetention />} />
               <Route path="/revenue-reports" element={<RevenueReports />} />
               <Route path="/no-show-tracking" element={<NoShowTracking />} />
+              <Route path="/popular-time-slots" element={<PopularTimeSlots />} />
               <Route path="/consent" element={<ConsentForms />} />
               <Route path="/aftercare" element={<Aftercare />} />
               <Route path="/settings" element={<StudioSettings />} />

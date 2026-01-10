@@ -20,6 +20,7 @@ export { Inbox } from './Inbox';
 export { Login } from './Login';
 export { default as NoShowTracking } from './NoShowTracking';
 export { PaymentSuccess } from './PaymentSuccess';
+export { default as PopularTimeSlots } from './PopularTimeSlots';
 export { Register } from './Register';
 export { ResetPassword } from './ResetPassword';
 export { default as RevenueReports } from './RevenueReports';

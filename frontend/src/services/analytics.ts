@@ -306,7 +306,7 @@ export async function getTimeSlotAnalytics(
   const params = new URLSearchParams({ range_type: rangeType });
   if (startDate) params.append('start_date', startDate);
   if (endDate) params.append('end_date', endDate);
-  return api.get<TimeSlotAnalyticsResponse>(`/analytics/time-slots?${params}`);
+  return api.get<TimeSlotAnalyticsResponse>(`/api/v1/analytics/time-slots?${params}`);
 }
 
 /**
