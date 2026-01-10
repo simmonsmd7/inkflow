@@ -936,6 +936,123 @@ Powered by InkFlow
             )
         )
 
+    async def send_noshow_notification_email(
+        self,
+        to_email: str,
+        client_name: str,
+        studio_name: str,
+        artist_name: str | None,
+        design_summary: str,
+        scheduled_date: str,
+        deposit_amount: int | None = None,
+        deposit_forfeited: bool = False,
+        notes: str | None = None,
+    ) -> bool:
+        """Send no-show notification email to client."""
+        deposit_section = ""
+        deposit_html = ""
+        if deposit_amount and deposit_amount > 0:
+            deposit_formatted = f"${deposit_amount / 100:.2f}"
+            if deposit_forfeited:
+                deposit_section = f"\nDeposit Status: Your deposit of {deposit_formatted} has been forfeited due to the missed appointment.\n"
+                deposit_html = f"""
+                <div style="background-color: #fef2f2; border-left: 4px solid #dc2626; padding: 15px; margin: 20px 0;">
+                    <p style="margin: 0; color: #991b1b;">
+                        <strong>Deposit Status:</strong> Your deposit of {deposit_formatted} has been forfeited due to the missed appointment.
+                    </p>
+                </div>
+                """
+            else:
+                deposit_section = f"\nDeposit Status: Your deposit of {deposit_formatted} has been retained on file.\n"
+                deposit_html = f"""
+                <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0;">
+                    <p style="margin: 0; color: #92400e;">
+                        <strong>Deposit Status:</strong> Your deposit of {deposit_formatted} has been retained on file.
+                    </p>
+                </div>
+                """
+
+        notes_section = ""
+        notes_html = ""
+        if notes:
+            notes_section = f"\nNote from studio: {notes}\n"
+            notes_html = f"""
+            <div style="background-color: #f5f5f5; padding: 15px; border-radius: 6px; margin: 20px 0;">
+                <p style="margin: 0;"><strong>Note from studio:</strong> {notes}</p>
+            </div>
+            """
+
+        body_text = f"""Hi {client_name},
+
+We noticed you missed your tattoo appointment that was scheduled for {scheduled_date}.
+
+MISSED APPOINTMENT
+------------------
+Date: {scheduled_date}
+Studio: {studio_name}
+{f"Artist: {artist_name}" if artist_name else ""}
+Design: {design_summary[:100]}...
+{deposit_section}{notes_section}
+We understand that things come up unexpectedly. If you'd like to reschedule, please contact us directly.
+
+Please note that repeated no-shows may affect your ability to book future appointments and could result in deposit forfeiture.
+
+Best,
+{studio_name}
+Powered by InkFlow
+"""
+
+        body_html = f"""
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+    <div style="background-color: #dc2626; padding: 20px; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Missed Appointment</h1>
+    </div>
+
+    <div style="padding: 30px;">
+        <p>Hi {client_name},</p>
+        <p>We noticed you missed your tattoo appointment that was scheduled for <strong>{scheduled_date}</strong>.</p>
+
+        <div style="background-color: #f8f8f8; padding: 20px; border-radius: 8px; margin: 25px 0;">
+            <h3 style="margin: 0 0 15px 0; color: #1a1a1a;">Missed Appointment Details</h3>
+            <p style="margin: 5px 0;"><strong>Date:</strong> {scheduled_date}</p>
+            <p style="margin: 5px 0;"><strong>Studio:</strong> {studio_name}</p>
+            {"<p style='margin: 5px 0;'><strong>Artist:</strong> " + artist_name + "</p>" if artist_name else ""}
+            <p style="margin: 15px 0 5px 0;"><strong>Design:</strong> {design_summary[:100]}...</p>
+        </div>
+
+        {deposit_html}
+        {notes_html}
+
+        <div style="background-color: #f0f9ff; border-left: 4px solid #0ea5e9; padding: 15px; margin: 20px 0;">
+            <p style="margin: 0; color: #0369a1;">
+                We understand that things come up unexpectedly. If you'd like to reschedule, please contact us directly.
+            </p>
+        </div>
+
+        <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+
+        <p style="color: #666; font-size: 13px;">
+            Please note that repeated no-shows may affect your ability to book future appointments and could result in deposit forfeiture.
+        </p>
+    </div>
+
+    <div style="background-color: #f5f5f5; padding: 15px; text-align: center;">
+        <p style="color: #999; font-size: 12px; margin: 0;">
+            {studio_name} • Powered by <a href="https://inkflow.io" style="color: #e11d48;">InkFlow</a>
+        </p>
+    </div>
+</div>
+"""
+
+        return await self.send(
+            EmailMessage(
+                to_email=to_email,
+                subject=f"Missed appointment at {studio_name} - {scheduled_date}",
+                body_text=body_text,
+                body_html=body_html,
+            )
+        )
+
 
 # Singleton instance
 email_service = EmailService()

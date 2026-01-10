@@ -31,6 +31,7 @@ class BookingRequestStatus(str, Enum):
     DEPOSIT_PAID = "deposit_paid"
     CONFIRMED = "confirmed"
     COMPLETED = "completed"
+    NO_SHOW = "no_show"
     REJECTED = "rejected"
     CANCELLED = "cancelled"
 
@@ -144,6 +145,11 @@ class BookingRequestResponse(BaseModel):
     original_scheduled_date: datetime | None = None
     last_rescheduled_at: datetime | None = None
     last_reschedule_reason: str | None = None
+
+    # No-show tracking
+    no_show_at: datetime | None = None
+    no_show_marked_by_id: UUID | None = None
+    no_show_notes: str | None = None
 
     # Internal
     internal_notes: str | None = None
@@ -328,3 +334,50 @@ class CancelResponse(BaseModel):
     deposit_forfeited: bool
     deposit_amount: int | None
     notification_sent: bool
+
+
+class MarkNoShowInput(BaseModel):
+    """Input for marking a booking as a no-show."""
+
+    notes: str | None = Field(None, max_length=500, description="Notes about the no-show")
+    forfeit_deposit: bool = Field(
+        default=True, description="Whether to forfeit the client's deposit"
+    )
+    notify_client: bool = Field(
+        default=True, description="Whether to send notification email to client"
+    )
+
+
+class NoShowResponse(BaseModel):
+    """Response after marking a booking as a no-show."""
+
+    message: str
+    request_id: UUID
+    status: str
+    no_show_at: datetime
+    deposit_forfeited: bool
+    deposit_amount: int | None
+    notification_sent: bool
+
+
+class ClientNoShowHistoryItem(BaseModel):
+    """A single no-show record for a client."""
+
+    request_id: UUID
+    scheduled_date: datetime | None
+    no_show_at: datetime
+    deposit_forfeited: bool
+    deposit_amount: int | None
+    design_idea: str
+    studio_id: UUID
+
+
+class ClientNoShowHistory(BaseModel):
+    """No-show history for a client by email."""
+
+    client_email: str
+    total_bookings: int
+    no_show_count: int
+    no_show_rate: float  # Percentage 0-100
+    total_forfeited_deposits: int  # In cents
+    no_shows: list[ClientNoShowHistoryItem]

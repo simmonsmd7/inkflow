@@ -33,8 +33,12 @@ from app.schemas.booking import (
     CancelInput,
     CancelResponse,
     CheckoutSessionResponse,
+    ClientNoShowHistory,
+    ClientNoShowHistoryItem,
     ConfirmBookingInput,
     DepositPaymentInfo,
+    MarkNoShowInput,
+    NoShowResponse,
     ReferenceImageResponse,
     RescheduleInput,
     RescheduleResponse,
@@ -1111,4 +1115,165 @@ async def confirm_stub_payment(
         message="Payment confirmed (stub mode)",
         status="deposit_paid",
         deposit_paid_at=booking.deposit_paid_at,
+    )
+
+
+# ============================================================================
+# NO-SHOW ENDPOINTS (Authenticated - for marking no-shows and tracking)
+# ============================================================================
+
+
+@router.post(
+    "/requests/{request_id}/no-show",
+    response_model=NoShowResponse,
+)
+async def mark_no_show(
+    request_id: uuid.UUID,
+    data: MarkNoShowInput,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> NoShowResponse:
+    """Mark a booking as a no-show when client doesn't show up."""
+    # Get booking request with relationships
+    result = await db.execute(
+        select(BookingRequest)
+        .where(BookingRequest.id == request_id, BookingRequest.deleted_at.is_(None))
+        .options(
+            selectinload(BookingRequest.studio),
+            selectinload(BookingRequest.assigned_artist),
+            selectinload(BookingRequest.preferred_artist),
+        )
+    )
+    booking = result.scalar_one_or_none()
+
+    if not booking:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Booking request not found",
+        )
+
+    # Artists can only mark no-shows for their assigned bookings
+    if current_user.role == UserRole.ARTIST:
+        if booking.assigned_artist_id != current_user.id and booking.preferred_artist_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have access to this booking request",
+            )
+
+    # Can only mark confirmed bookings as no-show
+    if booking.status != BookingRequestStatus.CONFIRMED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot mark booking with status '{booking.status.value}' as no-show. Must be confirmed.",
+        )
+
+    # Update booking
+    now = datetime.now(timezone.utc)
+    booking.status = BookingRequestStatus.NO_SHOW
+    booking.no_show_at = now
+    booking.no_show_marked_by_id = current_user.id
+    booking.no_show_notes = data.notes
+    booking.deposit_forfeited = data.forfeit_deposit
+
+    await db.commit()
+    await db.refresh(booking)
+
+    # Send notification email
+    notification_sent = False
+    if data.notify_client:
+        # Get artist name
+        artist = booking.assigned_artist or booking.preferred_artist
+        artist_name = artist.full_name if artist else None
+
+        # Format scheduled date for email
+        scheduled_date_str = "Not specified"
+        if booking.scheduled_date:
+            scheduled_date_str = booking.scheduled_date.strftime("%B %d, %Y at %I:%M %p")
+
+        # Send email
+        notification_sent = await email_service.send_noshow_notification_email(
+            to_email=booking.client_email,
+            client_name=booking.client_name,
+            studio_name=booking.studio.name,
+            artist_name=artist_name,
+            design_summary=booking.design_idea,
+            scheduled_date=scheduled_date_str,
+            deposit_amount=booking.deposit_amount,
+            deposit_forfeited=data.forfeit_deposit,
+            notes=data.notes,
+        )
+
+    return NoShowResponse(
+        message="Booking marked as no-show",
+        request_id=booking.id,
+        status="no_show",
+        no_show_at=booking.no_show_at,
+        deposit_forfeited=booking.deposit_forfeited,
+        deposit_amount=booking.deposit_amount,
+        notification_sent=notification_sent,
+    )
+
+
+@router.get("/clients/{email}/no-show-history", response_model=ClientNoShowHistory)
+async def get_client_no_show_history(
+    email: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ClientNoShowHistory:
+    """Get no-show history for a client by email address."""
+    # Normalize email
+    email = email.lower().strip()
+
+    # Get total bookings for this client
+    total_result = await db.execute(
+        select(func.count())
+        .select_from(BookingRequest)
+        .where(
+            func.lower(BookingRequest.client_email) == email,
+            BookingRequest.deleted_at.is_(None),
+        )
+    )
+    total_bookings = total_result.scalar() or 0
+
+    # Get no-show bookings
+    noshow_query = (
+        select(BookingRequest)
+        .where(
+            func.lower(BookingRequest.client_email) == email,
+            BookingRequest.status == BookingRequestStatus.NO_SHOW,
+            BookingRequest.deleted_at.is_(None),
+        )
+        .order_by(BookingRequest.no_show_at.desc())
+    )
+    noshow_result = await db.execute(noshow_query)
+    noshow_bookings = noshow_result.scalars().all()
+
+    # Calculate no-show rate and total forfeited deposits
+    no_show_count = len(noshow_bookings)
+    no_show_rate = (no_show_count / total_bookings * 100) if total_bookings > 0 else 0.0
+    total_forfeited = sum(
+        (b.deposit_amount or 0) for b in noshow_bookings if b.deposit_forfeited
+    )
+
+    # Build response
+    no_shows = [
+        ClientNoShowHistoryItem(
+            request_id=b.id,
+            scheduled_date=b.scheduled_date,
+            no_show_at=b.no_show_at or b.updated_at,
+            deposit_forfeited=b.deposit_forfeited,
+            deposit_amount=b.deposit_amount,
+            design_idea=b.design_idea[:100] + "..." if len(b.design_idea) > 100 else b.design_idea,
+            studio_id=b.studio_id,
+        )
+        for b in noshow_bookings
+    ]
+
+    return ClientNoShowHistory(
+        client_email=email,
+        total_bookings=total_bookings,
+        no_show_count=no_show_count,
+        no_show_rate=round(no_show_rate, 1),
+        total_forfeited_deposits=total_forfeited,
+        no_shows=no_shows,
     )

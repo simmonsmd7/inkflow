@@ -32,6 +32,7 @@ class BookingRequestStatus(str, enum.Enum):
     DEPOSIT_PAID = "deposit_paid"  # Deposit received
     CONFIRMED = "confirmed"  # Appointment confirmed
     COMPLETED = "completed"  # Tattoo session completed
+    NO_SHOW = "no_show"  # Client didn't show up
     REJECTED = "rejected"  # Request rejected
     CANCELLED = "cancelled"  # Client cancelled
 
@@ -162,6 +163,17 @@ class BookingRequest(BaseModel, SoftDeleteMixin):
         DateTime(timezone=True), nullable=True
     )
     last_reschedule_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # No-show tracking
+    no_show_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    no_show_marked_by_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    no_show_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Relationships
     studio: Mapped["Studio"] = relationship("Studio", back_populates="booking_requests")

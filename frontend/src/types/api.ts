@@ -332,6 +332,7 @@ export type BookingRequestStatus =
   | 'deposit_paid'
   | 'confirmed'
   | 'completed'
+  | 'no_show'
   | 'rejected'
   | 'cancelled';
 
@@ -522,4 +523,40 @@ export interface CancelResponse {
   deposit_forfeited: boolean;
   deposit_amount: number | null;
   notification_sent: boolean;
+}
+
+// No-show types
+export interface MarkNoShowInput {
+  notes?: string;
+  forfeit_deposit?: boolean;
+  notify_client?: boolean;
+}
+
+export interface NoShowResponse {
+  message: string;
+  request_id: string;
+  status: string;
+  no_show_at: string;
+  deposit_forfeited: boolean;
+  deposit_amount: number | null;
+  notification_sent: boolean;
+}
+
+export interface ClientNoShowHistoryItem {
+  request_id: string;
+  scheduled_date: string | null;
+  no_show_at: string;
+  deposit_forfeited: boolean;
+  deposit_amount: number | null;
+  design_idea: string;
+  studio_id: string;
+}
+
+export interface ClientNoShowHistory {
+  client_email: string;
+  total_bookings: number;
+  no_show_count: number;
+  no_show_rate: number;
+  total_forfeited_deposits: number;
+  no_shows: ClientNoShowHistoryItem[];
 }

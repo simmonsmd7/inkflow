@@ -12,6 +12,7 @@ import {
   confirmBooking,
   rescheduleBooking,
   cancelBooking,
+  markNoShow,
 } from '../services/bookings';
 import type {
   BookingConfirmationResponse,
@@ -21,6 +22,7 @@ import type {
   BookingRequestUpdate,
   CancelledBy,
   CancelResponse,
+  NoShowResponse,
   RescheduleResponse,
   SendDepositRequestResponse,
 } from '../types/api';
@@ -43,6 +45,7 @@ const STATUS_CONFIG: Record<
   deposit_paid: { label: 'Deposit Paid', color: 'text-teal-400', bgColor: 'bg-teal-400/10' },
   confirmed: { label: 'Confirmed', color: 'text-green-400', bgColor: 'bg-green-400/10' },
   completed: { label: 'Completed', color: 'text-ink-400', bgColor: 'bg-ink-400/10' },
+  no_show: { label: 'No-Show', color: 'text-amber-400', bgColor: 'bg-amber-400/10' },
   rejected: { label: 'Rejected', color: 'text-red-400', bgColor: 'bg-red-400/10' },
   cancelled: { label: 'Cancelled', color: 'text-ink-500', bgColor: 'bg-ink-500/10' },
 };
@@ -137,6 +140,16 @@ export function BookingQueue() {
   });
   const [cancelling, setCancelling] = useState(false);
   const [cancelSuccess, setCancelSuccess] = useState<CancelResponse | null>(null);
+
+  // No-show state
+  const [showNoShowModal, setShowNoShowModal] = useState(false);
+  const [noShowData, setNoShowData] = useState({
+    notes: '',
+    forfeit_deposit: true,
+    notify_client: true,
+  });
+  const [markingNoShow, setMarkingNoShow] = useState(false);
+  const [noShowSuccess, setNoShowSuccess] = useState<NoShowResponse | null>(null);
 
   // Check if user has access
   const hasAccess = user && (user.role === 'artist' || user.role === 'owner');
@@ -244,6 +257,13 @@ export function BookingQueue() {
       notify_client: true,
     });
     setCancelSuccess(null);
+    setShowNoShowModal(false);
+    setNoShowData({
+      notes: '',
+      forfeit_deposit: true,
+      notify_client: true,
+    });
+    setNoShowSuccess(null);
   }
 
   function openDepositModal() {
@@ -408,6 +428,39 @@ export function BookingQueue() {
       setModalError(err instanceof Error ? err.message : 'Failed to cancel booking');
     } finally {
       setCancelling(false);
+    }
+  }
+
+  function openNoShowModal() {
+    if (!selectedRequest) return;
+    setNoShowData({
+      notes: '',
+      forfeit_deposit: true,
+      notify_client: true,
+    });
+    setShowNoShowModal(true);
+    setNoShowSuccess(null);
+  }
+
+  async function handleMarkNoShow() {
+    if (!selectedRequest) return;
+    setMarkingNoShow(true);
+    setModalError(null);
+    try {
+      const response = await markNoShow(selectedRequest.id, {
+        notes: noShowData.notes || undefined,
+        forfeit_deposit: noShowData.forfeit_deposit,
+        notify_client: noShowData.notify_client,
+      });
+      setNoShowSuccess(response);
+      // Refresh the selected request
+      const updated = await getBookingRequest(selectedRequest.id);
+      setSelectedRequest(updated);
+      loadRequests();
+    } catch (err) {
+      setModalError(err instanceof Error ? err.message : 'Failed to mark as no-show');
+    } finally {
+      setMarkingNoShow(false);
     }
   }
 
@@ -641,6 +694,7 @@ export function BookingQueue() {
                             'deposit_paid',
                             'confirmed',
                             'completed',
+                            'no_show',
                             'rejected',
                             'cancelled',
                           ] as BookingRequestStatus[]
@@ -890,9 +944,20 @@ export function BookingQueue() {
                           </button>
                         )}
 
-                        {/* Cancel button - show for most statuses except cancelled/completed */}
+                        {/* Mark No-Show button - only show for confirmed bookings */}
+                        {selectedRequest.status === 'confirmed' && (
+                          <button
+                            onClick={openNoShowModal}
+                            className="w-full py-2 mt-2 bg-amber-600 hover:bg-amber-700 text-white font-medium rounded-lg transition-colors"
+                          >
+                            Mark No-Show
+                          </button>
+                        )}
+
+                        {/* Cancel button - show for most statuses except cancelled/completed/no_show */}
                         {selectedRequest.status !== 'cancelled' &&
-                          selectedRequest.status !== 'completed' && (
+                          selectedRequest.status !== 'completed' &&
+                          selectedRequest.status !== 'no_show' && (
                             <button
                               onClick={openCancelModal}
                               className="w-full py-2 mt-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors"
@@ -1650,6 +1715,173 @@ export function BookingQueue() {
                       className="flex-1 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {cancelling ? 'Cancelling...' : 'Cancel Booking'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* No-Show Modal */}
+      {showNoShowModal && selectedRequest && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-ink-900 rounded-lg w-full max-w-md">
+            <div className="border-b border-ink-700 p-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-ink-100">Mark as No-Show</h2>
+              <button
+                onClick={() => setShowNoShowModal(false)}
+                className="p-2 hover:bg-ink-800 rounded-lg transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-4">
+              {noShowSuccess ? (
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg
+                      className="w-8 h-8 text-amber-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                      />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-semibold text-ink-100 mb-2">Marked as No-Show</h3>
+                  <p className="text-ink-400 mb-4">
+                    {noShowSuccess.notification_sent
+                      ? `A no-show notification has been sent to ${selectedRequest.client_email}.`
+                      : 'The booking has been marked as a no-show.'}
+                  </p>
+                  {noShowSuccess.deposit_amount && noShowSuccess.deposit_amount > 0 && (
+                    <div className="bg-ink-800 rounded-lg p-3 text-left">
+                      <p className="text-sm text-ink-400">Deposit:</p>
+                      <p
+                        className={`text-lg font-semibold ${noShowSuccess.deposit_forfeited ? 'text-amber-400' : 'text-green-400'}`}
+                      >
+                        ${(noShowSuccess.deposit_amount / 100).toFixed(2)}
+                        {noShowSuccess.deposit_forfeited ? ' (Forfeited)' : ' (To be refunded)'}
+                      </p>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => {
+                      setShowNoShowModal(false);
+                      closeModal();
+                    }}
+                    className="mt-4 w-full py-2 bg-ink-700 hover:bg-ink-600 text-ink-200 font-medium rounded-lg transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
+                    <p className="text-amber-400 text-sm">
+                      Mark this booking as a no-show? The client did not arrive for their scheduled
+                      appointment.
+                    </p>
+                  </div>
+
+                  {selectedRequest.scheduled_date && (
+                    <div className="bg-ink-800 rounded-lg p-3">
+                      <p className="text-sm text-ink-400">Scheduled Date:</p>
+                      <p className="text-ink-200">{formatDate(selectedRequest.scheduled_date)}</p>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-sm font-medium text-ink-300 mb-1">
+                      Notes (optional)
+                    </label>
+                    <textarea
+                      value={noShowData.notes}
+                      onChange={(e) => setNoShowData((d) => ({ ...d, notes: e.target.value }))}
+                      rows={2}
+                      className="w-full px-3 py-2 bg-ink-800 border border-ink-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent resize-none"
+                      placeholder="Any additional notes about the no-show..."
+                    />
+                  </div>
+
+                  {selectedRequest.deposit_amount && selectedRequest.deposit_amount > 0 && (
+                    <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-3">
+                      <p className="text-orange-400 text-sm mb-2">
+                        This booking has a deposit of{' '}
+                        <strong>${(selectedRequest.deposit_amount / 100).toFixed(2)}</strong>
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="noshow_forfeit_deposit"
+                          checked={noShowData.forfeit_deposit}
+                          onChange={(e) =>
+                            setNoShowData((d) => ({
+                              ...d,
+                              forfeit_deposit: e.target.checked,
+                            }))
+                          }
+                          className="w-4 h-4 rounded border-ink-700 bg-ink-800 text-amber-500 focus:ring-amber-500"
+                        />
+                        <label
+                          htmlFor="noshow_forfeit_deposit"
+                          className="text-sm text-orange-300 cursor-pointer"
+                        >
+                          Forfeit deposit (client will not receive refund)
+                        </label>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="noshow_notify_client"
+                      checked={noShowData.notify_client}
+                      onChange={(e) =>
+                        setNoShowData((d) => ({
+                          ...d,
+                          notify_client: e.target.checked,
+                        }))
+                      }
+                      className="w-4 h-4 rounded border-ink-700 bg-ink-800 text-accent focus:ring-accent"
+                    />
+                    <label
+                      htmlFor="noshow_notify_client"
+                      className="text-sm text-ink-300 cursor-pointer"
+                    >
+                      Send no-show notification email
+                    </label>
+                  </div>
+
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      onClick={() => setShowNoShowModal(false)}
+                      className="flex-1 py-2 bg-ink-700 hover:bg-ink-600 text-ink-200 font-medium rounded-lg transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleMarkNoShow}
+                      disabled={markingNoShow}
+                      className="flex-1 py-2 bg-amber-600 hover:bg-amber-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {markingNoShow ? 'Marking...' : 'Mark No-Show'}
                     </button>
                   </div>
                 </div>
