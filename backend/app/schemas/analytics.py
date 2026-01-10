@@ -196,3 +196,101 @@ class TimeSlotAnalyticsResponse(BaseModel):
     busiest_hour: int
     quietest_day: str
     quietest_hour: int
+
+
+# ========== Artist Performance Schemas ==========
+
+
+class ArtistRevenueBreakdown(BaseModel):
+    """Revenue breakdown for an artist."""
+
+    service_revenue: int = Field(description="Total service revenue in cents")
+    tips: int = Field(description="Total tips received in cents")
+    commission_earned: int = Field(description="Commission earned in cents")
+    average_per_booking: int = Field(description="Average revenue per booking in cents")
+
+
+class ArtistBookingStats(BaseModel):
+    """Booking statistics for an artist."""
+
+    total_requests: int = Field(description="Total booking requests assigned")
+    completed: int = Field(description="Completed bookings")
+    confirmed: int = Field(description="Confirmed upcoming bookings")
+    cancelled: int = Field(description="Cancelled bookings")
+    no_shows: int = Field(description="No-show count")
+    completion_rate: float = Field(description="Completion rate percentage")
+
+
+class ArtistSpecialtyStats(BaseModel):
+    """Statistics for an artist's specialties."""
+
+    placement_breakdown: dict[str, int] = Field(description="Bookings by body placement")
+    size_breakdown: dict[str, int] = Field(description="Bookings by tattoo size")
+    top_placements: list[str] = Field(description="Top 3 most popular placements")
+
+
+class ArtistTimeStats(BaseModel):
+    """Time-based statistics for an artist."""
+
+    total_hours_booked: float = Field(description="Total hours of bookings")
+    average_duration: float = Field(description="Average booking duration in hours")
+    busiest_day: str = Field(description="Day with most bookings")
+    busiest_hour: int = Field(description="Hour with most bookings")
+    utilization_rate: float = Field(description="Percentage of available time booked")
+
+
+class MonthlyPerformance(BaseModel):
+    """Monthly performance data point."""
+
+    month: str = Field(description="Month in YYYY-MM format")
+    revenue: int = Field(description="Revenue in cents")
+    bookings: int = Field(description="Number of bookings")
+    tips: int = Field(description="Tips in cents")
+
+
+class ArtistDetailedPerformance(BaseModel):
+    """Detailed performance metrics for a single artist."""
+
+    artist_id: str
+    artist_name: str
+    artist_email: str
+    profile_image: Optional[str] = None
+    specialties: list[str] = []
+    bio: Optional[str] = None
+
+    # Summary metrics
+    revenue: ArtistRevenueBreakdown
+    bookings: ArtistBookingStats
+    specialties_stats: ArtistSpecialtyStats
+    time_stats: ArtistTimeStats
+
+    # Trend data
+    monthly_performance: list[MonthlyPerformance] = []
+
+    # Client metrics
+    total_clients: int = Field(description="Total unique clients served")
+    returning_clients: int = Field(description="Clients with repeat bookings")
+    client_retention_rate: float = Field(description="Percentage of returning clients")
+
+
+class ArtistPerformanceListItem(BaseModel):
+    """Artist performance item for list view."""
+
+    artist_id: str
+    artist_name: str
+    profile_image: Optional[str] = None
+    completed_bookings: int
+    total_revenue: int
+    total_tips: int
+    commission_earned: int
+    no_show_count: int
+    completion_rate: float
+    utilization_rate: float
+
+
+class ArtistPerformanceListResponse(BaseModel):
+    """Response for artist performance list."""
+
+    artists: list[ArtistPerformanceListItem]
+    total_artists: int
+    period_label: str

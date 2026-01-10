@@ -19,13 +19,21 @@ from app.models import (
 )
 from app.models.consent import ConsentFormSubmission
 from app.schemas.analytics import (
+    ArtistBookingStats,
+    ArtistDetailedPerformance,
+    ArtistPerformanceListItem,
+    ArtistPerformanceListResponse,
     ArtistPerformanceSummary,
+    ArtistRevenueBreakdown,
+    ArtistSpecialtyStats,
+    ArtistTimeStats,
     BookingAnalyticsResponse,
     BookingMetrics,
     BookingStatusBreakdown,
     ClientRetentionMetrics,
     DashboardResponse,
     DashboardStats,
+    MonthlyPerformance,
     NoShowMetrics,
     OccupancyMetrics,
     PopularTimeSlot,
@@ -36,6 +44,7 @@ from app.schemas.analytics import (
     TimeSlotAnalyticsResponse,
     UpcomingAppointment,
 )
+from app.models.artist import ArtistProfile
 from app.services.auth import get_current_user, require_role
 
 router = APIRouter(prefix="/analytics", tags=["Analytics"])
@@ -977,4 +986,457 @@ async def get_time_slot_analytics(
         busiest_hour=busiest_hour,
         quietest_day=quietest_day,
         quietest_hour=quietest_hour,
+    )
+
+
+@router.get("/artists", response_model=ArtistPerformanceListResponse)
+async def get_artist_performance_list(
+    range_type: str = Query("month", description="Time range: today, week, month, quarter, year, custom"),
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get performance metrics for all artists."""
+    start_dt, end_dt = get_date_range(range_type, start_date, end_date)
+
+    # Get user's studio
+    studio_result = await db.execute(
+        select(Studio).where(Studio.owner_id == current_user.id)
+    )
+    studio = studio_result.scalar_one_or_none()
+    studio_id = studio.id if studio else None
+
+    # Get all active artists
+    artists_result = await db.execute(
+        select(User).where(
+            and_(
+                User.role == "artist",
+                User.is_active == True,
+                User.is_deleted == False,
+            )
+        )
+    )
+    artists = artists_result.scalars().all()
+
+    # Calculate period label
+    if range_type == "today":
+        period_label = "Today"
+    elif range_type == "week":
+        period_label = "This Week"
+    elif range_type == "month":
+        period_label = "This Month"
+    elif range_type == "quarter":
+        period_label = "This Quarter"
+    elif range_type == "year":
+        period_label = "This Year"
+    else:
+        period_label = f"{start_date} - {end_date}"
+
+    artist_items = []
+    for artist in artists:
+        # Get profile image
+        profile_result = await db.execute(
+            select(ArtistProfile).where(ArtistProfile.user_id == artist.id)
+        )
+        profile = profile_result.scalar_one_or_none()
+        profile_image = profile.profile_image_url if profile else None
+
+        # Revenue and commission data
+        commission_result = await db.execute(
+            select(
+                func.coalesce(func.sum(EarnedCommission.service_total), 0).label("revenue"),
+                func.coalesce(func.sum(EarnedCommission.tips_amount), 0).label("tips"),
+                func.coalesce(func.sum(EarnedCommission.commission_amount), 0).label("commission"),
+                func.count(EarnedCommission.id).label("completed"),
+            ).where(
+                and_(
+                    EarnedCommission.artist_id == artist.id,
+                    EarnedCommission.completed_at >= start_dt,
+                    EarnedCommission.completed_at <= end_dt,
+                    EarnedCommission.studio_id == studio_id if studio_id else True,
+                )
+            )
+        )
+        commission_row = commission_result.one()
+
+        # No-show count
+        no_show_result = await db.execute(
+            select(func.count(BookingRequest.id)).where(
+                and_(
+                    BookingRequest.assigned_artist_id == artist.id,
+                    BookingRequest.status == BookingRequestStatus.NO_SHOW,
+                    BookingRequest.no_show_at >= start_dt,
+                    BookingRequest.no_show_at <= end_dt,
+                )
+            )
+        )
+        no_shows = no_show_result.scalar() or 0
+
+        # Calculate completion rate
+        confirmed_result = await db.execute(
+            select(func.count(BookingRequest.id)).where(
+                and_(
+                    BookingRequest.assigned_artist_id == artist.id,
+                    BookingRequest.status.in_([
+                        BookingRequestStatus.CONFIRMED,
+                        BookingRequestStatus.COMPLETED,
+                        BookingRequestStatus.NO_SHOW,
+                    ]),
+                    BookingRequest.created_at >= start_dt,
+                    BookingRequest.created_at <= end_dt,
+                )
+            )
+        )
+        total_confirmed = confirmed_result.scalar() or 0
+        completion_rate = ((commission_row.completed / total_confirmed) * 100) if total_confirmed > 0 else 0
+
+        # Calculate utilization rate
+        booked_hours_result = await db.execute(
+            select(func.coalesce(func.sum(BookingRequest.scheduled_duration_hours), 0)).where(
+                and_(
+                    BookingRequest.assigned_artist_id == artist.id,
+                    BookingRequest.status.in_([
+                        BookingRequestStatus.CONFIRMED,
+                        BookingRequestStatus.COMPLETED,
+                    ]),
+                    BookingRequest.scheduled_date >= start_dt,
+                    BookingRequest.scheduled_date <= end_dt,
+                )
+            )
+        )
+        booked_hours = float(booked_hours_result.scalar() or 0)
+
+        # Calculate available hours (8 hours/day, 5 days/week estimate)
+        days_in_period = (end_dt.date() - start_dt.date()).days + 1
+        business_days = int(days_in_period * 5 / 7)
+        available_hours = business_days * 8
+        utilization_rate = (booked_hours / available_hours * 100) if available_hours > 0 else 0
+
+        artist_items.append(
+            ArtistPerformanceListItem(
+                artist_id=str(artist.id),
+                artist_name=f"{artist.first_name} {artist.last_name}",
+                profile_image=profile_image,
+                completed_bookings=commission_row.completed,
+                total_revenue=commission_row.revenue,
+                total_tips=commission_row.tips,
+                commission_earned=commission_row.commission,
+                no_show_count=no_shows,
+                completion_rate=round(completion_rate, 1),
+                utilization_rate=round(utilization_rate, 1),
+            )
+        )
+
+    # Sort by revenue descending
+    artist_items.sort(key=lambda x: x.total_revenue, reverse=True)
+
+    return ArtistPerformanceListResponse(
+        artists=artist_items,
+        total_artists=len(artist_items),
+        period_label=period_label,
+    )
+
+
+@router.get("/artists/{artist_id}", response_model=ArtistDetailedPerformance)
+async def get_artist_detailed_performance(
+    artist_id: str,
+    range_type: str = Query("month", description="Time range: today, week, month, quarter, year, custom"),
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get detailed performance metrics for a specific artist."""
+    from uuid import UUID
+
+    start_dt, end_dt = get_date_range(range_type, start_date, end_date)
+
+    # Get user's studio
+    studio_result = await db.execute(
+        select(Studio).where(Studio.owner_id == current_user.id)
+    )
+    studio = studio_result.scalar_one_or_none()
+    studio_id = studio.id if studio else None
+
+    # Get artist
+    artist_result = await db.execute(
+        select(User).where(User.id == UUID(artist_id))
+    )
+    artist = artist_result.scalar_one_or_none()
+    if not artist:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Artist not found")
+
+    # Get artist profile
+    profile_result = await db.execute(
+        select(ArtistProfile).where(ArtistProfile.user_id == artist.id)
+    )
+    profile = profile_result.scalar_one_or_none()
+
+    # === REVENUE BREAKDOWN ===
+    revenue_result = await db.execute(
+        select(
+            func.coalesce(func.sum(EarnedCommission.service_total), 0).label("revenue"),
+            func.coalesce(func.sum(EarnedCommission.tips_amount), 0).label("tips"),
+            func.coalesce(func.sum(EarnedCommission.commission_amount), 0).label("commission"),
+            func.count(EarnedCommission.id).label("completed"),
+        ).where(
+            and_(
+                EarnedCommission.artist_id == artist.id,
+                EarnedCommission.completed_at >= start_dt,
+                EarnedCommission.completed_at <= end_dt,
+                EarnedCommission.studio_id == studio_id if studio_id else True,
+            )
+        )
+    )
+    rev_row = revenue_result.one()
+    avg_per_booking = (rev_row.revenue // rev_row.completed) if rev_row.completed > 0 else 0
+
+    revenue = ArtistRevenueBreakdown(
+        service_revenue=rev_row.revenue,
+        tips=rev_row.tips,
+        commission_earned=rev_row.commission,
+        average_per_booking=avg_per_booking,
+    )
+
+    # === BOOKING STATS ===
+    # Total requests assigned
+    total_requests_result = await db.execute(
+        select(func.count(BookingRequest.id)).where(
+            and_(
+                BookingRequest.assigned_artist_id == artist.id,
+                BookingRequest.created_at >= start_dt,
+                BookingRequest.created_at <= end_dt,
+            )
+        )
+    )
+    total_requests = total_requests_result.scalar() or 0
+
+    # Confirmed (upcoming)
+    confirmed_result = await db.execute(
+        select(func.count(BookingRequest.id)).where(
+            and_(
+                BookingRequest.assigned_artist_id == artist.id,
+                BookingRequest.status == BookingRequestStatus.CONFIRMED,
+                BookingRequest.scheduled_date >= datetime.now(),
+            )
+        )
+    )
+    confirmed = confirmed_result.scalar() or 0
+
+    # Cancelled
+    cancelled_result = await db.execute(
+        select(func.count(BookingRequest.id)).where(
+            and_(
+                BookingRequest.assigned_artist_id == artist.id,
+                BookingRequest.status == BookingRequestStatus.CANCELLED,
+                BookingRequest.cancelled_at >= start_dt,
+                BookingRequest.cancelled_at <= end_dt,
+            )
+        )
+    )
+    cancelled = cancelled_result.scalar() or 0
+
+    # No-shows
+    no_show_result = await db.execute(
+        select(func.count(BookingRequest.id)).where(
+            and_(
+                BookingRequest.assigned_artist_id == artist.id,
+                BookingRequest.status == BookingRequestStatus.NO_SHOW,
+                BookingRequest.no_show_at >= start_dt,
+                BookingRequest.no_show_at <= end_dt,
+            )
+        )
+    )
+    no_shows = no_show_result.scalar() or 0
+
+    # Completion rate
+    total_for_rate = rev_row.completed + no_shows
+    completion_rate = (rev_row.completed / total_for_rate * 100) if total_for_rate > 0 else 0
+
+    bookings = ArtistBookingStats(
+        total_requests=total_requests,
+        completed=rev_row.completed,
+        confirmed=confirmed,
+        cancelled=cancelled,
+        no_shows=no_shows,
+        completion_rate=round(completion_rate, 1),
+    )
+
+    # === SPECIALTY STATS ===
+    # Placement breakdown
+    placement_result = await db.execute(
+        select(
+            BookingRequest.placement,
+            func.count(BookingRequest.id).label("count"),
+        ).where(
+            and_(
+                BookingRequest.assigned_artist_id == artist.id,
+                BookingRequest.status == BookingRequestStatus.COMPLETED,
+                BookingRequest.placement.isnot(None),
+            )
+        ).group_by(BookingRequest.placement)
+        .order_by(func.count(BookingRequest.id).desc())
+    )
+    placement_data = placement_result.all()
+    placement_breakdown = {row.placement: row.count for row in placement_data}
+    top_placements = [row.placement for row in placement_data[:3]]
+
+    # Size breakdown
+    size_result = await db.execute(
+        select(
+            BookingRequest.size,
+            func.count(BookingRequest.id).label("count"),
+        ).where(
+            and_(
+                BookingRequest.assigned_artist_id == artist.id,
+                BookingRequest.status == BookingRequestStatus.COMPLETED,
+                BookingRequest.size.isnot(None),
+            )
+        ).group_by(BookingRequest.size)
+    )
+    size_breakdown = {row.size.value if row.size else "unknown": row.count for row in size_result.all()}
+
+    specialties_stats = ArtistSpecialtyStats(
+        placement_breakdown=placement_breakdown,
+        size_breakdown=size_breakdown,
+        top_placements=top_placements,
+    )
+
+    # === TIME STATS ===
+    # Total hours booked
+    hours_result = await db.execute(
+        select(func.coalesce(func.sum(BookingRequest.scheduled_duration_hours), 0)).where(
+            and_(
+                BookingRequest.assigned_artist_id == artist.id,
+                BookingRequest.status.in_([
+                    BookingRequestStatus.CONFIRMED,
+                    BookingRequestStatus.COMPLETED,
+                ]),
+                BookingRequest.scheduled_date >= start_dt,
+                BookingRequest.scheduled_date <= end_dt,
+            )
+        )
+    )
+    total_hours = float(hours_result.scalar() or 0)
+    avg_duration = total_hours / rev_row.completed if rev_row.completed > 0 else 0
+
+    # Busiest day/hour
+    day_hour_result = await db.execute(
+        select(
+            func.extract("dow", BookingRequest.scheduled_date).label("day"),
+            func.extract("hour", BookingRequest.scheduled_date).label("hour"),
+            func.count(BookingRequest.id).label("count"),
+        ).where(
+            and_(
+                BookingRequest.assigned_artist_id == artist.id,
+                BookingRequest.scheduled_date.isnot(None),
+                BookingRequest.status.in_([
+                    BookingRequestStatus.CONFIRMED,
+                    BookingRequestStatus.COMPLETED,
+                ]),
+            )
+        ).group_by(
+            func.extract("dow", BookingRequest.scheduled_date),
+            func.extract("hour", BookingRequest.scheduled_date),
+        )
+    )
+    day_hour_data = day_hour_result.all()
+
+    day_names = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    day_totals: dict[int, int] = {}
+    hour_totals: dict[int, int] = {}
+    for row in day_hour_data:
+        if row.day is not None:
+            day_totals[int(row.day)] = day_totals.get(int(row.day), 0) + row.count
+        if row.hour is not None:
+            hour_totals[int(row.hour)] = hour_totals.get(int(row.hour), 0) + row.count
+
+    busiest_day = day_names[max(day_totals, key=day_totals.get)] if day_totals else "N/A"
+    busiest_hour = max(hour_totals, key=hour_totals.get) if hour_totals else 12
+
+    # Utilization rate
+    days_in_period = (end_dt.date() - start_dt.date()).days + 1
+    business_days = int(days_in_period * 5 / 7)
+    available_hours = business_days * 8
+    utilization_rate = (total_hours / available_hours * 100) if available_hours > 0 else 0
+
+    time_stats = ArtistTimeStats(
+        total_hours_booked=round(total_hours, 1),
+        average_duration=round(avg_duration, 1),
+        busiest_day=busiest_day,
+        busiest_hour=busiest_hour,
+        utilization_rate=round(utilization_rate, 1),
+    )
+
+    # === MONTHLY PERFORMANCE ===
+    monthly_result = await db.execute(
+        select(
+            func.to_char(EarnedCommission.completed_at, 'YYYY-MM').label("month"),
+            func.coalesce(func.sum(EarnedCommission.service_total), 0).label("revenue"),
+            func.count(EarnedCommission.id).label("bookings"),
+            func.coalesce(func.sum(EarnedCommission.tips_amount), 0).label("tips"),
+        ).where(
+            and_(
+                EarnedCommission.artist_id == artist.id,
+                EarnedCommission.studio_id == studio_id if studio_id else True,
+            )
+        ).group_by(func.to_char(EarnedCommission.completed_at, 'YYYY-MM'))
+        .order_by(func.to_char(EarnedCommission.completed_at, 'YYYY-MM').desc())
+        .limit(12)
+    )
+    monthly_performance = [
+        MonthlyPerformance(
+            month=row.month,
+            revenue=row.revenue,
+            bookings=row.bookings,
+            tips=row.tips,
+        )
+        for row in monthly_result.all()
+    ]
+    monthly_performance.reverse()  # Show oldest first
+
+    # === CLIENT METRICS ===
+    # Total unique clients
+    total_clients_result = await db.execute(
+        select(func.count(func.distinct(BookingRequest.client_email))).where(
+            and_(
+                BookingRequest.assigned_artist_id == artist.id,
+                BookingRequest.status == BookingRequestStatus.COMPLETED,
+            )
+        )
+    )
+    total_clients = total_clients_result.scalar() or 0
+
+    # Returning clients
+    returning_result = await db.execute(
+        select(func.count(BookingRequest.client_email))
+        .where(
+            and_(
+                BookingRequest.assigned_artist_id == artist.id,
+                BookingRequest.status == BookingRequestStatus.COMPLETED,
+            )
+        )
+        .group_by(BookingRequest.client_email)
+        .having(func.count(BookingRequest.id) > 1)
+    )
+    returning_clients = len(returning_result.all())
+    retention_rate = (returning_clients / total_clients * 100) if total_clients > 0 else 0
+
+    return ArtistDetailedPerformance(
+        artist_id=str(artist.id),
+        artist_name=f"{artist.first_name} {artist.last_name}",
+        artist_email=artist.email,
+        profile_image=profile.profile_image_url if profile else None,
+        specialties=profile.specialties if profile and profile.specialties else [],
+        bio=profile.bio if profile else None,
+        revenue=revenue,
+        bookings=bookings,
+        specialties_stats=specialties_stats,
+        time_stats=time_stats,
+        monthly_performance=monthly_performance,
+        total_clients=total_clients,
+        returning_clients=returning_clients,
+        client_retention_rate=round(retention_rate, 1),
     )

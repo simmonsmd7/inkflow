@@ -3,6 +3,7 @@
  */
 
 export { Aftercare } from './Aftercare';
+export { ArtistPerformance } from './ArtistPerformance';
 export { ArtistProfile } from './ArtistProfile';
 export { Availability } from './Availability';
 export { BookingForm } from './BookingForm';

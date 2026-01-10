@@ -4,7 +4,7 @@ import secrets
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -1730,7 +1730,7 @@ async def upload_healing_issue_photo(
 async def upload_healing_photo(
     issue_id: str,
     access_token: str = Query(..., description="Aftercare access token"),
-    file: "UploadFile" = None,
+    file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -1739,7 +1739,6 @@ async def upload_healing_photo(
     Accepts image files (JPEG, PNG, WebP) up to 10MB.
     Photos are stored securely and linked to the healing issue.
     """
-    from fastapi import UploadFile, File
     import os
     import uuid as uuid_module
 

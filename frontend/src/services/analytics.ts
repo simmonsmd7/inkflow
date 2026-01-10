@@ -155,13 +155,88 @@ export interface TimeSlotAnalyticsResponse {
   quietest_hour: number;
 }
 
+// Artist Performance Types
+
+export interface ArtistRevenueBreakdown {
+  service_revenue: number;
+  tips: number;
+  commission_earned: number;
+  average_per_booking: number;
+}
+
+export interface ArtistBookingStats {
+  total_requests: number;
+  completed: number;
+  confirmed: number;
+  cancelled: number;
+  no_shows: number;
+  completion_rate: number;
+}
+
+export interface ArtistSpecialtyStats {
+  placement_breakdown: Record<string, number>;
+  size_breakdown: Record<string, number>;
+  top_placements: string[];
+}
+
+export interface ArtistTimeStats {
+  total_hours_booked: number;
+  average_duration: number;
+  busiest_day: string;
+  busiest_hour: number;
+  utilization_rate: number;
+}
+
+export interface MonthlyPerformance {
+  month: string;
+  revenue: number;
+  bookings: number;
+  tips: number;
+}
+
+export interface ArtistDetailedPerformance {
+  artist_id: string;
+  artist_name: string;
+  artist_email: string;
+  profile_image: string | null;
+  specialties: string[];
+  bio: string | null;
+  revenue: ArtistRevenueBreakdown;
+  bookings: ArtistBookingStats;
+  specialties_stats: ArtistSpecialtyStats;
+  time_stats: ArtistTimeStats;
+  monthly_performance: MonthlyPerformance[];
+  total_clients: number;
+  returning_clients: number;
+  client_retention_rate: number;
+}
+
+export interface ArtistPerformanceListItem {
+  artist_id: string;
+  artist_name: string;
+  profile_image: string | null;
+  completed_bookings: number;
+  total_revenue: number;
+  total_tips: number;
+  commission_earned: number;
+  no_show_count: number;
+  completion_rate: number;
+  utilization_rate: number;
+}
+
+export interface ArtistPerformanceListResponse {
+  artists: ArtistPerformanceListItem[];
+  total_artists: number;
+  period_label: string;
+}
+
 // API functions
 
 /**
  * Get main dashboard data.
  */
 export async function getDashboard(): Promise<DashboardResponse> {
-  return api.get<DashboardResponse>('/analytics/dashboard');
+  return api.get<DashboardResponse>('/api/v1/analytics/dashboard');
 }
 
 /**
@@ -232,6 +307,35 @@ export async function getTimeSlotAnalytics(
   if (startDate) params.append('start_date', startDate);
   if (endDate) params.append('end_date', endDate);
   return api.get<TimeSlotAnalyticsResponse>(`/analytics/time-slots?${params}`);
+}
+
+/**
+ * Get artist performance list.
+ */
+export async function getArtistPerformanceList(
+  rangeType: TimeRange = 'month',
+  startDate?: string,
+  endDate?: string
+): Promise<ArtistPerformanceListResponse> {
+  const params = new URLSearchParams({ range_type: rangeType });
+  if (startDate) params.append('start_date', startDate);
+  if (endDate) params.append('end_date', endDate);
+  return api.get<ArtistPerformanceListResponse>(`/analytics/artists?${params}`);
+}
+
+/**
+ * Get detailed performance for a specific artist.
+ */
+export async function getArtistDetailedPerformance(
+  artistId: string,
+  rangeType: TimeRange = 'month',
+  startDate?: string,
+  endDate?: string
+): Promise<ArtistDetailedPerformance> {
+  const params = new URLSearchParams({ range_type: rangeType });
+  if (startDate) params.append('start_date', startDate);
+  if (endDate) params.append('end_date', endDate);
+  return api.get<ArtistDetailedPerformance>(`/analytics/artists/${artistId}?${params}`);
 }
 
 // Helper functions
