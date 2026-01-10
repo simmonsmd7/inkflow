@@ -1703,3 +1703,112 @@ export interface ClientTouchUpRequestResponse {
   studio_name: string;
   expected_contact_within: string;
 }
+
+// ============ Revenue Report Types ============
+
+export interface RevenueByCategory {
+  category: string;
+  revenue: number;
+  count: number;
+  percentage: number;
+}
+
+export interface RevenueByArtist {
+  artist_id: string;
+  artist_name: string;
+  revenue: number;
+  tips: number;
+  bookings: number;
+  percentage: number;
+}
+
+export interface RevenueByDay {
+  date: string;
+  day_name: string;
+  revenue: number;
+  tips: number;
+  deposits: number;
+  bookings: number;
+  average_booking: number;
+}
+
+export interface RevenueByWeek {
+  week_start: string;
+  week_end: string;
+  week_number: number;
+  revenue: number;
+  tips: number;
+  deposits: number;
+  bookings: number;
+  average_booking: number;
+  change_from_previous: number | null;
+}
+
+export interface RevenueByMonth {
+  month: string;
+  month_name: string;
+  revenue: number;
+  tips: number;
+  deposits: number;
+  bookings: number;
+  average_booking: number;
+  change_from_previous: number | null;
+}
+
+export interface RevenueSummary {
+  total_revenue: number;
+  total_tips: number;
+  total_deposits: number;
+  total_bookings: number;
+  average_booking_value: number;
+  highest_day: string | null;
+  highest_day_revenue: number;
+  lowest_day: string | null;
+  lowest_day_revenue: number;
+}
+
+export interface DailyRevenueReportResponse {
+  report_type: 'daily';
+  period_start: string;
+  period_end: string;
+  summary: RevenueSummary;
+  daily_data: RevenueByDay[];
+  by_artist: RevenueByArtist[];
+  by_size: RevenueByCategory[];
+  by_placement: RevenueByCategory[];
+}
+
+export interface WeeklyRevenueReportResponse {
+  report_type: 'weekly';
+  period_start: string;
+  period_end: string;
+  summary: RevenueSummary;
+  weekly_data: RevenueByWeek[];
+  by_artist: RevenueByArtist[];
+}
+
+export interface MonthlyRevenueReportResponse {
+  report_type: 'monthly';
+  period_start: string;
+  period_end: string;
+  summary: RevenueSummary;
+  monthly_data: RevenueByMonth[];
+  by_artist: RevenueByArtist[];
+}
+
+export interface CustomRevenueReportResponse {
+  report_type: 'custom';
+  period_start: string;
+  period_end: string;
+  summary: RevenueSummary;
+  daily_data: RevenueByDay[];
+  by_artist: RevenueByArtist[];
+  by_size: RevenueByCategory[];
+  by_placement: RevenueByCategory[];
+}
+
+export type RevenueReportResponse =
+  | DailyRevenueReportResponse
+  | WeeklyRevenueReportResponse
+  | MonthlyRevenueReportResponse
+  | CustomRevenueReportResponse;

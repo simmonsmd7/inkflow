@@ -31,18 +31,28 @@ from app.schemas.analytics import (
     BookingMetrics,
     BookingStatusBreakdown,
     ClientRetentionMetrics,
+    CustomRevenueReportResponse,
+    DailyRevenueReportResponse,
     DashboardResponse,
     DashboardStats,
     MonthlyPerformance,
+    MonthlyRevenueReportResponse,
     NoShowMetrics,
     OccupancyMetrics,
     PopularTimeSlot,
     RecentActivity,
+    RevenueByArtist,
+    RevenueByCategory,
+    RevenueByDay,
+    RevenueByMonth,
+    RevenueByWeek,
     RevenueChartData,
     RevenueChartResponse,
     RevenueMetrics,
+    RevenueSummary,
     TimeSlotAnalyticsResponse,
     UpcomingAppointment,
+    WeeklyRevenueReportResponse,
 )
 from app.models.artist import ArtistProfile
 from app.services.auth import get_current_user, require_role
@@ -1439,4 +1449,612 @@ async def get_artist_detailed_performance(
         total_clients=total_clients,
         returning_clients=returning_clients,
         client_retention_rate=round(retention_rate, 1),
+    )
+
+
+# ========== Revenue Report Endpoints ==========
+
+
+async def _get_studio_for_user(db: AsyncSession, user: User):
+    """Helper to get studio for current user."""
+    studio_result = await db.execute(
+        select(Studio).where(Studio.owner_id == user.id)
+    )
+    return studio_result.scalar_one_or_none()
+
+
+async def _get_revenue_by_artist(
+    db: AsyncSession, start_dt: datetime, end_dt: datetime, studio_id
+) -> list[RevenueByArtist]:
+    """Get revenue breakdown by artist."""
+    result = await db.execute(
+        select(
+            EarnedCommission.artist_id,
+            func.coalesce(func.sum(EarnedCommission.service_total), 0).label("revenue"),
+            func.coalesce(func.sum(EarnedCommission.tips_amount), 0).label("tips"),
+            func.count(EarnedCommission.id).label("bookings"),
+        )
+        .where(
+            and_(
+                EarnedCommission.completed_at >= start_dt,
+                EarnedCommission.completed_at <= end_dt,
+                EarnedCommission.studio_id == studio_id if studio_id else True,
+            )
+        )
+        .group_by(EarnedCommission.artist_id)
+        .order_by(func.sum(EarnedCommission.service_total).desc())
+    )
+    rows = result.all()
+
+    # Get total for percentage calculation
+    total_revenue = sum(row.revenue for row in rows)
+
+    artist_data = []
+    for row in rows:
+        # Get artist name
+        artist_result = await db.execute(
+            select(User).where(User.id == row.artist_id)
+        )
+        artist = artist_result.scalar_one_or_none()
+        if artist:
+            artist_data.append(
+                RevenueByArtist(
+                    artist_id=str(row.artist_id),
+                    artist_name=f"{artist.first_name} {artist.last_name}",
+                    revenue=row.revenue,
+                    tips=row.tips,
+                    bookings=row.bookings,
+                    percentage=round((row.revenue / total_revenue * 100) if total_revenue > 0 else 0, 1),
+                )
+            )
+
+    return artist_data
+
+
+async def _get_revenue_by_category(
+    db: AsyncSession,
+    start_dt: datetime,
+    end_dt: datetime,
+    studio_id,
+    category_type: str,
+) -> list[RevenueByCategory]:
+    """Get revenue breakdown by category (size or placement)."""
+    if category_type == "size":
+        group_col = BookingRequest.size
+    else:
+        group_col = BookingRequest.placement
+
+    result = await db.execute(
+        select(
+            group_col.label("category"),
+            func.coalesce(func.sum(BookingRequest.quoted_price), 0).label("revenue"),
+            func.count(BookingRequest.id).label("count"),
+        )
+        .where(
+            and_(
+                BookingRequest.status == BookingRequestStatus.COMPLETED,
+                BookingRequest.updated_at >= start_dt,
+                BookingRequest.updated_at <= end_dt,
+                BookingRequest.studio_id == studio_id if studio_id else True,
+                group_col.isnot(None),
+            )
+        )
+        .group_by(group_col)
+        .order_by(func.sum(BookingRequest.quoted_price).desc())
+    )
+    rows = result.all()
+
+    total_revenue = sum(row.revenue for row in rows)
+
+    return [
+        RevenueByCategory(
+            category=row.category.value if hasattr(row.category, 'value') else str(row.category),
+            revenue=row.revenue,
+            count=row.count,
+            percentage=round((row.revenue / total_revenue * 100) if total_revenue > 0 else 0, 1),
+        )
+        for row in rows
+    ]
+
+
+@router.get("/reports/daily", response_model=DailyRevenueReportResponse)
+async def get_daily_revenue_report(
+    start_date: date = Query(description="Start date for the report"),
+    end_date: date = Query(description="End date for the report"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role(["owner"])),
+):
+    """Get daily revenue report for a date range."""
+    start_dt = datetime.combine(start_date, datetime.min.time())
+    end_dt = datetime.combine(end_date, datetime.max.time())
+
+    studio = await _get_studio_for_user(db, current_user)
+    studio_id = studio.id if studio else None
+
+    # Get daily revenue data
+    result = await db.execute(
+        select(
+            func.date(EarnedCommission.completed_at).label("date"),
+            func.coalesce(func.sum(EarnedCommission.service_total), 0).label("revenue"),
+            func.coalesce(func.sum(EarnedCommission.tips_amount), 0).label("tips"),
+            func.count(EarnedCommission.id).label("bookings"),
+        )
+        .where(
+            and_(
+                EarnedCommission.completed_at >= start_dt,
+                EarnedCommission.completed_at <= end_dt,
+                EarnedCommission.studio_id == studio_id if studio_id else True,
+            )
+        )
+        .group_by(func.date(EarnedCommission.completed_at))
+        .order_by(func.date(EarnedCommission.completed_at))
+    )
+    rows = result.all()
+
+    # Get deposits data
+    deposit_result = await db.execute(
+        select(
+            func.date(BookingRequest.deposit_paid_at).label("date"),
+            func.coalesce(func.sum(BookingRequest.deposit_amount), 0).label("deposits"),
+        )
+        .where(
+            and_(
+                BookingRequest.deposit_paid_at >= start_dt,
+                BookingRequest.deposit_paid_at <= end_dt,
+                BookingRequest.studio_id == studio_id if studio_id else True,
+            )
+        )
+        .group_by(func.date(BookingRequest.deposit_paid_at))
+    )
+    deposit_data = {row.date: row.deposits for row in deposit_result.all()}
+
+    # Build daily data
+    day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    daily_data = []
+    total_revenue = 0
+    total_tips = 0
+    total_deposits = 0
+    total_bookings = 0
+    highest_day = None
+    highest_revenue = 0
+    lowest_day = None
+    lowest_revenue = float('inf')
+
+    for row in rows:
+        deposits = deposit_data.get(row.date, 0)
+        avg_booking = row.revenue // row.bookings if row.bookings > 0 else 0
+
+        daily_data.append(
+            RevenueByDay(
+                date=row.date,
+                day_name=day_names[row.date.weekday()],
+                revenue=row.revenue,
+                tips=row.tips,
+                deposits=deposits,
+                bookings=row.bookings,
+                average_booking=avg_booking,
+            )
+        )
+
+        total_revenue += row.revenue
+        total_tips += row.tips
+        total_deposits += deposits
+        total_bookings += row.bookings
+
+        if row.revenue > highest_revenue:
+            highest_revenue = row.revenue
+            highest_day = row.date
+        if row.revenue < lowest_revenue:
+            lowest_revenue = row.revenue
+            lowest_day = row.date
+
+    # Summary
+    summary = RevenueSummary(
+        total_revenue=total_revenue,
+        total_tips=total_tips,
+        total_deposits=total_deposits,
+        total_bookings=total_bookings,
+        average_booking_value=total_revenue // total_bookings if total_bookings > 0 else 0,
+        highest_day=highest_day,
+        highest_day_revenue=highest_revenue,
+        lowest_day=lowest_day,
+        lowest_day_revenue=lowest_revenue if lowest_revenue != float('inf') else 0,
+    )
+
+    # Get breakdowns
+    by_artist = await _get_revenue_by_artist(db, start_dt, end_dt, studio_id)
+    by_size = await _get_revenue_by_category(db, start_dt, end_dt, studio_id, "size")
+    by_placement = await _get_revenue_by_category(db, start_dt, end_dt, studio_id, "placement")
+
+    return DailyRevenueReportResponse(
+        period_start=start_date,
+        period_end=end_date,
+        summary=summary,
+        daily_data=daily_data,
+        by_artist=by_artist,
+        by_size=by_size,
+        by_placement=by_placement,
+    )
+
+
+@router.get("/reports/weekly", response_model=WeeklyRevenueReportResponse)
+async def get_weekly_revenue_report(
+    start_date: date = Query(description="Start date for the report"),
+    end_date: date = Query(description="End date for the report"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role(["owner"])),
+):
+    """Get weekly revenue report for a date range."""
+    start_dt = datetime.combine(start_date, datetime.min.time())
+    end_dt = datetime.combine(end_date, datetime.max.time())
+
+    studio = await _get_studio_for_user(db, current_user)
+    studio_id = studio.id if studio else None
+
+    # Get weekly revenue data using ISO week
+    result = await db.execute(
+        select(
+            func.date_trunc('week', EarnedCommission.completed_at).label("week_start"),
+            func.coalesce(func.sum(EarnedCommission.service_total), 0).label("revenue"),
+            func.coalesce(func.sum(EarnedCommission.tips_amount), 0).label("tips"),
+            func.count(EarnedCommission.id).label("bookings"),
+        )
+        .where(
+            and_(
+                EarnedCommission.completed_at >= start_dt,
+                EarnedCommission.completed_at <= end_dt,
+                EarnedCommission.studio_id == studio_id if studio_id else True,
+            )
+        )
+        .group_by(func.date_trunc('week', EarnedCommission.completed_at))
+        .order_by(func.date_trunc('week', EarnedCommission.completed_at))
+    )
+    rows = result.all()
+
+    # Get deposits by week
+    deposit_result = await db.execute(
+        select(
+            func.date_trunc('week', BookingRequest.deposit_paid_at).label("week_start"),
+            func.coalesce(func.sum(BookingRequest.deposit_amount), 0).label("deposits"),
+        )
+        .where(
+            and_(
+                BookingRequest.deposit_paid_at >= start_dt,
+                BookingRequest.deposit_paid_at <= end_dt,
+                BookingRequest.studio_id == studio_id if studio_id else True,
+            )
+        )
+        .group_by(func.date_trunc('week', BookingRequest.deposit_paid_at))
+    )
+    deposit_data = {row.week_start.date(): row.deposits for row in deposit_result.all()}
+
+    # Build weekly data
+    weekly_data = []
+    total_revenue = 0
+    total_tips = 0
+    total_deposits = 0
+    total_bookings = 0
+    highest_day = None
+    highest_revenue = 0
+    lowest_day = None
+    lowest_revenue = float('inf')
+    prev_revenue = None
+
+    for row in rows:
+        week_start = row.week_start.date()
+        week_end = week_start + timedelta(days=6)
+        deposits = deposit_data.get(week_start, 0)
+        avg_booking = row.revenue // row.bookings if row.bookings > 0 else 0
+
+        # Calculate change from previous week
+        change = None
+        if prev_revenue is not None and prev_revenue > 0:
+            change = round(((row.revenue - prev_revenue) / prev_revenue) * 100, 1)
+
+        week_number = week_start.isocalendar()[1]
+
+        weekly_data.append(
+            RevenueByWeek(
+                week_start=week_start,
+                week_end=week_end,
+                week_number=week_number,
+                revenue=row.revenue,
+                tips=row.tips,
+                deposits=deposits,
+                bookings=row.bookings,
+                average_booking=avg_booking,
+                change_from_previous=change,
+            )
+        )
+
+        total_revenue += row.revenue
+        total_tips += row.tips
+        total_deposits += deposits
+        total_bookings += row.bookings
+
+        if row.revenue > highest_revenue:
+            highest_revenue = row.revenue
+            highest_day = week_start
+        if row.revenue < lowest_revenue:
+            lowest_revenue = row.revenue
+            lowest_day = week_start
+
+        prev_revenue = row.revenue
+
+    # Summary
+    summary = RevenueSummary(
+        total_revenue=total_revenue,
+        total_tips=total_tips,
+        total_deposits=total_deposits,
+        total_bookings=total_bookings,
+        average_booking_value=total_revenue // total_bookings if total_bookings > 0 else 0,
+        highest_day=highest_day,
+        highest_day_revenue=highest_revenue,
+        lowest_day=lowest_day,
+        lowest_day_revenue=lowest_revenue if lowest_revenue != float('inf') else 0,
+    )
+
+    # Get breakdowns
+    by_artist = await _get_revenue_by_artist(db, start_dt, end_dt, studio_id)
+
+    return WeeklyRevenueReportResponse(
+        period_start=start_date,
+        period_end=end_date,
+        summary=summary,
+        weekly_data=weekly_data,
+        by_artist=by_artist,
+    )
+
+
+@router.get("/reports/monthly", response_model=MonthlyRevenueReportResponse)
+async def get_monthly_revenue_report(
+    start_date: date = Query(description="Start date for the report"),
+    end_date: date = Query(description="End date for the report"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role(["owner"])),
+):
+    """Get monthly revenue report for a date range."""
+    start_dt = datetime.combine(start_date, datetime.min.time())
+    end_dt = datetime.combine(end_date, datetime.max.time())
+
+    studio = await _get_studio_for_user(db, current_user)
+    studio_id = studio.id if studio else None
+
+    # Get monthly revenue data
+    result = await db.execute(
+        select(
+            func.to_char(EarnedCommission.completed_at, 'YYYY-MM').label("month"),
+            func.coalesce(func.sum(EarnedCommission.service_total), 0).label("revenue"),
+            func.coalesce(func.sum(EarnedCommission.tips_amount), 0).label("tips"),
+            func.count(EarnedCommission.id).label("bookings"),
+        )
+        .where(
+            and_(
+                EarnedCommission.completed_at >= start_dt,
+                EarnedCommission.completed_at <= end_dt,
+                EarnedCommission.studio_id == studio_id if studio_id else True,
+            )
+        )
+        .group_by(func.to_char(EarnedCommission.completed_at, 'YYYY-MM'))
+        .order_by(func.to_char(EarnedCommission.completed_at, 'YYYY-MM'))
+    )
+    rows = result.all()
+
+    # Get deposits by month
+    deposit_result = await db.execute(
+        select(
+            func.to_char(BookingRequest.deposit_paid_at, 'YYYY-MM').label("month"),
+            func.coalesce(func.sum(BookingRequest.deposit_amount), 0).label("deposits"),
+        )
+        .where(
+            and_(
+                BookingRequest.deposit_paid_at >= start_dt,
+                BookingRequest.deposit_paid_at <= end_dt,
+                BookingRequest.studio_id == studio_id if studio_id else True,
+            )
+        )
+        .group_by(func.to_char(BookingRequest.deposit_paid_at, 'YYYY-MM'))
+    )
+    deposit_data = {row.month: row.deposits for row in deposit_result.all()}
+
+    # Build monthly data
+    month_names = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+    ]
+    monthly_data = []
+    total_revenue = 0
+    total_tips = 0
+    total_deposits = 0
+    total_bookings = 0
+    highest_day = None
+    highest_revenue = 0
+    lowest_day = None
+    lowest_revenue = float('inf')
+    prev_revenue = None
+
+    for row in rows:
+        month_parts = row.month.split('-')
+        year = int(month_parts[0])
+        month_num = int(month_parts[1])
+        month_name = f"{month_names[month_num - 1]} {year}"
+        month_start = date(year, month_num, 1)
+
+        deposits = deposit_data.get(row.month, 0)
+        avg_booking = row.revenue // row.bookings if row.bookings > 0 else 0
+
+        # Calculate change from previous month
+        change = None
+        if prev_revenue is not None and prev_revenue > 0:
+            change = round(((row.revenue - prev_revenue) / prev_revenue) * 100, 1)
+
+        monthly_data.append(
+            RevenueByMonth(
+                month=row.month,
+                month_name=month_name,
+                revenue=row.revenue,
+                tips=row.tips,
+                deposits=deposits,
+                bookings=row.bookings,
+                average_booking=avg_booking,
+                change_from_previous=change,
+            )
+        )
+
+        total_revenue += row.revenue
+        total_tips += row.tips
+        total_deposits += deposits
+        total_bookings += row.bookings
+
+        if row.revenue > highest_revenue:
+            highest_revenue = row.revenue
+            highest_day = month_start
+        if row.revenue < lowest_revenue:
+            lowest_revenue = row.revenue
+            lowest_day = month_start
+
+        prev_revenue = row.revenue
+
+    # Summary
+    summary = RevenueSummary(
+        total_revenue=total_revenue,
+        total_tips=total_tips,
+        total_deposits=total_deposits,
+        total_bookings=total_bookings,
+        average_booking_value=total_revenue // total_bookings if total_bookings > 0 else 0,
+        highest_day=highest_day,
+        highest_day_revenue=highest_revenue,
+        lowest_day=lowest_day,
+        lowest_day_revenue=lowest_revenue if lowest_revenue != float('inf') else 0,
+    )
+
+    # Get breakdowns
+    by_artist = await _get_revenue_by_artist(db, start_dt, end_dt, studio_id)
+
+    return MonthlyRevenueReportResponse(
+        period_start=start_date,
+        period_end=end_date,
+        summary=summary,
+        monthly_data=monthly_data,
+        by_artist=by_artist,
+    )
+
+
+@router.get("/reports/custom", response_model=CustomRevenueReportResponse)
+async def get_custom_revenue_report(
+    start_date: date = Query(description="Start date for the report"),
+    end_date: date = Query(description="End date for the report"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role(["owner"])),
+):
+    """Get custom date range revenue report."""
+    start_dt = datetime.combine(start_date, datetime.min.time())
+    end_dt = datetime.combine(end_date, datetime.max.time())
+
+    studio = await _get_studio_for_user(db, current_user)
+    studio_id = studio.id if studio else None
+
+    # Get daily revenue data
+    result = await db.execute(
+        select(
+            func.date(EarnedCommission.completed_at).label("date"),
+            func.coalesce(func.sum(EarnedCommission.service_total), 0).label("revenue"),
+            func.coalesce(func.sum(EarnedCommission.tips_amount), 0).label("tips"),
+            func.count(EarnedCommission.id).label("bookings"),
+        )
+        .where(
+            and_(
+                EarnedCommission.completed_at >= start_dt,
+                EarnedCommission.completed_at <= end_dt,
+                EarnedCommission.studio_id == studio_id if studio_id else True,
+            )
+        )
+        .group_by(func.date(EarnedCommission.completed_at))
+        .order_by(func.date(EarnedCommission.completed_at))
+    )
+    rows = result.all()
+
+    # Get deposits data
+    deposit_result = await db.execute(
+        select(
+            func.date(BookingRequest.deposit_paid_at).label("date"),
+            func.coalesce(func.sum(BookingRequest.deposit_amount), 0).label("deposits"),
+        )
+        .where(
+            and_(
+                BookingRequest.deposit_paid_at >= start_dt,
+                BookingRequest.deposit_paid_at <= end_dt,
+                BookingRequest.studio_id == studio_id if studio_id else True,
+            )
+        )
+        .group_by(func.date(BookingRequest.deposit_paid_at))
+    )
+    deposit_data = {row.date: row.deposits for row in deposit_result.all()}
+
+    # Build daily data
+    day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    daily_data = []
+    total_revenue = 0
+    total_tips = 0
+    total_deposits = 0
+    total_bookings = 0
+    highest_day = None
+    highest_revenue = 0
+    lowest_day = None
+    lowest_revenue = float('inf')
+
+    for row in rows:
+        deposits = deposit_data.get(row.date, 0)
+        avg_booking = row.revenue // row.bookings if row.bookings > 0 else 0
+
+        daily_data.append(
+            RevenueByDay(
+                date=row.date,
+                day_name=day_names[row.date.weekday()],
+                revenue=row.revenue,
+                tips=row.tips,
+                deposits=deposits,
+                bookings=row.bookings,
+                average_booking=avg_booking,
+            )
+        )
+
+        total_revenue += row.revenue
+        total_tips += row.tips
+        total_deposits += deposits
+        total_bookings += row.bookings
+
+        if row.revenue > highest_revenue:
+            highest_revenue = row.revenue
+            highest_day = row.date
+        if row.revenue < lowest_revenue:
+            lowest_revenue = row.revenue
+            lowest_day = row.date
+
+    # Summary
+    summary = RevenueSummary(
+        total_revenue=total_revenue,
+        total_tips=total_tips,
+        total_deposits=total_deposits,
+        total_bookings=total_bookings,
+        average_booking_value=total_revenue // total_bookings if total_bookings > 0 else 0,
+        highest_day=highest_day,
+        highest_day_revenue=highest_revenue,
+        lowest_day=lowest_day,
+        lowest_day_revenue=lowest_revenue if lowest_revenue != float('inf') else 0,
+    )
+
+    # Get breakdowns
+    by_artist = await _get_revenue_by_artist(db, start_dt, end_dt, studio_id)
+    by_size = await _get_revenue_by_category(db, start_dt, end_dt, studio_id, "size")
+    by_placement = await _get_revenue_by_category(db, start_dt, end_dt, studio_id, "placement")
+
+    return CustomRevenueReportResponse(
+        period_start=start_date,
+        period_end=end_date,
+        summary=summary,
+        daily_data=daily_data,
+        by_artist=by_artist,
+        by_size=by_size,
+        by_placement=by_placement,
     )

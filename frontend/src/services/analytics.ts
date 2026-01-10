@@ -426,3 +426,301 @@ export function getActivityColor(type: ActivityType): string {
       return 'text-ink-400';
   }
 }
+
+// ============ Revenue Report Types ============
+
+export type ReportType = 'daily' | 'weekly' | 'monthly' | 'custom';
+
+export interface RevenueByCategory {
+  category: string;
+  revenue: number;
+  count: number;
+  percentage: number;
+}
+
+export interface RevenueByArtist {
+  artist_id: string;
+  artist_name: string;
+  revenue: number;
+  tips: number;
+  bookings: number;
+  percentage: number;
+}
+
+export interface RevenueByDay {
+  date: string;
+  day_name: string;
+  revenue: number;
+  tips: number;
+  deposits: number;
+  bookings: number;
+  average_booking: number;
+}
+
+export interface RevenueByWeek {
+  week_start: string;
+  week_end: string;
+  week_number: number;
+  revenue: number;
+  tips: number;
+  deposits: number;
+  bookings: number;
+  average_booking: number;
+  change_from_previous: number | null;
+}
+
+export interface RevenueByMonth {
+  month: string;
+  month_name: string;
+  revenue: number;
+  tips: number;
+  deposits: number;
+  bookings: number;
+  average_booking: number;
+  change_from_previous: number | null;
+}
+
+export interface RevenueSummary {
+  total_revenue: number;
+  total_tips: number;
+  total_deposits: number;
+  total_bookings: number;
+  average_booking_value: number;
+  highest_day: string | null;
+  highest_day_revenue: number;
+  lowest_day: string | null;
+  lowest_day_revenue: number;
+}
+
+export interface DailyRevenueReport {
+  report_type: 'daily';
+  period_start: string;
+  period_end: string;
+  summary: RevenueSummary;
+  daily_data: RevenueByDay[];
+  by_artist: RevenueByArtist[];
+  by_size: RevenueByCategory[];
+  by_placement: RevenueByCategory[];
+}
+
+export interface WeeklyRevenueReport {
+  report_type: 'weekly';
+  period_start: string;
+  period_end: string;
+  summary: RevenueSummary;
+  weekly_data: RevenueByWeek[];
+  by_artist: RevenueByArtist[];
+}
+
+export interface MonthlyRevenueReport {
+  report_type: 'monthly';
+  period_start: string;
+  period_end: string;
+  summary: RevenueSummary;
+  monthly_data: RevenueByMonth[];
+  by_artist: RevenueByArtist[];
+}
+
+export interface CustomRevenueReport {
+  report_type: 'custom';
+  period_start: string;
+  period_end: string;
+  summary: RevenueSummary;
+  daily_data: RevenueByDay[];
+  by_artist: RevenueByArtist[];
+  by_size: RevenueByCategory[];
+  by_placement: RevenueByCategory[];
+}
+
+export type RevenueReport =
+  | DailyRevenueReport
+  | WeeklyRevenueReport
+  | MonthlyRevenueReport
+  | CustomRevenueReport;
+
+// ============ Revenue Report API Functions ============
+
+/**
+ * Get daily revenue report for a date range.
+ */
+export async function getDailyRevenueReport(
+  startDate: string,
+  endDate: string
+): Promise<DailyRevenueReport> {
+  const params = new URLSearchParams({
+    start_date: startDate,
+    end_date: endDate,
+  });
+  return api.get<DailyRevenueReport>(`/api/v1/analytics/reports/daily?${params}`);
+}
+
+/**
+ * Get weekly revenue report for a date range.
+ */
+export async function getWeeklyRevenueReport(
+  startDate: string,
+  endDate: string
+): Promise<WeeklyRevenueReport> {
+  const params = new URLSearchParams({
+    start_date: startDate,
+    end_date: endDate,
+  });
+  return api.get<WeeklyRevenueReport>(`/api/v1/analytics/reports/weekly?${params}`);
+}
+
+/**
+ * Get monthly revenue report for a date range.
+ */
+export async function getMonthlyRevenueReport(
+  startDate: string,
+  endDate: string
+): Promise<MonthlyRevenueReport> {
+  const params = new URLSearchParams({
+    start_date: startDate,
+    end_date: endDate,
+  });
+  return api.get<MonthlyRevenueReport>(`/api/v1/analytics/reports/monthly?${params}`);
+}
+
+/**
+ * Get custom revenue report for a date range.
+ */
+export async function getCustomRevenueReport(
+  startDate: string,
+  endDate: string
+): Promise<CustomRevenueReport> {
+  const params = new URLSearchParams({
+    start_date: startDate,
+    end_date: endDate,
+  });
+  return api.get<CustomRevenueReport>(`/api/v1/analytics/reports/custom?${params}`);
+}
+
+/**
+ * Get revenue report based on type.
+ */
+export async function getRevenueReport(
+  reportType: ReportType,
+  startDate: string,
+  endDate: string
+): Promise<RevenueReport> {
+  switch (reportType) {
+    case 'daily':
+      return getDailyRevenueReport(startDate, endDate);
+    case 'weekly':
+      return getWeeklyRevenueReport(startDate, endDate);
+    case 'monthly':
+      return getMonthlyRevenueReport(startDate, endDate);
+    case 'custom':
+    default:
+      return getCustomRevenueReport(startDate, endDate);
+  }
+}
+
+/**
+ * Format date range for display.
+ */
+export function formatDateRange(start: string, end: string): string {
+  const startDate = new Date(start);
+  const endDate = new Date(end);
+  const options: Intl.DateTimeFormatOptions = {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  };
+  return `${startDate.toLocaleDateString('en-US', options)} - ${endDate.toLocaleDateString('en-US', options)}`;
+}
+
+/**
+ * Get preset date ranges.
+ */
+export function getPresetDateRanges(): {
+  label: string;
+  value: string;
+  startDate: string;
+  endDate: string;
+}[] {
+  const today = new Date();
+  const formatDate = (d: Date) => d.toISOString().split('T')[0];
+
+  // This week (Monday to today)
+  const startOfWeek = new Date(today);
+  startOfWeek.setDate(today.getDate() - today.getDay() + 1);
+
+  // This month
+  const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
+  // Last month
+  const startOfLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+  const endOfLastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+
+  // This quarter
+  const quarterMonth = Math.floor(today.getMonth() / 3) * 3;
+  const startOfQuarter = new Date(today.getFullYear(), quarterMonth, 1);
+
+  // This year
+  const startOfYear = new Date(today.getFullYear(), 0, 1);
+
+  // Last 7 days
+  const last7Days = new Date(today);
+  last7Days.setDate(today.getDate() - 6);
+
+  // Last 30 days
+  const last30Days = new Date(today);
+  last30Days.setDate(today.getDate() - 29);
+
+  // Last 90 days
+  const last90Days = new Date(today);
+  last90Days.setDate(today.getDate() - 89);
+
+  return [
+    {
+      label: 'Last 7 Days',
+      value: 'last7',
+      startDate: formatDate(last7Days),
+      endDate: formatDate(today),
+    },
+    {
+      label: 'Last 30 Days',
+      value: 'last30',
+      startDate: formatDate(last30Days),
+      endDate: formatDate(today),
+    },
+    {
+      label: 'Last 90 Days',
+      value: 'last90',
+      startDate: formatDate(last90Days),
+      endDate: formatDate(today),
+    },
+    {
+      label: 'This Week',
+      value: 'thisWeek',
+      startDate: formatDate(startOfWeek),
+      endDate: formatDate(today),
+    },
+    {
+      label: 'This Month',
+      value: 'thisMonth',
+      startDate: formatDate(startOfMonth),
+      endDate: formatDate(today),
+    },
+    {
+      label: 'Last Month',
+      value: 'lastMonth',
+      startDate: formatDate(startOfLastMonth),
+      endDate: formatDate(endOfLastMonth),
+    },
+    {
+      label: 'This Quarter',
+      value: 'thisQuarter',
+      startDate: formatDate(startOfQuarter),
+      endDate: formatDate(today),
+    },
+    {
+      label: 'This Year',
+      value: 'thisYear',
+      startDate: formatDate(startOfYear),
+      endDate: formatDate(today),
+    },
+  ];
+}

@@ -20,6 +20,7 @@ export { Login } from './Login';
 export { PaymentSuccess } from './PaymentSuccess';
 export { Register } from './Register';
 export { ResetPassword } from './ResetPassword';
+export { default as RevenueReports } from './RevenueReports';
 export { StubCheckout } from './StubCheckout';
 export { StudioSettings } from './StudioSettings';
 export { Team } from './Team';

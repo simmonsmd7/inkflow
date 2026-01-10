@@ -294,3 +294,131 @@ class ArtistPerformanceListResponse(BaseModel):
     artists: list[ArtistPerformanceListItem]
     total_artists: int
     period_label: str
+
+
+# ========== Revenue Report Schemas ==========
+
+
+class RevenueByCategory(BaseModel):
+    """Revenue breakdown by category."""
+
+    category: str
+    revenue: int = Field(description="Revenue in cents")
+    count: int = Field(description="Number of bookings")
+    percentage: float = Field(description="Percentage of total revenue")
+
+
+class RevenueByArtist(BaseModel):
+    """Revenue breakdown by artist."""
+
+    artist_id: str
+    artist_name: str
+    revenue: int = Field(description="Revenue in cents")
+    tips: int = Field(description="Tips in cents")
+    bookings: int
+    percentage: float = Field(description="Percentage of total revenue")
+
+
+class RevenueByDay(BaseModel):
+    """Revenue for a specific day."""
+
+    date: date
+    day_name: str
+    revenue: int = Field(description="Revenue in cents")
+    tips: int = Field(description="Tips in cents")
+    deposits: int = Field(description="Deposits collected in cents")
+    bookings: int
+    average_booking: int = Field(description="Average booking value in cents")
+
+
+class RevenueByWeek(BaseModel):
+    """Revenue for a specific week."""
+
+    week_start: date
+    week_end: date
+    week_number: int
+    revenue: int = Field(description="Revenue in cents")
+    tips: int = Field(description="Tips in cents")
+    deposits: int = Field(description="Deposits collected in cents")
+    bookings: int
+    average_booking: int = Field(description="Average booking value in cents")
+    change_from_previous: Optional[float] = Field(
+        None, description="Percentage change from previous week"
+    )
+
+
+class RevenueByMonth(BaseModel):
+    """Revenue for a specific month."""
+
+    month: str = Field(description="Month in YYYY-MM format")
+    month_name: str = Field(description="Month name (e.g., January 2026)")
+    revenue: int = Field(description="Revenue in cents")
+    tips: int = Field(description="Tips in cents")
+    deposits: int = Field(description="Deposits collected in cents")
+    bookings: int
+    average_booking: int = Field(description="Average booking value in cents")
+    change_from_previous: Optional[float] = Field(
+        None, description="Percentage change from previous month"
+    )
+
+
+class RevenueSummary(BaseModel):
+    """Summary of revenue metrics."""
+
+    total_revenue: int = Field(description="Total revenue in cents")
+    total_tips: int = Field(description="Total tips in cents")
+    total_deposits: int = Field(description="Total deposits collected in cents")
+    total_bookings: int
+    average_booking_value: int = Field(description="Average booking value in cents")
+    highest_day: Optional[date] = None
+    highest_day_revenue: int = 0
+    lowest_day: Optional[date] = None
+    lowest_day_revenue: int = 0
+
+
+class DailyRevenueReportResponse(BaseModel):
+    """Daily revenue report response."""
+
+    report_type: str = "daily"
+    period_start: date
+    period_end: date
+    summary: RevenueSummary
+    daily_data: list[RevenueByDay]
+    by_artist: list[RevenueByArtist]
+    by_size: list[RevenueByCategory]
+    by_placement: list[RevenueByCategory]
+
+
+class WeeklyRevenueReportResponse(BaseModel):
+    """Weekly revenue report response."""
+
+    report_type: str = "weekly"
+    period_start: date
+    period_end: date
+    summary: RevenueSummary
+    weekly_data: list[RevenueByWeek]
+    by_artist: list[RevenueByArtist]
+
+
+class MonthlyRevenueReportResponse(BaseModel):
+    """Monthly revenue report response."""
+
+    report_type: str = "monthly"
+    period_start: date
+    period_end: date
+    summary: RevenueSummary
+    monthly_data: list[RevenueByMonth]
+    by_artist: list[RevenueByArtist]
+
+
+class CustomRevenueReportResponse(BaseModel):
+    """Custom date range revenue report response."""
+
+    report_type: str = "custom"
+    period_start: date
+    period_end: date
+    summary: RevenueSummary
+    daily_data: list[RevenueByDay]
+    by_artist: list[RevenueByArtist]
+    by_size: list[RevenueByCategory]
+    by_placement: list[RevenueByCategory]

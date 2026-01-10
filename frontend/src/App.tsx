@@ -19,6 +19,7 @@ import {
   PaymentSuccess,
   Register,
   ResetPassword,
+  RevenueReports,
   StubCheckout,
   StudioSettings,
   Team,
@@ -58,6 +59,7 @@ function App() {
               <Route path="/team" element={<Team />} />
               <Route path="/commissions" element={<Commissions />} />
               <Route path="/artist-performance" element={<ArtistPerformance />} />
+              <Route path="/revenue-reports" element={<RevenueReports />} />
               <Route path="/consent" element={<ConsentForms />} />
               <Route path="/aftercare" element={<Aftercare />} />
               <Route path="/settings" element={<StudioSettings />} />
