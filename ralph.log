@@ -1,0 +1,14 @@
+=== ITERATION 0 ===
+Date: 2026-01-10
+Task: Project initialization
+Changes:
+- Created PROMPT.md with full project specification
+- Created ralph.log for progress tracking
+Status: BASELINE
+Next: P1.1 - Initialize frontend with Vite + React + TypeScript + Tailwind
+
+---
+PROJECT: InkFlow - Tattoo Studio Management Platform
+TARGET: Solo artists and 2-5 artist studios at $29-69/month
+TECH: React/Vite/TypeScript frontend + Python/FastAPI backend
+---
