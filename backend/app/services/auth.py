@@ -213,3 +213,14 @@ async def get_current_active_verified_user(
             detail="Please verify your email first",
         )
     return current_user
+
+
+async def reset_user_password(
+    db: AsyncSession,
+    user: User,
+    new_password: str,
+) -> None:
+    """Reset a user's password and clear the reset token."""
+    user.hashed_password = hash_password(new_password)
+    user.clear_password_reset()
+    await db.flush()

@@ -11,6 +11,8 @@ from app.schemas.user import (
     AuthResponse,
     EmailVerification,
     MessageResponse,
+    PasswordReset,
+    PasswordResetRequest,
     UserCreate,
     UserDetailResponse,
     UserLogin,
@@ -22,7 +24,9 @@ from app.services.auth import (
     create_user,
     get_current_user,
     get_user_by_email,
+    get_user_by_reset_token,
     get_user_by_verification_token,
+    reset_user_password,
 )
 from app.models.user import User
 from app.services.email import email_service
@@ -204,5 +208,72 @@ async def logout() -> MessageResponse:
     """
     return MessageResponse(
         message="Successfully logged out",
+        success=True,
+    )
+
+
+@router.post("/forgot-password", response_model=MessageResponse)
+async def forgot_password(
+    data: PasswordResetRequest,
+    db: AsyncSession = Depends(get_db),
+) -> MessageResponse:
+    """
+    Request a password reset email.
+
+    Always returns success message to prevent email enumeration attacks.
+    """
+    user = await get_user_by_email(db, data.email)
+
+    # For security, always return success even if user doesn't exist
+    if not user or not user.is_active:
+        return MessageResponse(
+            message="If an account exists with this email, a password reset link has been sent.",
+            success=True,
+        )
+
+    # Generate reset token
+    token = user.generate_password_reset_token()
+    await db.flush()
+
+    # Send password reset email
+    await email_service.send_password_reset_email(
+        to_email=user.email,
+        first_name=user.first_name,
+        token=token,
+    )
+
+    return MessageResponse(
+        message="If an account exists with this email, a password reset link has been sent.",
+        success=True,
+    )
+
+
+@router.post("/reset-password", response_model=MessageResponse)
+async def reset_password(
+    data: PasswordReset,
+    db: AsyncSession = Depends(get_db),
+) -> MessageResponse:
+    """
+    Reset a user's password using the token from email.
+    """
+    user = await get_user_by_reset_token(db, data.token)
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset token",
+        )
+
+    if user.password_reset_expires and user.password_reset_expires < datetime.utcnow():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Reset token has expired. Please request a new one.",
+        )
+
+    # Reset the password
+    await reset_user_password(db, user, data.new_password)
+
+    return MessageResponse(
+        message="Password reset successfully. You can now log in with your new password.",
         success=True,
     )

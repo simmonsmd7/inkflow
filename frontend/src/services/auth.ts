@@ -82,6 +82,28 @@ export const authService = {
   getToken(): string | null {
     return localStorage.getItem(TOKEN_KEY);
   },
+
+  /**
+   * Request a password reset email.
+   */
+  async forgotPassword(email: string): Promise<MessageResponse> {
+    return api.post<MessageResponse>(
+      '/api/v1/auth/forgot-password',
+      { email },
+      { skipAuth: true }
+    );
+  },
+
+  /**
+   * Reset password with token from email.
+   */
+  async resetPassword(token: string, newPassword: string): Promise<MessageResponse> {
+    return api.post<MessageResponse>(
+      '/api/v1/auth/reset-password',
+      { token, new_password: newPassword },
+      { skipAuth: true }
+    );
+  },
 };
 
 export default authService;

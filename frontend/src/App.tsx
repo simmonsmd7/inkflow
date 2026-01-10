@@ -1,6 +1,6 @@
 import { Routes, Route } from 'react-router-dom';
 import { Layout } from './components/layout';
-import { Dashboard, Login, Register } from './pages';
+import { Dashboard, ForgotPassword, Login, Register, ResetPassword } from './pages';
 
 function App() {
   return (
@@ -8,6 +8,8 @@ function App() {
       {/* Auth routes - no layout */}
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
 
       {/* App routes - with layout */}
       <Route
