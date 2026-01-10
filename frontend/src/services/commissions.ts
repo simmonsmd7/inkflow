@@ -367,3 +367,178 @@ export async function getTipReport(options?: {
   }
   return api.get<TipReportResponse>(`/commissions/tips/report?${params.toString()}`);
 }
+
+// ============ Export Functions (CSV/PDF) ============
+
+/**
+ * Build export URL.
+ */
+function buildExportUrl(endpoint: string, params?: Record<string, string>): string {
+  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+  const url = new URL(`${baseUrl}${endpoint}`);
+
+  if (params) {
+    Object.entries(params).forEach(([key, value]) => {
+      if (value) {
+        url.searchParams.append(key, value);
+      }
+    });
+  }
+
+  return url.toString();
+}
+
+/**
+ * Trigger file download from export endpoint.
+ */
+async function downloadExport(endpoint: string, params?: Record<string, string>): Promise<void> {
+  const token = localStorage.getItem('access_token');
+  const url = buildExportUrl(endpoint, params);
+
+  const response = await fetch(url, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Export failed: ${response.statusText}`);
+  }
+
+  const blob = await response.blob();
+  const contentDisposition = response.headers.get('Content-Disposition');
+  let filename = 'export';
+
+  if (contentDisposition) {
+    const match = contentDisposition.match(/filename=([^;]+)/);
+    if (match) {
+      filename = match[1].replace(/"/g, '');
+    }
+  }
+
+  // Create download link
+  const downloadUrl = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = downloadUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.URL.revokeObjectURL(downloadUrl);
+}
+
+/**
+ * Export commissions to CSV.
+ */
+export async function exportCommissionsCsv(options?: {
+  artistId?: string;
+  startDate?: string;
+  endDate?: string;
+  unpaidOnly?: boolean;
+}): Promise<void> {
+  const params: Record<string, string> = {};
+  if (options?.artistId) params.artist_id = options.artistId;
+  if (options?.startDate) params.start_date = options.startDate;
+  if (options?.endDate) params.end_date = options.endDate;
+  if (options?.unpaidOnly) params.unpaid_only = 'true';
+
+  return downloadExport('/commissions/export/commissions.csv', params);
+}
+
+/**
+ * Export commissions to PDF.
+ */
+export async function exportCommissionsPdf(options?: {
+  artistId?: string;
+  startDate?: string;
+  endDate?: string;
+  unpaidOnly?: boolean;
+}): Promise<void> {
+  const params: Record<string, string> = {};
+  if (options?.artistId) params.artist_id = options.artistId;
+  if (options?.startDate) params.start_date = options.startDate;
+  if (options?.endDate) params.end_date = options.endDate;
+  if (options?.unpaidOnly) params.unpaid_only = 'true';
+
+  return downloadExport('/commissions/export/commissions.pdf', params);
+}
+
+/**
+ * Export pay periods to CSV.
+ */
+export async function exportPayPeriodsCsv(status?: PayPeriodStatus): Promise<void> {
+  const params: Record<string, string> = {};
+  if (status) params.status = status;
+
+  return downloadExport('/commissions/export/pay-periods.csv', params);
+}
+
+/**
+ * Export pay periods to PDF.
+ */
+export async function exportPayPeriodsPdf(status?: PayPeriodStatus): Promise<void> {
+  const params: Record<string, string> = {};
+  if (status) params.status = status;
+
+  return downloadExport('/commissions/export/pay-periods.pdf', params);
+}
+
+/**
+ * Export artist payouts to CSV.
+ */
+export async function exportArtistPayoutsCsv(options?: {
+  startDate?: string;
+  endDate?: string;
+  paidOnly?: boolean;
+}): Promise<void> {
+  const params: Record<string, string> = {};
+  if (options?.startDate) params.start_date = options.startDate;
+  if (options?.endDate) params.end_date = options.endDate;
+  if (options?.paidOnly !== undefined) params.paid_only = options.paidOnly.toString();
+
+  return downloadExport('/commissions/export/artist-payouts.csv', params);
+}
+
+/**
+ * Export artist payouts to PDF.
+ */
+export async function exportArtistPayoutsPdf(options?: {
+  startDate?: string;
+  endDate?: string;
+  paidOnly?: boolean;
+}): Promise<void> {
+  const params: Record<string, string> = {};
+  if (options?.startDate) params.start_date = options.startDate;
+  if (options?.endDate) params.end_date = options.endDate;
+  if (options?.paidOnly !== undefined) params.paid_only = options.paidOnly.toString();
+
+  return downloadExport('/commissions/export/artist-payouts.pdf', params);
+}
+
+/**
+ * Export tips report to CSV.
+ */
+export async function exportTipsCsv(options?: {
+  startDate?: string;
+  endDate?: string;
+}): Promise<void> {
+  const params: Record<string, string> = {};
+  if (options?.startDate) params.start_date = options.startDate;
+  if (options?.endDate) params.end_date = options.endDate;
+
+  return downloadExport('/commissions/export/tips.csv', params);
+}
+
+/**
+ * Export tips report to PDF.
+ */
+export async function exportTipsPdf(options?: {
+  startDate?: string;
+  endDate?: string;
+}): Promise<void> {
+  const params: Record<string, string> = {};
+  if (options?.startDate) params.start_date = options.startDate;
+  if (options?.endDate) params.end_date = options.endDate;
+
+  return downloadExport('/commissions/export/tips.pdf', params);
+}

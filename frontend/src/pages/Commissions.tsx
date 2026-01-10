@@ -30,6 +30,12 @@ import {
   getTipSettings,
   updateTipSettings,
   getTipReport,
+  exportPayPeriodsCsv,
+  exportPayPeriodsPdf,
+  exportArtistPayoutsCsv,
+  exportArtistPayoutsPdf,
+  exportTipsCsv,
+  exportTipsPdf,
 } from '../services/commissions';
 import type {
   CommissionRuleSummary,
@@ -576,6 +582,10 @@ export function Commissions() {
   const [savingTipSettings, setSavingTipSettings] = useState(false);
   const [editingTipPercentage, setEditingTipPercentage] = useState<number | null>(null);
 
+  // Export state
+  const [exporting, setExporting] = useState(false);
+  const [exportDropdownOpen, setExportDropdownOpen] = useState<string | null>(null);
+
   // Modal state
   const [ruleModalOpen, setRuleModalOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<CommissionRule | null>(null);
@@ -718,6 +728,69 @@ export function Commissions() {
       setError(err instanceof Error ? err.message : 'Failed to update tip settings');
     } finally {
       setSavingTipSettings(false);
+    }
+  };
+
+  // Export handlers
+  const handleExportPayPeriods = async (format: 'csv' | 'pdf') => {
+    setExporting(true);
+    setExportDropdownOpen(null);
+    try {
+      if (format === 'csv') {
+        await exportPayPeriodsCsv();
+      } else {
+        await exportPayPeriodsPdf();
+      }
+      setSuccessMessage('Export downloaded successfully');
+      setTimeout(() => setSuccessMessage(''), 5000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to export pay periods');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportArtistPayouts = async (format: 'csv' | 'pdf') => {
+    setExporting(true);
+    setExportDropdownOpen(null);
+    try {
+      const options = {
+        startDate: reportStartDate || undefined,
+        endDate: reportEndDate || undefined,
+      };
+      if (format === 'csv') {
+        await exportArtistPayoutsCsv(options);
+      } else {
+        await exportArtistPayoutsPdf(options);
+      }
+      setSuccessMessage('Export downloaded successfully');
+      setTimeout(() => setSuccessMessage(''), 5000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to export artist payouts');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportTips = async (format: 'csv' | 'pdf') => {
+    setExporting(true);
+    setExportDropdownOpen(null);
+    try {
+      const options = {
+        startDate: tipStartDate || undefined,
+        endDate: tipEndDate || undefined,
+      };
+      if (format === 'csv') {
+        await exportTipsCsv(options);
+      } else {
+        await exportTipsPdf(options);
+      }
+      setSuccessMessage('Export downloaded successfully');
+      setTimeout(() => setSuccessMessage(''), 5000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to export tips report');
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -901,6 +974,35 @@ export function Commissions() {
         )}
         {activeTab === 'pay_periods' && !selectedPayPeriod && (
           <div className="flex items-center gap-2">
+            {/* Export Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setExportDropdownOpen(exportDropdownOpen === 'pay_periods' ? null : 'pay_periods')}
+                disabled={exporting}
+                className="flex items-center gap-2 px-4 py-2 bg-ink-700 hover:bg-ink-600 text-ink-200 rounded-lg transition-colors disabled:opacity-50"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                {exporting ? 'Exporting...' : 'Export'}
+              </button>
+              {exportDropdownOpen === 'pay_periods' && (
+                <div className="absolute right-0 mt-2 w-48 bg-ink-800 border border-ink-700 rounded-lg shadow-xl z-10">
+                  <button
+                    onClick={() => handleExportPayPeriods('csv')}
+                    className="w-full text-left px-4 py-2 text-ink-200 hover:bg-ink-700 rounded-t-lg"
+                  >
+                    Export as CSV
+                  </button>
+                  <button
+                    onClick={() => handleExportPayPeriods('pdf')}
+                    className="w-full text-left px-4 py-2 text-ink-200 hover:bg-ink-700 rounded-b-lg"
+                  >
+                    Export as PDF
+                  </button>
+                </div>
+              )}
+            </div>
             <button
               onClick={() => setSettingsModalOpen(true)}
               className="flex items-center gap-2 px-4 py-2 bg-ink-700 hover:bg-ink-600 text-ink-200 rounded-lg transition-colors"
@@ -1445,6 +1547,35 @@ export function Commissions() {
               >
                 Clear Filters
               </button>
+              {/* Export Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setExportDropdownOpen(exportDropdownOpen === 'reports' ? null : 'reports')}
+                  disabled={exporting}
+                  className="flex items-center gap-2 px-4 py-2 bg-ink-700 hover:bg-ink-600 text-ink-200 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  {exporting ? 'Exporting...' : 'Export'}
+                </button>
+                {exportDropdownOpen === 'reports' && (
+                  <div className="absolute right-0 mt-2 w-48 bg-ink-800 border border-ink-700 rounded-lg shadow-xl z-10">
+                    <button
+                      onClick={() => handleExportArtistPayouts('csv')}
+                      className="w-full text-left px-4 py-2 text-ink-200 hover:bg-ink-700 rounded-t-lg"
+                    >
+                      Export as CSV
+                    </button>
+                    <button
+                      onClick={() => handleExportArtistPayouts('pdf')}
+                      className="w-full text-left px-4 py-2 text-ink-200 hover:bg-ink-700 rounded-b-lg"
+                    >
+                      Export as PDF
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -1736,6 +1867,35 @@ export function Commissions() {
               >
                 Clear Filters
               </button>
+              {/* Export Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setExportDropdownOpen(exportDropdownOpen === 'tips' ? null : 'tips')}
+                  disabled={exporting}
+                  className="flex items-center gap-2 px-4 py-2 bg-ink-700 hover:bg-ink-600 text-ink-200 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  {exporting ? 'Exporting...' : 'Export'}
+                </button>
+                {exportDropdownOpen === 'tips' && (
+                  <div className="absolute right-0 mt-2 w-48 bg-ink-800 border border-ink-700 rounded-lg shadow-xl z-10">
+                    <button
+                      onClick={() => handleExportTips('csv')}
+                      className="w-full text-left px-4 py-2 text-ink-200 hover:bg-ink-700 rounded-t-lg"
+                    >
+                      Export as CSV
+                    </button>
+                    <button
+                      onClick={() => handleExportTips('pdf')}
+                      className="w-full text-left px-4 py-2 text-ink-200 hover:bg-ink-700 rounded-b-lg"
+                    >
+                      Export as PDF
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

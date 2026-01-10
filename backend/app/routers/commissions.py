@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import Response
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -1812,4 +1813,679 @@ async def get_tip_report(
         ),
         start_date=start_dt,
         end_date=end_dt,
+    )
+
+
+# ============================================================================
+# EXPORT ENDPOINTS (CSV/PDF)
+# ============================================================================
+
+
+@router.get("/export/commissions.csv")
+async def export_commissions_csv(
+    current_user: User = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+    artist_id: Optional[uuid.UUID] = None,
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    unpaid_only: bool = Query(False, description="Only show unpaid commissions"),
+) -> Response:
+    """
+    Export earned commissions to CSV.
+    Owner only.
+    """
+    from datetime import datetime as dt
+    from app.services.commission_service import get_earned_commissions
+    from app.services.export_service import generate_commissions_csv
+
+    studio = await get_user_studio(db, current_user)
+
+    # Parse dates
+    start_dt = None
+    end_dt = None
+    if start_date:
+        start_dt = dt.fromisoformat(start_date + "T00:00:00+00:00")
+    if end_date:
+        end_dt = dt.fromisoformat(end_date + "T23:59:59+00:00")
+
+    # Get all commissions (no pagination for export)
+    commissions, total, summary = await get_earned_commissions(
+        db=db,
+        studio_id=studio.id,
+        artist_id=artist_id,
+        start_date=start_dt,
+        end_date=end_dt,
+        unpaid_only=unpaid_only,
+        page=1,
+        page_size=10000,  # Large limit for export
+    )
+
+    # Convert to dict format for export
+    commission_dicts = []
+    for comm in commissions:
+        booking = comm.booking_request
+        artist = comm.artist
+        commission_dicts.append({
+            "completed_at": comm.completed_at,
+            "client_name": booking.client_name if booking else "Unknown",
+            "artist_name": artist.full_name if artist else None,
+            "design_idea": booking.design_idea if booking else None,
+            "service_total": comm.service_total,
+            "studio_commission": comm.studio_commission,
+            "artist_payout": comm.artist_payout,
+            "tips_amount": comm.tips_amount,
+            "commission_rule_name": comm.commission_rule_name,
+            "paid_at": comm.paid_at,
+        })
+
+    csv_content = generate_commissions_csv(commission_dicts)
+
+    filename = f"commissions_{datetime.now().strftime('%Y%m%d')}.csv"
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.get("/export/commissions.pdf")
+async def export_commissions_pdf(
+    current_user: User = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+    artist_id: Optional[uuid.UUID] = None,
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    unpaid_only: bool = Query(False, description="Only show unpaid commissions"),
+) -> Response:
+    """
+    Export earned commissions to PDF.
+    Owner only.
+    """
+    from datetime import datetime as dt
+    from app.services.commission_service import get_earned_commissions
+    from app.services.export_service import generate_commissions_pdf
+
+    studio = await get_user_studio(db, current_user)
+
+    # Parse dates
+    start_dt = None
+    end_dt = None
+    if start_date:
+        start_dt = dt.fromisoformat(start_date + "T00:00:00+00:00")
+    if end_date:
+        end_dt = dt.fromisoformat(end_date + "T23:59:59+00:00")
+
+    # Get all commissions
+    commissions, total, summary = await get_earned_commissions(
+        db=db,
+        studio_id=studio.id,
+        artist_id=artist_id,
+        start_date=start_dt,
+        end_date=end_dt,
+        unpaid_only=unpaid_only,
+        page=1,
+        page_size=10000,
+    )
+
+    # Convert to dict format
+    commission_dicts = []
+    for comm in commissions:
+        booking = comm.booking_request
+        artist = comm.artist
+        commission_dicts.append({
+            "completed_at": comm.completed_at,
+            "client_name": booking.client_name if booking else "Unknown",
+            "artist_name": artist.full_name if artist else None,
+            "design_idea": booking.design_idea if booking else None,
+            "service_total": comm.service_total,
+            "studio_commission": comm.studio_commission,
+            "artist_payout": comm.artist_payout,
+            "tips_amount": comm.tips_amount,
+            "commission_rule_name": comm.commission_rule_name,
+            "paid_at": comm.paid_at,
+        })
+
+    # Build date range string
+    date_range = None
+    if start_date or end_date:
+        date_range = f"{start_date or 'Start'} to {end_date or 'Present'}"
+
+    summary["total"] = total
+    pdf_content = generate_commissions_pdf(
+        commission_dicts,
+        summary,
+        studio_name=studio.name,
+        date_range=date_range,
+    )
+
+    filename = f"commissions_{datetime.now().strftime('%Y%m%d')}.pdf"
+    return Response(
+        content=pdf_content,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.get("/export/pay-periods.csv")
+async def export_pay_periods_csv(
+    current_user: User = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+    status_filter: Optional[PayPeriodStatusSchema] = Query(None, alias="status"),
+) -> Response:
+    """
+    Export pay periods to CSV.
+    Owner only.
+    """
+    from app.services.export_service import generate_pay_periods_csv
+
+    studio = await get_user_studio(db, current_user)
+
+    # Build query
+    query = select(PayPeriod).where(PayPeriod.studio_id == studio.id)
+
+    if status_filter:
+        query = query.where(PayPeriod.status == PayPeriodStatus(status_filter.value))
+
+    query = query.order_by(PayPeriod.start_date.desc())
+
+    result = await db.execute(query)
+    pay_periods = result.scalars().all()
+
+    # Convert to dict format
+    pp_dicts = []
+    for pp in pay_periods:
+        pp_dicts.append({
+            "start_date": pp.start_date,
+            "end_date": pp.end_date,
+            "status": pp.status.value if pp.status else None,
+            "total_service": pp.total_service,
+            "total_studio_commission": pp.total_studio_commission,
+            "total_artist_payout": pp.total_artist_payout,
+            "total_tips": pp.total_tips,
+            "total_tips_card": pp.total_tips_card,
+            "total_tips_cash": pp.total_tips_cash,
+            "commission_count": pp.commission_count,
+            "paid_at": pp.paid_at,
+            "payout_reference": pp.payout_reference,
+        })
+
+    csv_content = generate_pay_periods_csv(pp_dicts)
+
+    filename = f"pay_periods_{datetime.now().strftime('%Y%m%d')}.csv"
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.get("/export/pay-periods.pdf")
+async def export_pay_periods_pdf(
+    current_user: User = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+    status_filter: Optional[PayPeriodStatusSchema] = Query(None, alias="status"),
+) -> Response:
+    """
+    Export pay periods to PDF.
+    Owner only.
+    """
+    from app.services.export_service import generate_pay_periods_pdf
+
+    studio = await get_user_studio(db, current_user)
+
+    # Build query
+    query = select(PayPeriod).where(PayPeriod.studio_id == studio.id)
+
+    if status_filter:
+        query = query.where(PayPeriod.status == PayPeriodStatus(status_filter.value))
+
+    query = query.order_by(PayPeriod.start_date.desc())
+
+    result = await db.execute(query)
+    pay_periods = result.scalars().all()
+
+    # Convert to dict format
+    pp_dicts = []
+    totals = {
+        "total_service": 0,
+        "total_studio_commission": 0,
+        "total_artist_payout": 0,
+        "total_tips": 0,
+    }
+    for pp in pay_periods:
+        pp_dicts.append({
+            "start_date": pp.start_date,
+            "end_date": pp.end_date,
+            "status": pp.status.value if pp.status else None,
+            "total_service": pp.total_service,
+            "total_studio_commission": pp.total_studio_commission,
+            "total_artist_payout": pp.total_artist_payout,
+            "total_tips": pp.total_tips,
+            "commission_count": pp.commission_count,
+            "paid_at": pp.paid_at,
+        })
+        totals["total_service"] += pp.total_service
+        totals["total_studio_commission"] += pp.total_studio_commission
+        totals["total_artist_payout"] += pp.total_artist_payout
+        totals["total_tips"] += pp.total_tips
+
+    totals["count"] = len(pp_dicts)
+
+    pdf_content = generate_pay_periods_pdf(
+        pp_dicts,
+        totals,
+        studio_name=studio.name,
+    )
+
+    filename = f"pay_periods_{datetime.now().strftime('%Y%m%d')}.pdf"
+    return Response(
+        content=pdf_content,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.get("/export/artist-payouts.csv")
+async def export_artist_payouts_csv(
+    current_user: User = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    paid_only: bool = Query(True, description="Only include paid commissions"),
+) -> Response:
+    """
+    Export artist payouts report to CSV.
+    Owner only.
+    """
+    from datetime import datetime as dt
+    from collections import defaultdict
+    from app.services.export_service import generate_artist_payouts_csv
+
+    studio = await get_user_studio(db, current_user)
+
+    # Parse dates
+    start_dt = None
+    end_dt = None
+    if start_date:
+        start_dt = dt.fromisoformat(start_date + "T00:00:00+00:00")
+    if end_date:
+        end_dt = dt.fromisoformat(end_date + "T23:59:59+00:00")
+
+    # Build query for commissions
+    query = (
+        select(EarnedCommission)
+        .options(selectinload(EarnedCommission.artist))
+        .where(EarnedCommission.studio_id == studio.id)
+    )
+
+    if paid_only:
+        query = query.where(EarnedCommission.paid_at.is_not(None))
+    if start_dt:
+        query = query.where(EarnedCommission.completed_at >= start_dt)
+    if end_dt:
+        query = query.where(EarnedCommission.completed_at <= end_dt)
+
+    result = await db.execute(query)
+    commissions = list(result.scalars().all())
+
+    # Aggregate by artist
+    artist_totals: dict = defaultdict(lambda: {
+        "total_service": 0,
+        "total_studio_commission": 0,
+        "total_artist_payout": 0,
+        "total_tips": 0,
+        "booking_count": 0,
+        "pay_periods": set(),
+        "artist_name": "",
+        "email": "",
+    })
+
+    for comm in commissions:
+        artist = comm.artist
+        if artist:
+            artist_id = str(artist.id)
+            artist_totals[artist_id]["total_service"] += comm.service_total
+            artist_totals[artist_id]["total_studio_commission"] += comm.studio_commission
+            artist_totals[artist_id]["total_artist_payout"] += comm.artist_payout
+            artist_totals[artist_id]["total_tips"] += comm.tips_amount or 0
+            artist_totals[artist_id]["booking_count"] += 1
+            artist_totals[artist_id]["artist_name"] = artist.full_name
+            artist_totals[artist_id]["email"] = artist.email
+            if comm.pay_period_id:
+                artist_totals[artist_id]["pay_periods"].add(comm.pay_period_id)
+
+    # Build artist list
+    artists = [
+        {
+            "artist_name": data["artist_name"],
+            "email": data["email"],
+            "total_service": data["total_service"],
+            "total_studio_commission": data["total_studio_commission"],
+            "total_artist_payout": data["total_artist_payout"],
+            "total_tips": data["total_tips"],
+            "booking_count": data["booking_count"],
+            "pay_period_count": len(data["pay_periods"]),
+        }
+        for data in artist_totals.values()
+    ]
+
+    # Sort by payout descending
+    artists.sort(key=lambda a: a["total_artist_payout"], reverse=True)
+
+    csv_content = generate_artist_payouts_csv(artists)
+
+    filename = f"artist_payouts_{datetime.now().strftime('%Y%m%d')}.csv"
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.get("/export/artist-payouts.pdf")
+async def export_artist_payouts_pdf(
+    current_user: User = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    paid_only: bool = Query(True, description="Only include paid commissions"),
+) -> Response:
+    """
+    Export artist payouts report to PDF.
+    Owner only.
+    """
+    from datetime import datetime as dt
+    from collections import defaultdict
+    from app.services.export_service import generate_artist_payouts_pdf
+
+    studio = await get_user_studio(db, current_user)
+
+    # Parse dates
+    start_dt = None
+    end_dt = None
+    if start_date:
+        start_dt = dt.fromisoformat(start_date + "T00:00:00+00:00")
+    if end_date:
+        end_dt = dt.fromisoformat(end_date + "T23:59:59+00:00")
+
+    # Build query for commissions
+    query = (
+        select(EarnedCommission)
+        .options(selectinload(EarnedCommission.artist))
+        .where(EarnedCommission.studio_id == studio.id)
+    )
+
+    if paid_only:
+        query = query.where(EarnedCommission.paid_at.is_not(None))
+    if start_dt:
+        query = query.where(EarnedCommission.completed_at >= start_dt)
+    if end_dt:
+        query = query.where(EarnedCommission.completed_at <= end_dt)
+
+    result = await db.execute(query)
+    commissions = list(result.scalars().all())
+
+    # Aggregate by artist
+    artist_totals: dict = defaultdict(lambda: {
+        "total_service": 0,
+        "total_studio_commission": 0,
+        "total_artist_payout": 0,
+        "total_tips": 0,
+        "booking_count": 0,
+        "artist_name": "",
+        "email": "",
+    })
+
+    overall_totals = {
+        "total_service": 0,
+        "total_studio_commission": 0,
+        "total_artist_payout": 0,
+        "total_tips": 0,
+        "total_bookings": 0,
+    }
+
+    for comm in commissions:
+        artist = comm.artist
+        if artist:
+            artist_id = str(artist.id)
+            artist_totals[artist_id]["total_service"] += comm.service_total
+            artist_totals[artist_id]["total_studio_commission"] += comm.studio_commission
+            artist_totals[artist_id]["total_artist_payout"] += comm.artist_payout
+            artist_totals[artist_id]["total_tips"] += comm.tips_amount or 0
+            artist_totals[artist_id]["booking_count"] += 1
+            artist_totals[artist_id]["artist_name"] = artist.full_name
+            artist_totals[artist_id]["email"] = artist.email
+
+        overall_totals["total_service"] += comm.service_total
+        overall_totals["total_studio_commission"] += comm.studio_commission
+        overall_totals["total_artist_payout"] += comm.artist_payout
+        overall_totals["total_tips"] += comm.tips_amount or 0
+        overall_totals["total_bookings"] += 1
+
+    # Build artist list
+    artists = list(artist_totals.values())
+    artists.sort(key=lambda a: a["total_artist_payout"], reverse=True)
+
+    overall_totals["artists_paid"] = len(artists)
+
+    # Build date range string
+    date_range = None
+    if start_date or end_date:
+        date_range = f"{start_date or 'Start'} to {end_date or 'Present'}"
+
+    pdf_content = generate_artist_payouts_pdf(
+        artists,
+        overall_totals,
+        studio_name=studio.name,
+        date_range=date_range,
+    )
+
+    filename = f"artist_payouts_{datetime.now().strftime('%Y%m%d')}.pdf"
+    return Response(
+        content=pdf_content,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.get("/export/tips.csv")
+async def export_tips_csv(
+    current_user: User = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+) -> Response:
+    """
+    Export tips report to CSV.
+    Owner only.
+    """
+    from app.services.export_service import generate_tips_report_csv
+
+    studio = await get_user_studio(db, current_user)
+
+    # Parse dates
+    start_dt = None
+    end_dt = None
+    if start_date:
+        start_dt = datetime.fromisoformat(start_date).replace(tzinfo=timezone.utc)
+    if end_date:
+        end_dt = datetime.fromisoformat(end_date).replace(
+            hour=23, minute=59, second=59, tzinfo=timezone.utc
+        )
+
+    # Build query for commissions with tips
+    query = select(EarnedCommission).where(
+        EarnedCommission.studio_id == studio.id,
+        EarnedCommission.tips_amount > 0,
+    )
+
+    if start_dt:
+        query = query.where(EarnedCommission.completed_at >= start_dt)
+    if end_dt:
+        query = query.where(EarnedCommission.completed_at <= end_dt)
+
+    result = await db.execute(
+        query.options(selectinload(EarnedCommission.artist))
+    )
+    commissions = result.scalars().all()
+
+    # Aggregate by artist
+    artist_data: dict = {}
+    for comm in commissions:
+        artist_id = comm.artist_id
+        if artist_id not in artist_data:
+            artist_name = "Unknown"
+            artist_email = ""
+            if comm.artist:
+                artist_name = f"{comm.artist.first_name} {comm.artist.last_name}"
+                artist_email = comm.artist.email
+            artist_data[artist_id] = {
+                "artist_name": artist_name,
+                "email": artist_email,
+                "total_tips": 0,
+                "total_tips_card": 0,
+                "total_tips_cash": 0,
+                "tip_artist_share": 0,
+                "tip_studio_share": 0,
+                "booking_count": 0,
+            }
+
+        if comm.tip_payment_method == TipPaymentMethod.CARD:
+            artist_data[artist_id]["total_tips_card"] += comm.tips_amount
+        elif comm.tip_payment_method == TipPaymentMethod.CASH:
+            artist_data[artist_id]["total_tips_cash"] += comm.tips_amount
+        else:
+            artist_data[artist_id]["total_tips_card"] += comm.tips_amount
+
+        artist_data[artist_id]["total_tips"] += comm.tips_amount
+        artist_data[artist_id]["tip_artist_share"] += comm.tip_artist_share
+        artist_data[artist_id]["tip_studio_share"] += comm.tip_studio_share
+        artist_data[artist_id]["booking_count"] += 1
+
+    # Build artist list
+    artists = list(artist_data.values())
+    artists.sort(key=lambda a: a["total_tips"], reverse=True)
+
+    csv_content = generate_tips_report_csv(artists)
+
+    filename = f"tips_report_{datetime.now().strftime('%Y%m%d')}.csv"
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.get("/export/tips.pdf")
+async def export_tips_pdf(
+    current_user: User = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+) -> Response:
+    """
+    Export tips report to PDF.
+    Owner only.
+    """
+    from app.services.export_service import generate_tips_report_pdf
+
+    studio = await get_user_studio(db, current_user)
+
+    # Parse dates
+    start_dt = None
+    end_dt = None
+    if start_date:
+        start_dt = datetime.fromisoformat(start_date).replace(tzinfo=timezone.utc)
+    if end_date:
+        end_dt = datetime.fromisoformat(end_date).replace(
+            hour=23, minute=59, second=59, tzinfo=timezone.utc
+        )
+
+    # Build query for commissions with tips
+    query = select(EarnedCommission).where(
+        EarnedCommission.studio_id == studio.id,
+        EarnedCommission.tips_amount > 0,
+    )
+
+    if start_dt:
+        query = query.where(EarnedCommission.completed_at >= start_dt)
+    if end_dt:
+        query = query.where(EarnedCommission.completed_at <= end_dt)
+
+    result = await db.execute(
+        query.options(selectinload(EarnedCommission.artist))
+    )
+    commissions = result.scalars().all()
+
+    # Aggregate by artist
+    artist_data: dict = {}
+    overall_totals = {
+        "total_tips": 0,
+        "total_tips_card": 0,
+        "total_tips_cash": 0,
+        "total_artist_share": 0,
+        "total_studio_share": 0,
+        "total_bookings_with_tips": 0,
+    }
+
+    for comm in commissions:
+        artist_id = comm.artist_id
+        if artist_id not in artist_data:
+            artist_name = "Unknown"
+            artist_email = ""
+            if comm.artist:
+                artist_name = f"{comm.artist.first_name} {comm.artist.last_name}"
+                artist_email = comm.artist.email
+            artist_data[artist_id] = {
+                "artist_name": artist_name,
+                "email": artist_email,
+                "total_tips": 0,
+                "total_tips_card": 0,
+                "total_tips_cash": 0,
+                "tip_artist_share": 0,
+                "tip_studio_share": 0,
+                "booking_count": 0,
+            }
+
+        if comm.tip_payment_method == TipPaymentMethod.CARD:
+            artist_data[artist_id]["total_tips_card"] += comm.tips_amount
+            overall_totals["total_tips_card"] += comm.tips_amount
+        elif comm.tip_payment_method == TipPaymentMethod.CASH:
+            artist_data[artist_id]["total_tips_cash"] += comm.tips_amount
+            overall_totals["total_tips_cash"] += comm.tips_amount
+        else:
+            artist_data[artist_id]["total_tips_card"] += comm.tips_amount
+            overall_totals["total_tips_card"] += comm.tips_amount
+
+        artist_data[artist_id]["total_tips"] += comm.tips_amount
+        artist_data[artist_id]["tip_artist_share"] += comm.tip_artist_share
+        artist_data[artist_id]["tip_studio_share"] += comm.tip_studio_share
+        artist_data[artist_id]["booking_count"] += 1
+
+        overall_totals["total_tips"] += comm.tips_amount
+        overall_totals["total_artist_share"] += comm.tip_artist_share
+        overall_totals["total_studio_share"] += comm.tip_studio_share
+        overall_totals["total_bookings_with_tips"] += 1
+
+    # Build artist list
+    artists = list(artist_data.values())
+    artists.sort(key=lambda a: a["total_tips"], reverse=True)
+
+    # Build date range string
+    date_range = None
+    if start_date or end_date:
+        date_range = f"{start_date or 'Start'} to {end_date or 'Present'}"
+
+    pdf_content = generate_tips_report_pdf(
+        artists,
+        overall_totals,
+        studio_name=studio.name,
+        date_range=date_range,
+    )
+
+    filename = f"tips_report_{datetime.now().strftime('%Y%m%d')}.pdf"
+    return Response(
+        content=pdf_content,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
