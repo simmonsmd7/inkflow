@@ -1355,3 +1355,38 @@ Security Features:
 - Verified: Application loads correctly in browser
 Status: COMPLETE
 Next: P6.6 - Consent form retrieval and audit log
+
+=== ITERATION 30 ===
+Date: 2026-01-10
+Task: P6.6 - Consent form retrieval and audit log
+Changes:
+Frontend (ConsentForms.tsx):
+- Added audit log section to submission detail modal (owner-only access)
+- Display audit trail with action types (created, viewed, verified, voided, downloaded)
+- Show performer name/client indicator, timestamps, IP addresses, and notes
+- Color-coded action badges for quick visual recognition
+- Scrollable audit log with max height for large histories
+
+- Added on-demand decryption UI for secure data:
+  - "View Signature" button triggers loadDecryptedSignature()
+  - "View ID" button triggers loadDecryptedPhotoId()
+  - Shows encrypted status indicators until data is decrypted
+  - Loading states during decryption operations
+
+- State management improvements:
+  - auditLogs, showAuditLog, loadingAuditLog state variables
+  - decryptedSignature, decryptedPhotoId, loadingDecryption state variables
+  - Reset all decrypted data and audit state when viewing new submissions
+
+- New functions:
+  - loadAuditLog(submissionId) - Fetch audit log from API
+  - loadDecryptedSignature(submissionId) - Fetch decrypted signature
+  - loadDecryptedPhotoId(submissionId) - Fetch decrypted photo ID as blob URL
+
+Backend (already existed from P6.5):
+- GET /submissions/{id}/audit-log - Paginated audit log endpoint
+- All access and modifications to consent forms tracked in audit log
+
+- Verified: Frontend build passes with no TypeScript errors
+Status: COMPLETE
+Next: P6.7 - Age verification workflow
