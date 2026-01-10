@@ -819,3 +819,23 @@ Database:
 - Verified: All CRUD endpoints registered at /api/v1/messages/templates/*
 Status: COMPLETE
 Next: P4.6 - Message status (unread, pending, resolved)
+
+=== ITERATION 26 ===
+Date: 2026-01-10
+Task: P4.6 - Message status (unread, pending, resolved)
+Changes:
+- VERIFIED: Feature already complete from P4.1 foundation
+- Status filter tabs with counts in inbox header (All, Unread, Pending, Resolved)
+- Status badges on conversation list items (color-coded: red/yellow/green)
+- Status dropdown in conversation header for changing status
+- Auto-transition logic: unread → pending when staff sends reply
+- Backend endpoints for status filtering and updates
+- Frontend handleStatusChange function updates both UI and API
+
+No code changes needed - P4.6 requirements were implemented as part of P4.1.
+
+- Verified: Frontend build passes with no TypeScript errors
+- Verified: Inbox UI displays status tabs, badges, and dropdown correctly
+- Verified: Conversation status badge shows correctly in list
+Status: COMPLETE (already implemented in P4.1)
+Next: P5.1 - Commission rules engine
