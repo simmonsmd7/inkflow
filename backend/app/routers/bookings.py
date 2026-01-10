@@ -23,6 +23,7 @@ from app.models import (
 )
 from app.schemas.booking import (
     ArtistOptionResponse,
+    BookingConfirmationResponse,
     BookingRequestCreate,
     BookingRequestResponse,
     BookingRequestsListResponse,
@@ -30,6 +31,7 @@ from app.schemas.booking import (
     BookingRequestUpdate,
     BookingSubmissionResponse,
     CheckoutSessionResponse,
+    ConfirmBookingInput,
     DepositPaymentInfo,
     ReferenceImageResponse,
     SendDepositRequestInput,
@@ -39,6 +41,7 @@ from app.schemas.booking import (
 from app.schemas.booking import BookingRequestStatus as SchemaStatus
 from app.schemas.booking import TattooSize as SchemaSize
 from app.services.auth import get_current_user, require_role
+from app.services.calendar import calendar_service
 from app.services.email import email_service
 from app.services.stripe_service import stripe_service
 
@@ -584,6 +587,120 @@ async def send_deposit_request(
         deposit_amount=data.deposit_amount,
         expires_at=expires_at,
         payment_url=payment_url,
+    )
+
+
+@router.post(
+    "/requests/{request_id}/confirm",
+    response_model=BookingConfirmationResponse,
+)
+async def confirm_booking(
+    request_id: uuid.UUID,
+    data: ConfirmBookingInput,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> BookingConfirmationResponse:
+    """Confirm a booking with a scheduled date and send confirmation with calendar invite."""
+    # Get booking request with relationships
+    result = await db.execute(
+        select(BookingRequest)
+        .where(BookingRequest.id == request_id, BookingRequest.deleted_at.is_(None))
+        .options(
+            selectinload(BookingRequest.studio),
+            selectinload(BookingRequest.assigned_artist),
+            selectinload(BookingRequest.preferred_artist),
+        )
+    )
+    booking = result.scalar_one_or_none()
+
+    if not booking:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Booking request not found",
+        )
+
+    # Artists can only confirm their assigned bookings
+    if current_user.role == UserRole.ARTIST:
+        if booking.assigned_artist_id != current_user.id and booking.preferred_artist_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have access to this booking request",
+            )
+
+    # Can only confirm bookings that have deposit paid
+    if booking.status != BookingRequestStatus.DEPOSIT_PAID:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot confirm booking with status '{booking.status.value}'. Deposit must be paid first.",
+        )
+
+    # Update booking
+    booking.scheduled_date = data.scheduled_date
+    booking.scheduled_duration_hours = data.scheduled_duration_hours
+    booking.status = BookingRequestStatus.CONFIRMED
+
+    await db.commit()
+    await db.refresh(booking)
+
+    # Send confirmation email with calendar invite
+    confirmation_email_sent = False
+    if data.send_confirmation_email:
+        # Get artist name
+        artist = booking.assigned_artist or booking.preferred_artist
+        artist_name = artist.full_name if artist else None
+
+        # Build studio address
+        studio = booking.studio
+        studio_address = None
+        if studio.address_line1:
+            address_parts = [studio.address_line1]
+            if studio.address_line2:
+                address_parts.append(studio.address_line2)
+            if studio.city and studio.state:
+                address_parts.append(f"{studio.city}, {studio.state} {studio.postal_code or ''}")
+            studio_address = ", ".join(address_parts)
+
+        # Generate calendar invite
+        calendar_ics = calendar_service.generate_tattoo_appointment_ics(
+            booking_id=str(booking.id),
+            client_name=booking.client_name,
+            client_email=booking.client_email,
+            studio_name=studio.name,
+            studio_address=studio_address,
+            studio_email=studio.email,
+            artist_name=artist_name,
+            design_summary=booking.design_idea,
+            placement=booking.placement,
+            scheduled_date=data.scheduled_date,
+            duration_hours=data.scheduled_duration_hours,
+        )
+
+        # Format date and time for email
+        scheduled_date_str = data.scheduled_date.strftime("%B %d, %Y")
+        scheduled_time_str = data.scheduled_date.strftime("%I:%M %p")
+
+        # Send email
+        confirmation_email_sent = await email_service.send_booking_confirmation_email(
+            to_email=booking.client_email,
+            client_name=booking.client_name,
+            studio_name=studio.name,
+            studio_address=studio_address,
+            artist_name=artist_name,
+            design_summary=booking.design_idea,
+            placement=booking.placement,
+            scheduled_date=scheduled_date_str,
+            scheduled_time=scheduled_time_str,
+            duration_hours=data.scheduled_duration_hours,
+            calendar_ics=calendar_ics.encode("utf-8"),
+        )
+
+    return BookingConfirmationResponse(
+        message="Booking confirmed successfully",
+        request_id=booking.id,
+        status="confirmed",
+        scheduled_date=booking.scheduled_date,
+        scheduled_duration_hours=booking.scheduled_duration_hours,
+        confirmation_email_sent=confirmation_email_sent,
     )
 
 

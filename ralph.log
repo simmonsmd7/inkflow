@@ -466,6 +466,46 @@ Frontend:
 Status: COMPLETE
 Next: P3.6 - Booking confirmation with calendar invite
 
+=== ITERATION 17 ===
+Date: 2026-01-10
+Task: P3.6 - Booking confirmation with calendar invite
+Changes:
+Backend:
+- backend/app/services/calendar.py: NEW - iCalendar service with:
+  - RFC 5545 compliant .ics file generation
+  - generate_ics() method for generic calendar events
+  - generate_tattoo_appointment_ics() method for tattoo-specific events
+  - VALARM reminders (1 day and 2 hours before appointment)
+  - Proper timezone handling with UTC conversion
+- backend/app/services/email.py: Extended with:
+  - EmailAttachment dataclass for file attachments
+  - Updated EmailMessage to include attachments list
+  - Updated _send_stub() to display attachment info
+  - Updated _send_sendgrid() to include base64-encoded attachments
+  - send_booking_confirmation_email() with HTML template and calendar invite
+- backend/app/schemas/booking.py: Added ConfirmBookingInput, BookingConfirmationResponse schemas
+- backend/app/routers/bookings.py: Added endpoint:
+  - POST /bookings/requests/{id}/confirm - Confirm booking with scheduled date/time
+  - Only allows confirmation when status is deposit_paid
+  - Updates status to confirmed, sets scheduled_date and duration
+  - Generates calendar invite and sends confirmation email
+
+Frontend:
+- frontend/src/types/api.ts: Added ConfirmBookingInput, BookingConfirmationResponse types
+- frontend/src/services/bookings.ts: Added confirmBooking() function
+- frontend/src/pages/BookingQueue.tsx: Added:
+  - "Confirm Appointment" button (shows when status is deposit_paid)
+  - Confirm booking modal with date picker, time picker, duration input
+  - Send confirmation email checkbox (default true)
+  - Success handling that closes modal and refreshes list
+
+- Verified: Frontend build passes with no TypeScript errors
+- Verified: Backend health check passes
+- Verified: Confirm endpoint registered at /api/v1/bookings/requests/{id}/confirm
+- Verified: Both frontend (5173) and backend (8000) servers running
+Status: COMPLETE
+Next: P3.7 - Basic appointment calendar view
+
 ---
 PROJECT: InkFlow - Tattoo Studio Management Platform
 TARGET: Solo artists and 2-5 artist studios at $29-69/month

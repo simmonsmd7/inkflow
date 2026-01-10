@@ -1,12 +1,22 @@
 """Email service with SendGrid integration and console stub."""
 
+import base64
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
+
+
+@dataclass
+class EmailAttachment:
+    """Email attachment data class."""
+
+    content: bytes  # Raw bytes of the file
+    filename: str
+    mime_type: str
 
 
 @dataclass
@@ -17,6 +27,7 @@ class EmailMessage:
     subject: str
     body_text: str
     body_html: str | None = None
+    attachments: list[EmailAttachment] = field(default_factory=list)
 
 
 class EmailService:
@@ -43,19 +54,40 @@ class EmailService:
 
     async def _send_stub(self, message: EmailMessage) -> bool:
         """Log email to console (stub mode)."""
+        attachment_info = ""
+        if message.attachments:
+            attachment_list = ", ".join(
+                f"{att.filename} ({att.mime_type}, {len(att.content)} bytes)"
+                for att in message.attachments
+            )
+            attachment_info = f"\n  Attachments: {attachment_list}"
+
         logger.info(
             f"\n[EMAIL STUB] "
             f"\n  To: {message.to_email}"
             f"\n  Subject: {message.subject}"
             f"\n  Body: {message.body_text}"
+            f"{attachment_info}"
             f"\n"
         )
+
+        attachment_console = ""
+        if message.attachments:
+            attachment_console = "\nAttachments:\n"
+            for att in message.attachments:
+                attachment_console += f"  - {att.filename} ({att.mime_type}, {len(att.content)} bytes)\n"
+                # For .ics files, show content preview
+                if att.mime_type == "text/calendar":
+                    preview = att.content.decode("utf-8")[:500]
+                    attachment_console += f"    Preview:\n{preview}...\n"
+
         print(
             f"\n{'='*60}\n"
             f"[EMAIL STUB]\n"
             f"To: {message.to_email}\n"
             f"Subject: {message.subject}\n"
             f"Body:\n{message.body_text}\n"
+            f"{attachment_console}"
             f"{'='*60}\n"
         )
         return True
@@ -63,7 +95,17 @@ class EmailService:
     async def _send_sendgrid(self, message: EmailMessage) -> bool:
         """Send email via SendGrid."""
         try:
-            from sendgrid.helpers.mail import Content, Email, Mail, To
+            from sendgrid.helpers.mail import (
+                Attachment,
+                Content,
+                Disposition,
+                Email,
+                FileContent,
+                FileName,
+                FileType,
+                Mail,
+                To,
+            )
 
             from_email = Email(self.from_email)
             to_email = To(message.to_email)
@@ -72,6 +114,16 @@ class EmailService:
 
             if message.body_html:
                 mail.add_content(Content("text/html", message.body_html))
+
+            # Add attachments
+            for att in message.attachments:
+                encoded_content = base64.b64encode(att.content).decode("utf-8")
+                attachment = Attachment()
+                attachment.file_content = FileContent(encoded_content)
+                attachment.file_type = FileType(att.mime_type)
+                attachment.file_name = FileName(att.filename)
+                attachment.disposition = Disposition("attachment")
+                mail.add_attachment(attachment)
 
             response = self._client.send(mail)
             return response.status_code in (200, 201, 202)
@@ -365,6 +417,141 @@ Powered by InkFlow
                 subject=f"Your tattoo quote from {studio_name} - Deposit required",
                 body_text=body_text,
                 body_html=body_html,
+            )
+        )
+
+    async def send_booking_confirmation_email(
+        self,
+        to_email: str,
+        client_name: str,
+        studio_name: str,
+        studio_address: str | None,
+        artist_name: str | None,
+        design_summary: str,
+        placement: str,
+        scheduled_date: str,
+        scheduled_time: str,
+        duration_hours: float,
+        calendar_ics: bytes | None = None,
+    ) -> bool:
+        """Send booking confirmation email with calendar invite."""
+        body_text = f"""Hi {client_name},
+
+Great news! Your tattoo appointment has been confirmed!
+
+APPOINTMENT DETAILS
+-------------------
+Date: {scheduled_date}
+Time: {scheduled_time}
+Duration: {duration_hours:.1f} hours
+
+Studio: {studio_name}
+{f"Artist: {artist_name}" if artist_name else ""}
+{f"Address: {studio_address}" if studio_address else ""}
+
+Tattoo Details:
+- Design: {design_summary[:100]}...
+- Placement: {placement}
+
+BEFORE YOUR APPOINTMENT
+-----------------------
+- Get a good night's sleep
+- Eat a meal before arriving
+- Stay hydrated
+- Avoid alcohol and blood thinners 24 hours before
+- Wear comfortable, loose clothing
+- Bring a valid ID
+
+The calendar invite is attached to this email - add it to your calendar so you don't forget!
+
+If you need to reschedule or cancel, please contact us at least 48 hours in advance.
+
+Questions? Reply to this email or contact the studio directly.
+
+See you soon!
+
+Best,
+{studio_name}
+Powered by InkFlow
+"""
+
+        body_html = f"""
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+    <div style="background-color: #10b981; padding: 20px; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 24px;">✓ Appointment Confirmed!</h1>
+    </div>
+
+    <div style="padding: 30px;">
+        <p>Hi {client_name},</p>
+        <p>Great news! Your tattoo appointment has been confirmed!</p>
+
+        <div style="background-color: #10b981; color: #ffffff; padding: 20px; border-radius: 8px; margin: 25px 0; text-align: center;">
+            <h2 style="margin: 0 0 10px 0; font-size: 28px;">{scheduled_date}</h2>
+            <p style="margin: 0; font-size: 20px;">{scheduled_time}</p>
+            <p style="margin: 10px 0 0 0; opacity: 0.9;">Duration: {duration_hours:.1f} hours</p>
+        </div>
+
+        <div style="background-color: #f8f8f8; padding: 20px; border-radius: 8px; margin: 25px 0;">
+            <h3 style="margin: 0 0 15px 0; color: #1a1a1a;">Appointment Details</h3>
+            <p style="margin: 5px 0;"><strong>Studio:</strong> {studio_name}</p>
+            {"<p style='margin: 5px 0;'><strong>Artist:</strong> " + artist_name + "</p>" if artist_name else ""}
+            {"<p style='margin: 5px 0;'><strong>Address:</strong> " + studio_address + "</p>" if studio_address else ""}
+            <p style="margin: 15px 0 5px 0;"><strong>Design:</strong> {design_summary[:100]}...</p>
+            <p style="margin: 5px 0;"><strong>Placement:</strong> {placement}</p>
+        </div>
+
+        <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 20px; margin: 25px 0;">
+            <h3 style="margin: 0 0 15px 0; color: #92400e;">Before Your Appointment</h3>
+            <ul style="margin: 0; padding-left: 20px; color: #92400e;">
+                <li style="margin: 5px 0;">Get a good night's sleep</li>
+                <li style="margin: 5px 0;">Eat a meal before arriving</li>
+                <li style="margin: 5px 0;">Stay hydrated</li>
+                <li style="margin: 5px 0;">Avoid alcohol and blood thinners 24 hours before</li>
+                <li style="margin: 5px 0;">Wear comfortable, loose clothing</li>
+                <li style="margin: 5px 0;">Bring a valid ID</li>
+            </ul>
+        </div>
+
+        <p style="text-align: center; background-color: #f0f9ff; padding: 15px; border-radius: 6px; color: #0369a1;">
+            📅 <strong>A calendar invite is attached</strong> - add it to your calendar!
+        </p>
+
+        <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+
+        <p style="color: #666; font-size: 13px;">
+            If you need to reschedule or cancel, please contact us at least 48 hours in advance.
+        </p>
+
+        <p style="color: #666; font-size: 13px;">
+            Questions? Reply to this email or contact the studio directly.
+        </p>
+    </div>
+
+    <div style="background-color: #f5f5f5; padding: 15px; text-align: center;">
+        <p style="color: #999; font-size: 12px; margin: 0;">
+            {studio_name} • Powered by <a href="https://inkflow.io" style="color: #e11d48;">InkFlow</a>
+        </p>
+    </div>
+</div>
+"""
+
+        attachments = []
+        if calendar_ics:
+            attachments.append(
+                EmailAttachment(
+                    content=calendar_ics,
+                    filename="appointment.ics",
+                    mime_type="text/calendar",
+                )
+            )
+
+        return await self.send(
+            EmailMessage(
+                to_email=to_email,
+                subject=f"Confirmed: Tattoo appointment at {studio_name} - {scheduled_date}",
+                body_text=body_text,
+                body_html=body_html,
+                attachments=attachments,
             )
         )
 

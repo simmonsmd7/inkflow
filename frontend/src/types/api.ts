@@ -469,3 +469,19 @@ export interface DepositPaymentInfo {
   is_expired: boolean;
   quote_notes: string | null;
 }
+
+// Booking confirmation types
+export interface ConfirmBookingInput {
+  scheduled_date: string; // ISO datetime string
+  scheduled_duration_hours: number;
+  send_confirmation_email?: boolean;
+}
+
+export interface BookingConfirmationResponse {
+  message: string;
+  request_id: string;
+  status: string;
+  scheduled_date: string;
+  scheduled_duration_hours: number;
+  confirmation_email_sent: boolean;
+}

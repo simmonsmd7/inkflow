@@ -239,3 +239,26 @@ class StubPaymentConfirmation(BaseModel):
     message: str
     status: str
     deposit_paid_at: datetime
+
+
+class ConfirmBookingInput(BaseModel):
+    """Input for confirming a booking with a scheduled date/time."""
+
+    scheduled_date: datetime = Field(..., description="Scheduled date and time for the appointment")
+    scheduled_duration_hours: float = Field(
+        ..., ge=0.5, le=24, description="Duration in hours"
+    )
+    send_confirmation_email: bool = Field(
+        default=True, description="Whether to send confirmation email with calendar invite"
+    )
+
+
+class BookingConfirmationResponse(BaseModel):
+    """Response after confirming a booking."""
+
+    message: str
+    request_id: UUID
+    status: str
+    scheduled_date: datetime
+    scheduled_duration_hours: float
+    confirmation_email_sent: bool

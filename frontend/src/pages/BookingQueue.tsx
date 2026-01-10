@@ -9,8 +9,10 @@ import {
   getBookingRequest,
   updateBookingRequest,
   sendDepositRequest,
+  confirmBooking,
 } from '../services/bookings';
 import type {
+  BookingConfirmationResponse,
   BookingRequest,
   BookingRequestStatus,
   BookingRequestSummary,
@@ -97,6 +99,17 @@ export function BookingQueue() {
   const [sendingDeposit, setSendingDeposit] = useState(false);
   const [depositSuccess, setDepositSuccess] = useState<SendDepositRequestResponse | null>(null);
 
+  // Confirm booking state
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [confirmData, setConfirmData] = useState({
+    scheduled_date: '',
+    scheduled_time: '',
+    scheduled_duration_hours: '',
+    send_confirmation_email: true,
+  });
+  const [confirming, setConfirming] = useState(false);
+  const [confirmSuccess, setConfirmSuccess] = useState<BookingConfirmationResponse | null>(null);
+
   // Check if user has access
   const hasAccess = user && (user.role === 'artist' || user.role === 'owner');
 
@@ -178,6 +191,14 @@ export function BookingQueue() {
       message: '',
     });
     setDepositSuccess(null);
+    setShowConfirmModal(false);
+    setConfirmData({
+      scheduled_date: '',
+      scheduled_time: '',
+      scheduled_duration_hours: '',
+      send_confirmation_email: true,
+    });
+    setConfirmSuccess(null);
   }
 
   function openDepositModal() {
@@ -214,6 +235,51 @@ export function BookingQueue() {
       setModalError(err instanceof Error ? err.message : 'Failed to send deposit request');
     } finally {
       setSendingDeposit(false);
+    }
+  }
+
+  function openConfirmModal() {
+    if (!selectedRequest) return;
+    // Pre-fill with estimated hours if available
+    const hours = quoteData.estimated_hours || selectedRequest.estimated_hours?.toString() || '2';
+    // Default to tomorrow at 10 AM
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const dateStr = tomorrow.toISOString().split('T')[0];
+    setConfirmData({
+      scheduled_date: dateStr,
+      scheduled_time: '10:00',
+      scheduled_duration_hours: hours,
+      send_confirmation_email: true,
+    });
+    setShowConfirmModal(true);
+    setConfirmSuccess(null);
+  }
+
+  async function handleConfirmBooking() {
+    if (!selectedRequest || !confirmData.scheduled_date || !confirmData.scheduled_time) return;
+    setConfirming(true);
+    setModalError(null);
+    try {
+      // Combine date and time into ISO string
+      const scheduledDateTime = new Date(
+        `${confirmData.scheduled_date}T${confirmData.scheduled_time}:00`
+      ).toISOString();
+
+      const response = await confirmBooking(selectedRequest.id, {
+        scheduled_date: scheduledDateTime,
+        scheduled_duration_hours: parseFloat(confirmData.scheduled_duration_hours),
+        send_confirmation_email: confirmData.send_confirmation_email,
+      });
+      setConfirmSuccess(response);
+      // Refresh the selected request
+      const updated = await getBookingRequest(selectedRequest.id);
+      setSelectedRequest(updated);
+      loadRequests();
+    } catch (err) {
+      setModalError(err instanceof Error ? err.message : 'Failed to confirm booking');
+    } finally {
+      setConfirming(false);
     }
   }
 
@@ -675,6 +741,16 @@ export function BookingQueue() {
                               Send Deposit Request
                             </button>
                           )}
+
+                        {/* Confirm Appointment button - only show when deposit is paid */}
+                        {selectedRequest.status === 'deposit_paid' && (
+                          <button
+                            onClick={openConfirmModal}
+                            className="w-full py-2 mt-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors"
+                          >
+                            Confirm Appointment
+                          </button>
+                        )}
                       </div>
                     </div>
 
@@ -875,6 +951,193 @@ export function BookingQueue() {
                       className="flex-1 py-2 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {sendingDeposit ? 'Sending...' : 'Send Request'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Booking Modal */}
+      {showConfirmModal && selectedRequest && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-ink-900 rounded-lg w-full max-w-md">
+            <div className="border-b border-ink-700 p-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-ink-100">Confirm Appointment</h2>
+              <button
+                onClick={() => setShowConfirmModal(false)}
+                className="p-2 hover:bg-ink-800 rounded-lg transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-4">
+              {confirmSuccess ? (
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg
+                      className="w-8 h-8 text-green-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-semibold text-ink-100 mb-2">
+                    Appointment Confirmed!
+                  </h3>
+                  <p className="text-ink-400 mb-4">
+                    {confirmSuccess.confirmation_email_sent
+                      ? `A confirmation email with a calendar invite has been sent to ${selectedRequest.client_email}.`
+                      : 'The appointment has been confirmed.'}
+                  </p>
+                  <div className="bg-ink-800 rounded-lg p-3 text-left">
+                    <p className="text-sm text-ink-400">Scheduled:</p>
+                    <p className="text-lg font-semibold text-green-400">
+                      {formatDate(confirmSuccess.scheduled_date)}
+                    </p>
+                    <p className="text-sm text-ink-400 mt-2">Duration:</p>
+                    <p className="text-ink-200">
+                      {confirmSuccess.scheduled_duration_hours} hour
+                      {confirmSuccess.scheduled_duration_hours !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowConfirmModal(false)}
+                    className="mt-4 w-full py-2 bg-ink-700 hover:bg-ink-600 text-ink-200 font-medium rounded-lg transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <p className="text-ink-400 text-sm">
+                    Schedule and confirm the appointment for{' '}
+                    <span className="text-ink-200">{selectedRequest.client_name}</span>. A
+                    confirmation email with a calendar invite will be sent.
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-ink-300 mb-1">
+                        Date *
+                      </label>
+                      <input
+                        type="date"
+                        value={confirmData.scheduled_date}
+                        onChange={(e) =>
+                          setConfirmData((d) => ({ ...d, scheduled_date: e.target.value }))
+                        }
+                        className="w-full px-3 py-2 bg-ink-800 border border-ink-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-ink-300 mb-1">
+                        Time *
+                      </label>
+                      <input
+                        type="time"
+                        value={confirmData.scheduled_time}
+                        onChange={(e) =>
+                          setConfirmData((d) => ({ ...d, scheduled_time: e.target.value }))
+                        }
+                        className="w-full px-3 py-2 bg-ink-800 border border-ink-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-ink-300 mb-1">
+                      Duration (hours) *
+                    </label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0.5"
+                      max="24"
+                      value={confirmData.scheduled_duration_hours}
+                      onChange={(e) =>
+                        setConfirmData((d) => ({ ...d, scheduled_duration_hours: e.target.value }))
+                      }
+                      className="w-full px-3 py-2 bg-ink-800 border border-ink-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
+                      placeholder="2.0"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="send_confirmation_email"
+                      checked={confirmData.send_confirmation_email}
+                      onChange={(e) =>
+                        setConfirmData((d) => ({
+                          ...d,
+                          send_confirmation_email: e.target.checked,
+                        }))
+                      }
+                      className="w-4 h-4 rounded border-ink-700 bg-ink-800 text-accent focus:ring-accent"
+                    />
+                    <label
+                      htmlFor="send_confirmation_email"
+                      className="text-sm text-ink-300 cursor-pointer"
+                    >
+                      Send confirmation email with calendar invite
+                    </label>
+                  </div>
+
+                  {selectedRequest.quoted_price && (
+                    <div className="bg-ink-800 rounded-lg p-3">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-ink-400">Quoted Price:</span>
+                        <span className="text-green-400 font-medium">
+                          ${selectedRequest.quoted_price}
+                        </span>
+                      </div>
+                      {selectedRequest.deposit_amount && (
+                        <div className="flex justify-between text-sm mt-1">
+                          <span className="text-ink-400">Deposit Paid:</span>
+                          <span className="text-teal-400 font-medium">
+                            ${(selectedRequest.deposit_amount / 100).toFixed(2)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      onClick={() => setShowConfirmModal(false)}
+                      className="flex-1 py-2 bg-ink-700 hover:bg-ink-600 text-ink-200 font-medium rounded-lg transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleConfirmBooking}
+                      disabled={
+                        confirming ||
+                        !confirmData.scheduled_date ||
+                        !confirmData.scheduled_time ||
+                        !confirmData.scheduled_duration_hours
+                      }
+                      className="flex-1 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {confirming ? 'Confirming...' : 'Confirm Appointment'}
                     </button>
                   </div>
                 </div>

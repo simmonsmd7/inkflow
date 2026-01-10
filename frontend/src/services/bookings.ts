@@ -5,12 +5,14 @@
 import { api } from './api';
 import type {
   ArtistOption,
+  BookingConfirmationResponse,
   BookingRequest,
   BookingRequestCreate,
   BookingRequestsListResponse,
   BookingRequestStatus,
   BookingRequestUpdate,
   BookingSubmissionResponse,
+  ConfirmBookingInput,
   DepositPaymentInfo,
   ReferenceImage,
   SendDepositRequestInput,
@@ -166,4 +168,22 @@ export async function confirmStubPayment(token: string): Promise<{
   deposit_paid_at: string;
 }> {
   return api.post(`/api/v1/bookings/deposit/${token}/confirm-stub`, {});
+}
+
+// ============================================================================
+// BOOKING CONFIRMATION ENDPOINTS
+// ============================================================================
+
+/**
+ * Confirm a booking with a scheduled date and time.
+ * Sends confirmation email with calendar invite.
+ */
+export async function confirmBooking(
+  requestId: string,
+  data: ConfirmBookingInput
+): Promise<BookingConfirmationResponse> {
+  return api.post<BookingConfirmationResponse>(
+    `/api/v1/bookings/requests/${requestId}/confirm`,
+    data
+  );
 }
