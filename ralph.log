@@ -506,6 +506,31 @@ Frontend:
 Status: COMPLETE
 Next: P3.7 - Basic appointment calendar view
 
+=== ITERATION 18 ===
+Date: 2026-01-10
+Task: P3.7 - Automated reminders (24hr, 2hr before appointment)
+Changes:
+Backend:
+- backend/app/models/booking.py: Added reminder tracking fields (reminder_24h_sent_at, reminder_2h_sent_at)
+- backend/app/services/sms.py: NEW - SMS service with Twilio integration and console stub
+- backend/app/services/email.py: Added send_appointment_reminder_email() with urgency-based styling
+- backend/app/routers/reminders.py: NEW - Reminders router with endpoints:
+  - POST /reminders/process - Process and send pending reminders (for cron)
+  - GET /reminders/pending - Get list of upcoming reminders
+  - POST /reminders/test/{booking_id} - Send test reminder
+- backend/app/routers/__init__.py: Export reminders_router
+- backend/app/main.py: Include reminders router
+
+Database:
+- Added reminder_24h_sent_at and reminder_2h_sent_at columns to booking_requests table
+
+- Verified: All reminder endpoints registered and accessible
+- Verified: /reminders/pending returns correct response structure
+- Verified: /reminders/process executes without errors
+- Verified: Frontend build passes with no TypeScript errors
+Status: COMPLETE
+Next: P3.8 - Reschedule and cancellation handling
+
 ---
 PROJECT: InkFlow - Tattoo Studio Management Platform
 TARGET: Solo artists and 2-5 artist studios at $29-69/month
