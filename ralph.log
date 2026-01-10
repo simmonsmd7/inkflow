@@ -1817,3 +1817,73 @@ Bug Fixes:
 - Verified: Backend starts successfully
 Status: COMPLETE
 Next: P8.3 - Revenue reports
+
+=== ITERATION 40 ===
+Date: 2026-01-10
+Task: P8.3 - Revenue reports (daily, weekly, monthly, custom range)
+
+Changes:
+Backend Schemas (analytics.py):
+- RevenueByCategory: Revenue breakdown by category (size, placement) with count and percentage
+- RevenueByArtist: Revenue breakdown by artist with tips, bookings, percentage
+- RevenueByDay: Daily revenue data with day name, revenue, tips, deposits, bookings, average
+- RevenueByWeek: Weekly revenue with week start/end, change from previous
+- RevenueByMonth: Monthly revenue with month name, change from previous
+- RevenueSummary: Summary metrics with highest/lowest day tracking
+- DailyRevenueReportResponse: Daily report with all breakdowns
+- WeeklyRevenueReportResponse: Weekly report structure
+- MonthlyRevenueReportResponse: Monthly report structure
+- CustomRevenueReportResponse: Custom date range report
+
+Backend Router (analytics.py):
+- GET /api/v1/analytics/reports/daily: Daily revenue report with category breakdowns
+- GET /api/v1/analytics/reports/weekly: Weekly revenue report with week-over-week changes
+- GET /api/v1/analytics/reports/monthly: Monthly revenue report with month-over-month changes
+- GET /api/v1/analytics/reports/custom: Custom date range report
+- Helper functions: _get_studio_for_user(), _get_revenue_by_artist(), _get_revenue_by_category()
+
+Frontend Types (api.ts):
+- Added TypeScript interfaces for all revenue report schemas
+- RevenueByCategory, RevenueByArtist, RevenueByDay, RevenueByWeek, RevenueByMonth
+- RevenueSummary, DailyRevenueReport, WeeklyRevenueReport, MonthlyRevenueReport, CustomRevenueReport
+
+Frontend Service (analytics.ts):
+- ReportType type: 'daily' | 'weekly' | 'monthly' | 'custom'
+- getDailyRevenueReport(): Fetch daily report
+- getWeeklyRevenueReport(): Fetch weekly report
+- getMonthlyRevenueReport(): Fetch monthly report
+- getCustomRevenueReport(): Fetch custom date range report
+- getRevenueReport(): Universal function that routes to appropriate endpoint
+- getPresetDateRanges(): Returns preset date range options (This Week, This Month, This Quarter, etc.)
+- formatDateRange(): Formats date range for display
+
+Frontend Page (RevenueReports.tsx):
+- Report type selector (Daily, Weekly, Monthly, Custom buttons)
+- Preset date range dropdown (This Week, This Month, etc.)
+- Custom date range inputs (start/end date pickers)
+- Revenue Summary section with:
+  - Total revenue, tips, deposits
+  - Total bookings and average booking value
+  - Best and worst performing days with revenue
+- DailyDataTable: Daily breakdown table with date, day name, revenue, tips, deposits, bookings, average
+- WeeklyDataTable: Weekly breakdown with week number, date range, totals, change percentage
+- MonthlyDataTable: Monthly breakdown with month name, totals, change percentage
+- ArtistBreakdownTable: Revenue by artist with percentage bar visualization
+- CategoryBreakdownTable: Revenue by size and placement with counts and percentages
+- Export CSV button (generates and downloads CSV from current report data)
+- Loading and error states
+- Currency formatting helpers
+
+Navigation & Routes:
+- frontend/src/App.tsx: Added /revenue-reports route
+- frontend/src/components/layout/Sidebar.tsx: Added "Revenue Reports" nav item (owner only)
+- frontend/src/pages/index.ts: Exported RevenueReports page
+
+Bug Fixes:
+- frontend/src/services/analytics.ts: Fixed API URLs to use /api/v1/ prefix for all report endpoints
+
+- Verified: Frontend build passes with no TypeScript errors
+- Verified: Backend endpoint returns "Not authenticated" (correct - requires auth)
+- Verified: Revenue Reports page renders with all UI elements
+Status: COMPLETE
+Next: P8.4 - Booking conversion tracking
