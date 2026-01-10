@@ -2144,3 +2144,50 @@ Changes:
 - frontend/src/App.tsx: Added /client/consent route
 Status: COMPLETE
 Next: P9.5 - Aftercare instructions access
+
+=== ITERATION 49 ===
+Date: 2026-01-10
+Task: P9.5 - Aftercare instructions access in client portal
+
+Changes:
+Backend Router (client_portal.py):
+- Added ClientAftercareExtraData schema for structured extra data
+- Added ClientAftercareSummary, ClientAftercareListResponse schemas
+- Added ClientFollowUpSummary, ClientAftercareDetail schemas
+- Added ClientHealingIssueInput, ClientHealingIssueResponse, ClientHealingIssueSummary schemas
+- GET /client/portal/aftercare - paginated list of client's aftercare instructions
+- GET /client/portal/aftercare/{aftercare_id} - detailed view with view tracking
+- POST /client/portal/aftercare/{aftercare_id}/report-issue - report healing issues
+- GET /client/portal/aftercare/{aftercare_id}/issues - get reported issues
+
+Frontend Types (api.ts):
+- ClientAftercareExtraData, ClientAftercareSummary interfaces
+- ClientAftercareListResponse, ClientFollowUpSummary interfaces
+- ClientAftercareDetail interface
+- ClientHealingIssueInput, ClientHealingIssueResponse interfaces
+- ClientHealingIssueSummary interface
+
+Frontend Service (clientPortal.ts):
+- getAftercareList(): Paginated aftercare instructions
+- getAftercareDetail(): Detailed view with view tracking
+- reportHealingIssue(): Report healing issues
+- getHealingIssues(): Get issues for aftercare record
+
+Frontend Page (ClientAftercareInstructions.tsx - NEW):
+- List view with pagination and status badges
+- Detail view with instructions, extra data, follow-ups
+- Key points, recommended products, products to avoid, warning signs
+- Healing issue reporting form with symptoms selection
+- View previously reported issues and staff responses
+- Dark theme styling consistent with portal
+
+Navigation & Routes:
+- frontend/src/App.tsx: Added /client/aftercare and /client/aftercare/:aftercareId routes
+- frontend/src/pages/ClientPortal.tsx: Updated Aftercare card to be a Link
+- frontend/src/pages/index.ts: Exported ClientAftercareInstructions
+
+- Verified: Frontend build passes with no TypeScript errors
+- Verified: Routes work correctly (redirects to login when unauthenticated)
+- Verified: Backend endpoint returns 401 without auth (expected behavior)
+Status: COMPLETE
+Next: P9.6 - Rebooking flow
