@@ -2,14 +2,16 @@
 
 from contextlib import asynccontextmanager
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
 from app.database import close_db, init_db
-from app.routers import auth_router, users_router
+from app.routers import auth_router, studios_router, users_router
 
 settings = get_settings()
 
@@ -45,7 +47,14 @@ app.add_middleware(
 
 # Include routers
 app.include_router(auth_router, prefix="/api/v1")
+app.include_router(studios_router, prefix="/api/v1")
 app.include_router(users_router, prefix="/api/v1")
+
+# Static files for uploads (logos, etc.)
+uploads_dir = Path("uploads")
+uploads_dir.mkdir(exist_ok=True)
+(uploads_dir / "logos").mkdir(exist_ok=True)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 
 @app.get("/", tags=["Root"])

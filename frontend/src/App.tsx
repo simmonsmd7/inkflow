@@ -1,6 +1,6 @@
 import { Routes, Route } from 'react-router-dom';
 import { Layout } from './components/layout';
-import { Dashboard, ForgotPassword, Login, Register, ResetPassword, Team } from './pages';
+import { Dashboard, ForgotPassword, Login, Register, ResetPassword, StudioSettings, Team } from './pages';
 
 function App() {
   return (
@@ -19,6 +19,7 @@ function App() {
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/team" element={<Team />} />
+              <Route path="/settings" element={<StudioSettings />} />
             </Routes>
           </Layout>
         }

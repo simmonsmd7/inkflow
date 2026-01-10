@@ -3,11 +3,15 @@
 import enum
 import secrets
 from datetime import datetime, timedelta
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, DateTime, Enum, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import BaseModel, SoftDeleteMixin
+
+if TYPE_CHECKING:
+    from app.models.studio import Studio
 
 
 class UserRole(str, enum.Enum):
@@ -60,6 +64,11 @@ class User(BaseModel, SoftDeleteMixin):
     # Login tracking
     last_login_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
+    )
+
+    # Relationships
+    owned_studios: Mapped[list["Studio"]] = relationship(
+        "Studio", back_populates="owner", lazy="selectin"
     )
 
     @property

@@ -96,3 +96,85 @@ export interface UsersListResponse {
   skip: number;
   limit: number;
 }
+
+// Studio types
+export interface BusinessHoursDay {
+  open: string | null;
+  close: string | null;
+  closed: boolean;
+}
+
+export interface BusinessHours {
+  monday: BusinessHoursDay;
+  tuesday: BusinessHoursDay;
+  wednesday: BusinessHoursDay;
+  thursday: BusinessHoursDay;
+  friday: BusinessHoursDay;
+  saturday: BusinessHoursDay;
+  sunday: BusinessHoursDay;
+}
+
+export interface Studio {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  logo_url: string | null;
+  email: string | null;
+  phone: string | null;
+  website: string | null;
+  address_line1: string | null;
+  address_line2: string | null;
+  city: string | null;
+  state: string | null;
+  postal_code: string | null;
+  country: string;
+  timezone: string;
+  business_hours: BusinessHours | null;
+  owner_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StudioCreate {
+  name: string;
+  description?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  website?: string | null;
+  address_line1?: string | null;
+  address_line2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  postal_code?: string | null;
+  country?: string;
+  timezone?: string;
+  business_hours?: BusinessHours | null;
+}
+
+export interface StudioUpdate {
+  name?: string;
+  description?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  website?: string | null;
+  address_line1?: string | null;
+  address_line2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  postal_code?: string | null;
+  country?: string;
+  timezone?: string;
+  business_hours?: BusinessHours | null;
+}
+
+export interface StudioListResponse {
+  studios: Studio[];
+  total: number;
+  skip: number;
+  limit: number;
+}
+
+export interface StudioLogoResponse {
+  logo_url: string;
+}
