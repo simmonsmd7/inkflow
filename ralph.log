@@ -1251,3 +1251,58 @@ Frontend UI:
 - Verified: Pre-built templates endpoint returns tattoo consent template
 Status: COMPLETE
 Next: P6.2 - Client-facing consent signing flow
+
+=== ITERATION 39 ===
+Date: 2026-01-10
+Task: P6.3 - Client signature capture (touch/mouse)
+Changes:
+Frontend Components:
+- frontend/src/components/SignaturePad.tsx: NEW - Canvas-based signature capture with:
+  - Touch and mouse event handling
+  - High DPI display support
+  - Configurable pen color, background, dimensions
+  - Clear button and empty state indicator
+  - Real-time data URL export (PNG format)
+  - Disable state support
+
+Frontend Pages:
+- frontend/src/pages/ConsentSigning.tsx: NEW - Public consent signing page with:
+  - Template loading by studio slug and template ID
+  - Client information form (name, email, phone, date of birth)
+  - All form field type renderers:
+    - text: Standard text input
+    - textarea: Multi-line text area
+    - checkbox: Checkbox with label
+    - signature: SignaturePad component integration
+    - date: Date picker
+    - select: Dropdown select
+    - radio: Radio button group
+    - photo_id: Placeholder for photo ID upload
+    - heading: Section heading
+    - paragraph: Static text paragraph
+  - Age verification with automatic calculation
+  - Form validation with error display
+  - Loading, error, and success states
+  - Access token display after submission
+- frontend/src/pages/ConsentView.tsx: NEW - Public submission view page with:
+  - Token-based access (no auth required)
+  - Submission details display (template name, client name, dates)
+  - Voided status indicator
+  - Form responses display
+
+Frontend Service:
+- frontend/src/services/consent.ts: Added public signing functions:
+  - submitSignedConsent() - Submit signed consent form
+  - uploadPhotoIdForSubmission() - Upload photo ID for submission
+
+Frontend Routes:
+- frontend/src/App.tsx: Added public routes:
+  - /sign/:studioSlug/:templateId - Consent signing page
+  - /consent/view/:accessToken - Submission view page
+- frontend/src/pages/index.ts: Exported new pages
+
+- Verified: Frontend build passes with no TypeScript errors
+- Verified: Error state displays correctly for invalid template
+- Verified: Page layout matches dark theme design
+Status: COMPLETE
+Next: P6.4 - Photo ID upload and verification
