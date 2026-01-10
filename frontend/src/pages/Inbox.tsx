@@ -14,6 +14,11 @@ import {
   getInboxStats,
   getTeamMembers,
   assignConversation,
+  listReplyTemplates,
+  createReplyTemplate,
+  updateReplyTemplate,
+  deleteReplyTemplate,
+  useReplyTemplate,
 } from '../services/messages';
 import type {
   ConversationWithBooking,
@@ -22,6 +27,8 @@ import type {
   InboxStats,
   MessageChannel,
   TeamMember,
+  ReplyTemplate,
+  ReplyTemplateCreate,
 } from '../types/api';
 
 // Status configuration for badges and labels
@@ -86,6 +93,20 @@ export function Inbox() {
   });
   const [creatingConversation, setCreatingConversation] = useState(false);
 
+  // Reply templates
+  const [templates, setTemplates] = useState<ReplyTemplate[]>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<ReplyTemplate | null>(null);
+  const [templateFormData, setTemplateFormData] = useState<ReplyTemplateCreate>({
+    name: '',
+    content: '',
+    category: '',
+  });
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [templateSearch, setTemplateSearch] = useState('');
+
   // Load conversations
   useEffect(() => {
     async function loadConversations() {
@@ -129,6 +150,25 @@ export function Inbox() {
     }
     loadTeamMembers();
   }, []);
+
+  // Load reply templates
+  useEffect(() => {
+    async function loadTemplates() {
+      if (!showTemplates) return;
+      try {
+        setTemplatesLoading(true);
+        const data = await listReplyTemplates({
+          search: templateSearch || undefined,
+        });
+        setTemplates(data.templates);
+      } catch (err) {
+        console.error('Failed to load templates:', err);
+      } finally {
+        setTemplatesLoading(false);
+      }
+    }
+    loadTemplates();
+  }, [showTemplates, templateSearch]);
 
   // Load selected conversation
   async function loadConversation(id: string) {
@@ -278,6 +318,98 @@ export function Inbox() {
     } finally {
       setCreatingConversation(false);
     }
+  }
+
+  // Insert template content into message
+  async function handleInsertTemplate(template: ReplyTemplate) {
+    try {
+      // Mark template as used (updates use count)
+      await useReplyTemplate(template.id);
+
+      // Insert content into message
+      setNewMessage((prev) => (prev ? prev + '\n\n' + template.content : template.content));
+      setShowTemplates(false);
+
+      // Update local template list to reflect new use count
+      setTemplates((prev) =>
+        prev.map((t) =>
+          t.id === template.id
+            ? { ...t, use_count: t.use_count + 1, last_used_at: new Date().toISOString() }
+            : t
+        )
+      );
+    } catch (err) {
+      console.error('Failed to use template:', err);
+    }
+  }
+
+  // Save template (create or update)
+  async function handleSaveTemplate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!templateFormData.name.trim() || !templateFormData.content.trim()) return;
+
+    try {
+      setSavingTemplate(true);
+
+      if (editingTemplate) {
+        // Update existing template
+        const updated = await updateReplyTemplate(editingTemplate.id, {
+          name: templateFormData.name,
+          content: templateFormData.content,
+          category: templateFormData.category || null,
+        });
+        setTemplates((prev) =>
+          prev.map((t) => (t.id === updated.id ? updated : t))
+        );
+      } else {
+        // Create new template
+        const created = await createReplyTemplate({
+          name: templateFormData.name,
+          content: templateFormData.content,
+          category: templateFormData.category || undefined,
+        });
+        setTemplates((prev) => [created, ...prev]);
+      }
+
+      // Reset form and close modal
+      setShowTemplateModal(false);
+      setEditingTemplate(null);
+      setTemplateFormData({ name: '', content: '', category: '' });
+    } catch (err) {
+      console.error('Failed to save template:', err);
+    } finally {
+      setSavingTemplate(false);
+    }
+  }
+
+  // Delete template
+  async function handleDeleteTemplate(template: ReplyTemplate) {
+    if (!confirm(`Delete template "${template.name}"?`)) return;
+
+    try {
+      await deleteReplyTemplate(template.id);
+      setTemplates((prev) => prev.filter((t) => t.id !== template.id));
+    } catch (err) {
+      console.error('Failed to delete template:', err);
+    }
+  }
+
+  // Open edit template modal
+  function openEditTemplate(template: ReplyTemplate) {
+    setEditingTemplate(template);
+    setTemplateFormData({
+      name: template.name,
+      content: template.content,
+      category: template.category || '',
+    });
+    setShowTemplateModal(true);
+  }
+
+  // Open new template modal
+  function openNewTemplate() {
+    setEditingTemplate(null);
+    setTemplateFormData({ name: '', content: '', category: '' });
+    setShowTemplateModal(true);
   }
 
   // Format relative time
@@ -686,6 +818,117 @@ export function Inbox() {
                   )}
                 </div>
                 <div className="flex gap-2">
+                  {/* Templates button */}
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setShowTemplates(!showTemplates)}
+                      className={`px-3 py-2 rounded-lg font-medium transition-colors ${
+                        showTemplates
+                          ? 'bg-purple-600 text-white'
+                          : 'bg-ink-700 hover:bg-ink-600 text-ink-300'
+                      }`}
+                      title="Quick Reply Templates"
+                    >
+                      ⚡
+                    </button>
+
+                    {/* Templates dropdown */}
+                    {showTemplates && (
+                      <div className="absolute bottom-full left-0 mb-2 w-80 bg-ink-800 border border-ink-700 rounded-lg shadow-xl z-10 max-h-96 overflow-hidden flex flex-col">
+                        <div className="p-3 border-b border-ink-700">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-medium text-sm">Quick Replies</span>
+                            <button
+                              type="button"
+                              onClick={openNewTemplate}
+                              className="text-xs px-2 py-1 bg-accent-500 hover:bg-accent-600 rounded transition-colors"
+                            >
+                              + New
+                            </button>
+                          </div>
+                          <input
+                            type="text"
+                            placeholder="Search templates..."
+                            value={templateSearch}
+                            onChange={(e) => setTemplateSearch(e.target.value)}
+                            className="w-full px-3 py-1.5 bg-ink-900 border border-ink-700 rounded text-sm focus:outline-none focus:border-accent-500"
+                          />
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-2">
+                          {templatesLoading ? (
+                            <div className="text-center py-4 text-ink-400 text-sm">
+                              Loading...
+                            </div>
+                          ) : templates.length === 0 ? (
+                            <div className="text-center py-4 text-ink-400 text-sm">
+                              {templateSearch
+                                ? 'No templates found'
+                                : 'No templates yet. Create one!'}
+                            </div>
+                          ) : (
+                            <div className="space-y-1">
+                              {templates.map((template) => (
+                                <div
+                                  key={template.id}
+                                  className="group p-2 rounded-lg hover:bg-ink-700 cursor-pointer transition-colors"
+                                >
+                                  <div className="flex items-start justify-between">
+                                    <div
+                                      className="flex-1"
+                                      onClick={() => handleInsertTemplate(template)}
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-medium text-sm">
+                                          {template.name}
+                                        </span>
+                                        {template.category && (
+                                          <span className="text-xs px-1.5 py-0.5 bg-ink-600 rounded text-ink-400">
+                                            {template.category}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <p className="text-xs text-ink-400 mt-1 line-clamp-2">
+                                        {template.content}
+                                      </p>
+                                      <span className="text-[10px] text-ink-500">
+                                        Used {template.use_count} times
+                                      </span>
+                                    </div>
+                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          openEditTemplate(template);
+                                        }}
+                                        className="p-1 hover:bg-ink-600 rounded text-xs"
+                                        title="Edit"
+                                      >
+                                        ✏️
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDeleteTemplate(template);
+                                        }}
+                                        className="p-1 hover:bg-red-600/20 rounded text-xs"
+                                        title="Delete"
+                                      >
+                                        🗑️
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   <input
                     type="text"
                     placeholder={
@@ -850,6 +1093,104 @@ export function Inbox() {
                   className="flex-1 px-4 py-2 bg-accent-500 hover:bg-accent-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-medium transition-colors"
                 >
                   {creatingConversation ? 'Creating...' : 'Create'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Template Create/Edit Modal */}
+      {showTemplateModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-ink-800 rounded-xl shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-ink-700">
+              <h2 className="text-xl font-semibold">
+                {editingTemplate ? 'Edit Template' : 'New Template'}
+              </h2>
+            </div>
+            <form onSubmit={handleSaveTemplate} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-ink-300 mb-1">
+                  Template Name <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={templateFormData.name}
+                  onChange={(e) =>
+                    setTemplateFormData((prev) => ({
+                      ...prev,
+                      name: e.target.value,
+                    }))
+                  }
+                  placeholder="e.g., Booking Confirmation"
+                  className="w-full px-3 py-2 bg-ink-900 border border-ink-700 rounded-lg focus:outline-none focus:border-accent-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-ink-300 mb-1">
+                  Category
+                </label>
+                <input
+                  type="text"
+                  value={templateFormData.category || ''}
+                  onChange={(e) =>
+                    setTemplateFormData((prev) => ({
+                      ...prev,
+                      category: e.target.value,
+                    }))
+                  }
+                  placeholder="e.g., Booking, Aftercare, General"
+                  className="w-full px-3 py-2 bg-ink-900 border border-ink-700 rounded-lg focus:outline-none focus:border-accent-500"
+                />
+                <p className="text-xs text-ink-500 mt-1">
+                  Optional. Use categories to organize your templates.
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-ink-300 mb-1">
+                  Content <span className="text-red-400">*</span>
+                </label>
+                <textarea
+                  value={templateFormData.content}
+                  onChange={(e) =>
+                    setTemplateFormData((prev) => ({
+                      ...prev,
+                      content: e.target.value,
+                    }))
+                  }
+                  rows={6}
+                  placeholder="Type your template message here..."
+                  className="w-full px-3 py-2 bg-ink-900 border border-ink-700 rounded-lg focus:outline-none focus:border-accent-500 resize-none"
+                  required
+                />
+                <p className="text-xs text-ink-500 mt-1">
+                  Tip: Use placeholders like [CLIENT_NAME] for customization.
+                </p>
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowTemplateModal(false);
+                    setEditingTemplate(null);
+                    setTemplateFormData({ name: '', content: '', category: '' });
+                  }}
+                  className="flex-1 px-4 py-2 border border-ink-600 rounded-lg hover:bg-ink-700 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={
+                    savingTemplate ||
+                    !templateFormData.name.trim() ||
+                    !templateFormData.content.trim()
+                  }
+                  className="flex-1 px-4 py-2 bg-accent-500 hover:bg-accent-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-medium transition-colors"
+                >
+                  {savingTemplate ? 'Saving...' : editingTemplate ? 'Update' : 'Create'}
                 </button>
               </div>
             </form>

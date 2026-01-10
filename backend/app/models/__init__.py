@@ -15,6 +15,7 @@ from app.models.message import (
     Message,
     MessageChannel,
     MessageDirection,
+    ReplyTemplate,
 )
 from app.models.studio import Studio
 from app.models.user import User, UserRole
@@ -33,6 +34,7 @@ __all__ = [
     "MessageChannel",
     "MessageDirection",
     "PortfolioImage",
+    "ReplyTemplate",
     "SoftDeleteMixin",
     "Studio",
     "TattooSize",

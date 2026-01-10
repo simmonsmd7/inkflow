@@ -189,3 +189,41 @@ class Message(BaseModel):
     conversation = relationship("Conversation", back_populates="messages")
     sender = relationship("User", foreign_keys=[sender_id], back_populates="sent_messages")
     read_by = relationship("User", foreign_keys=[read_by_id])
+
+
+class ReplyTemplate(BaseModel):
+    """A quick reply template for canned responses."""
+
+    __tablename__ = "reply_templates"
+
+    # Template content
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    category: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
+
+    # Ownership - user who created the template
+    created_by_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id"),
+        nullable=False,
+        index=True,
+    )
+
+    # Studio scope (if None, template is personal to creator only)
+    studio_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("studios.id"),
+        nullable=True,
+        index=True,
+    )
+
+    # Usage tracking
+    use_count: Mapped[int] = mapped_column(default=0, nullable=False)
+    last_used_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    # Relationships
+    created_by = relationship("User", backref="reply_templates")
+    studio = relationship("Studio", backref="reply_templates")

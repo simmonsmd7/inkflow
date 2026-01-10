@@ -169,11 +169,25 @@ class ReplyTemplateResponse(BaseModel):
     name: str
     content: str
     category: str | None
+    created_by_id: uuid.UUID
+    created_by_name: str | None = None
+    studio_id: uuid.UUID | None = None
+    use_count: int = 0
+    last_used_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class ReplyTemplatesListResponse(BaseModel):
+    """Response for paginated reply templates list."""
+
+    templates: list[ReplyTemplateResponse]
+    total: int
+    skip: int
+    limit: int
 
 
 # ============ Action Responses ============

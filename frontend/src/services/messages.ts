@@ -18,6 +18,11 @@ import type {
   MessageCreate,
   AssignConversationResponse,
   TeamMembersResponse,
+  ReplyTemplate,
+  ReplyTemplateCreate,
+  ReplyTemplateUpdate,
+  ReplyTemplatesListResponse,
+  TemplateCategoriesResponse,
 } from '../types/api';
 
 const BASE_URL = '/api/v1/messages';
@@ -129,4 +134,79 @@ export async function createConversationFromBooking(
   data: CreateConversationFromBookingInput
 ): Promise<ConversationWithBooking> {
   return api.post<ConversationWithBooking>(`${BASE_URL}/from-booking`, data);
+}
+
+// ============ Reply Templates ============
+
+export interface ListTemplatesParams {
+  skip?: number;
+  limit?: number;
+  category?: string;
+  search?: string;
+}
+
+/**
+ * List reply templates accessible to the current user.
+ */
+export async function listReplyTemplates(
+  params: ListTemplatesParams = {}
+): Promise<ReplyTemplatesListResponse> {
+  const searchParams = new URLSearchParams();
+
+  if (params.skip !== undefined) searchParams.set('skip', String(params.skip));
+  if (params.limit !== undefined) searchParams.set('limit', String(params.limit));
+  if (params.category) searchParams.set('category', params.category);
+  if (params.search) searchParams.set('search', params.search);
+
+  const queryString = searchParams.toString();
+  const url = `${BASE_URL}/templates${queryString ? `?${queryString}` : ''}`;
+
+  return api.get<ReplyTemplatesListResponse>(url);
+}
+
+/**
+ * Create a new reply template.
+ */
+export async function createReplyTemplate(
+  data: ReplyTemplateCreate
+): Promise<ReplyTemplate> {
+  return api.post<ReplyTemplate>(`${BASE_URL}/templates`, data);
+}
+
+/**
+ * Get a specific reply template.
+ */
+export async function getReplyTemplate(templateId: string): Promise<ReplyTemplate> {
+  return api.get<ReplyTemplate>(`${BASE_URL}/templates/${templateId}`);
+}
+
+/**
+ * Update a reply template.
+ */
+export async function updateReplyTemplate(
+  templateId: string,
+  data: ReplyTemplateUpdate
+): Promise<ReplyTemplate> {
+  return api.put<ReplyTemplate>(`${BASE_URL}/templates/${templateId}`, data);
+}
+
+/**
+ * Delete a reply template.
+ */
+export async function deleteReplyTemplate(templateId: string): Promise<void> {
+  return api.delete(`${BASE_URL}/templates/${templateId}`);
+}
+
+/**
+ * Mark a template as used and get its content.
+ */
+export async function useReplyTemplate(templateId: string): Promise<ReplyTemplate> {
+  return api.post<ReplyTemplate>(`${BASE_URL}/templates/${templateId}/use`);
+}
+
+/**
+ * Get all unique template categories.
+ */
+export async function getTemplateCategories(): Promise<TemplateCategoriesResponse> {
+  return api.get<TemplateCategoriesResponse>(`${BASE_URL}/templates/categories/list`);
 }

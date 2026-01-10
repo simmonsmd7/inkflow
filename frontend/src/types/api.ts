@@ -698,3 +698,42 @@ export interface CreateConversationFromBookingInput {
   subject?: string | null;
   initial_message?: string | null;
 }
+
+// ============ Reply Templates ============
+
+export interface ReplyTemplate {
+  id: string;
+  name: string;
+  content: string;
+  category: string | null;
+  created_by_id: string;
+  created_by_name: string | null;
+  studio_id: string | null;
+  use_count: number;
+  last_used_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReplyTemplateCreate {
+  name: string;
+  content: string;
+  category?: string | null;
+}
+
+export interface ReplyTemplateUpdate {
+  name?: string | null;
+  content?: string | null;
+  category?: string | null;
+}
+
+export interface ReplyTemplatesListResponse {
+  templates: ReplyTemplate[];
+  total: number;
+  skip: number;
+  limit: number;
+}
+
+export interface TemplateCategoriesResponse {
+  categories: string[];
+}

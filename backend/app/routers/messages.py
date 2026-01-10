@@ -17,6 +17,7 @@ from app.models.message import (
     Message,
     MessageChannel,
     MessageDirection,
+    ReplyTemplate,
 )
 from app.models.user import User
 from app.models.booking import BookingRequest
@@ -34,6 +35,10 @@ from app.schemas.message import (
     MarkReadResponse,
     MessageCreate,
     MessageResponse,
+    ReplyTemplateCreate,
+    ReplyTemplateResponse,
+    ReplyTemplatesListResponse,
+    ReplyTemplateUpdate,
     TeamMember,
     TeamMembersResponse,
 )
@@ -819,3 +824,325 @@ async def create_conversation_from_booking(
         created_at=conversation.created_at,
         updated_at=conversation.updated_at,
     )
+
+
+# ============ Reply Templates ============
+
+
+@router.get("/templates", response_model=ReplyTemplatesListResponse)
+async def list_reply_templates(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    category: str | None = Query(None, max_length=50),
+    search: str | None = Query(None, max_length=100),
+) -> ReplyTemplatesListResponse:
+    """
+    List reply templates accessible to the current user.
+
+    Returns personal templates and studio templates the user belongs to.
+    """
+    # Base query - get templates created by user or from their studio
+    query = (
+        select(ReplyTemplate)
+        .options(selectinload(ReplyTemplate.created_by))
+        .where(
+            or_(
+                ReplyTemplate.created_by_id == current_user.id,
+                ReplyTemplate.studio_id.isnot(None),  # TODO: Filter by user's studio
+            )
+        )
+    )
+
+    # Filter by category
+    if category:
+        query = query.where(ReplyTemplate.category == category)
+
+    # Search by name or content
+    if search:
+        search_pattern = f"%{search}%"
+        query = query.where(
+            or_(
+                ReplyTemplate.name.ilike(search_pattern),
+                ReplyTemplate.content.ilike(search_pattern),
+            )
+        )
+
+    # Order by use count (most used first), then by name
+    query = query.order_by(ReplyTemplate.use_count.desc(), ReplyTemplate.name)
+
+    # Get total count
+    count_query = select(func.count()).select_from(query.subquery())
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+
+    # Apply pagination
+    query = query.offset(skip).limit(limit)
+    result = await db.execute(query)
+    templates = result.scalars().all()
+
+    # Build response
+    template_responses = [
+        ReplyTemplateResponse(
+            id=t.id,
+            name=t.name,
+            content=t.content,
+            category=t.category,
+            created_by_id=t.created_by_id,
+            created_by_name=t.created_by.full_name if t.created_by else None,
+            studio_id=t.studio_id,
+            use_count=t.use_count,
+            last_used_at=t.last_used_at,
+            created_at=t.created_at,
+            updated_at=t.updated_at,
+        )
+        for t in templates
+    ]
+
+    return ReplyTemplatesListResponse(
+        templates=template_responses,
+        total=total,
+        skip=skip,
+        limit=limit,
+    )
+
+
+@router.post("/templates", response_model=ReplyTemplateResponse, status_code=status.HTTP_201_CREATED)
+async def create_reply_template(
+    data: ReplyTemplateCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ReplyTemplateResponse:
+    """
+    Create a new reply template.
+
+    Templates are personal by default. Add studio_id to share with the team.
+    """
+    template = ReplyTemplate(
+        name=data.name,
+        content=data.content,
+        category=data.category,
+        created_by_id=current_user.id,
+    )
+    db.add(template)
+    await db.flush()
+    await db.refresh(template)
+
+    return ReplyTemplateResponse(
+        id=template.id,
+        name=template.name,
+        content=template.content,
+        category=template.category,
+        created_by_id=template.created_by_id,
+        created_by_name=current_user.full_name,
+        studio_id=template.studio_id,
+        use_count=template.use_count,
+        last_used_at=template.last_used_at,
+        created_at=template.created_at,
+        updated_at=template.updated_at,
+    )
+
+
+@router.get("/templates/{template_id}", response_model=ReplyTemplateResponse)
+async def get_reply_template(
+    template_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ReplyTemplateResponse:
+    """Get a specific reply template."""
+    query = (
+        select(ReplyTemplate)
+        .options(selectinload(ReplyTemplate.created_by))
+        .where(ReplyTemplate.id == template_id)
+    )
+    result = await db.execute(query)
+    template = result.scalar_one_or_none()
+
+    if not template:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Reply template not found",
+        )
+
+    # Check access - user must be creator or in the same studio
+    if template.created_by_id != current_user.id and template.studio_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied to this template",
+        )
+
+    return ReplyTemplateResponse(
+        id=template.id,
+        name=template.name,
+        content=template.content,
+        category=template.category,
+        created_by_id=template.created_by_id,
+        created_by_name=template.created_by.full_name if template.created_by else None,
+        studio_id=template.studio_id,
+        use_count=template.use_count,
+        last_used_at=template.last_used_at,
+        created_at=template.created_at,
+        updated_at=template.updated_at,
+    )
+
+
+@router.put("/templates/{template_id}", response_model=ReplyTemplateResponse)
+async def update_reply_template(
+    template_id: uuid.UUID,
+    data: ReplyTemplateUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ReplyTemplateResponse:
+    """Update a reply template. Only the creator can update it."""
+    query = (
+        select(ReplyTemplate)
+        .options(selectinload(ReplyTemplate.created_by))
+        .where(ReplyTemplate.id == template_id)
+    )
+    result = await db.execute(query)
+    template = result.scalar_one_or_none()
+
+    if not template:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Reply template not found",
+        )
+
+    # Only creator can update
+    if template.created_by_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the template creator can update it",
+        )
+
+    # Apply updates
+    if data.name is not None:
+        template.name = data.name
+    if data.content is not None:
+        template.content = data.content
+    if data.category is not None:
+        template.category = data.category if data.category else None
+
+    await db.flush()
+    await db.refresh(template)
+
+    return ReplyTemplateResponse(
+        id=template.id,
+        name=template.name,
+        content=template.content,
+        category=template.category,
+        created_by_id=template.created_by_id,
+        created_by_name=template.created_by.full_name if template.created_by else None,
+        studio_id=template.studio_id,
+        use_count=template.use_count,
+        last_used_at=template.last_used_at,
+        created_at=template.created_at,
+        updated_at=template.updated_at,
+    )
+
+
+@router.delete("/templates/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_reply_template(
+    template_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Delete a reply template. Only the creator can delete it."""
+    query = select(ReplyTemplate).where(ReplyTemplate.id == template_id)
+    result = await db.execute(query)
+    template = result.scalar_one_or_none()
+
+    if not template:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Reply template not found",
+        )
+
+    # Only creator can delete
+    if template.created_by_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the template creator can delete it",
+        )
+
+    await db.delete(template)
+    await db.flush()
+
+
+@router.post("/templates/{template_id}/use", response_model=ReplyTemplateResponse)
+async def use_reply_template(
+    template_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ReplyTemplateResponse:
+    """
+    Mark a template as used and increment its use count.
+
+    Returns the template content for insertion into a message.
+    """
+    query = (
+        select(ReplyTemplate)
+        .options(selectinload(ReplyTemplate.created_by))
+        .where(ReplyTemplate.id == template_id)
+    )
+    result = await db.execute(query)
+    template = result.scalar_one_or_none()
+
+    if not template:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Reply template not found",
+        )
+
+    # Check access
+    if template.created_by_id != current_user.id and template.studio_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied to this template",
+        )
+
+    # Update usage stats
+    template.use_count += 1
+    template.last_used_at = datetime.now(timezone.utc)
+
+    await db.flush()
+    await db.refresh(template)
+
+    return ReplyTemplateResponse(
+        id=template.id,
+        name=template.name,
+        content=template.content,
+        category=template.category,
+        created_by_id=template.created_by_id,
+        created_by_name=template.created_by.full_name if template.created_by else None,
+        studio_id=template.studio_id,
+        use_count=template.use_count,
+        last_used_at=template.last_used_at,
+        created_at=template.created_at,
+        updated_at=template.updated_at,
+    )
+
+
+@router.get("/templates/categories/list")
+async def list_template_categories(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Get all unique template categories used by the current user."""
+    query = (
+        select(ReplyTemplate.category)
+        .where(
+            ReplyTemplate.category.isnot(None),
+            or_(
+                ReplyTemplate.created_by_id == current_user.id,
+                ReplyTemplate.studio_id.isnot(None),
+            ),
+        )
+        .distinct()
+        .order_by(ReplyTemplate.category)
+    )
+    result = await db.execute(query)
+    categories = [row[0] for row in result.all() if row[0]]
+
+    return {"categories": categories}
