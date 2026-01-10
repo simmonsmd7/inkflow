@@ -537,3 +537,37 @@ TARGET: Solo artists and 2-5 artist studios at $29-69/month
 TECH: React/Vite/TypeScript frontend + Python/FastAPI backend
 DATABASE: postgresql://marksimmons@localhost:5432/inkflow
 ---
+
+=== ITERATION 19 ===
+Date: 2026-01-10
+Task: P3.8 - Reschedule and cancellation handling
+Changes:
+Backend:
+- backend/app/models/booking.py: Added reschedule/cancellation tracking fields
+  (cancelled_at, cancelled_by, cancellation_reason, deposit_forfeited,
+   reschedule_count, original_scheduled_date, last_rescheduled_at, last_reschedule_reason)
+- backend/app/schemas/booking.py: Added RescheduleInput, RescheduleResponse,
+  CancelInput, CancelResponse schemas; updated BookingRequestResponse
+- backend/app/services/email.py: Added send_reschedule_notification_email() and
+  send_cancellation_notification_email() with rich HTML templates
+- backend/app/routers/bookings.py: Added endpoints:
+  - POST /requests/{id}/reschedule - Reschedule confirmed booking with email notification
+  - POST /requests/{id}/cancel - Cancel booking with deposit forfeiture option
+
+Frontend:
+- frontend/src/types/api.ts: Added RescheduleInput, RescheduleResponse, CancelInput,
+  CancelResponse, CancelledBy types
+- frontend/src/services/bookings.ts: Added rescheduleBooking() and cancelBooking() functions
+- frontend/src/pages/BookingQueue.tsx: Added:
+  - Reschedule modal with date/time picker, duration, reason, and notification toggle
+  - Cancel modal with reason, cancelled_by selector, deposit forfeit checkbox
+  - "Reschedule Appointment" button (for confirmed bookings)
+  - "Cancel Booking" button (for all non-cancelled/completed bookings)
+
+Database:
+- Added 8 new columns to booking_requests table for tracking reschedules and cancellations
+
+- Verified: Frontend build passes with no TypeScript errors
+- Verified: All endpoints registered correctly
+Status: COMPLETE
+Next: P3.9 - No-show tracking and deposit forfeiture rules
