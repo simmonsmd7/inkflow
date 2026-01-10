@@ -1390,3 +1390,54 @@ Backend (already existed from P6.5):
 - Verified: Frontend build passes with no TypeScript errors
 Status: COMPLETE
 Next: P6.7 - Age verification workflow
+
+=== ITERATION 31 ===
+Date: 2026-01-10
+Task: P6.7 - Age verification workflow
+Changes:
+Backend Schemas (consent.py):
+- VerifyAgeInput: Manual age verification with notes
+- VerifyAgeResponse: Response with verification details
+- AgeVerificationStatus: Age status for a submission (age requirement, is_underage, needs_guardian_consent)
+- GuardianConsentInput: Guardian consent form data with signature
+- GuardianConsentResponse: Confirmation of guardian consent
+- Updated ConsentAuditAction with "age_verified" and "guardian_consent" actions
+- Updated ConsentSubmissionSummary with age_at_signing and has_guardian_consent
+- Updated ConsentSubmissionResponse with all age verification and guardian fields
+
+Backend Models (consent.py):
+- Added age verification fields: age_verified_by_id, age_verified_at, age_verification_notes
+- Added guardian consent fields: has_guardian_consent, guardian_name, guardian_relationship, guardian_phone, guardian_email, guardian_signature_data, guardian_consent_at
+- Added age_verified_by relationship
+- Added AGE_VERIFIED and GUARDIAN_CONSENT to ConsentAuditAction enum
+
+Backend Router (consent.py):
+- GET /submissions/{id}/age-status - Get age verification status
+- POST /submissions/{id}/verify-age - Manual age verification by staff
+- POST /submissions/{id}/guardian-consent - Add guardian consent for minors
+- Updated helper functions for new fields
+
+Frontend Types (api.ts):
+- Added AgeVerificationStatus, VerifyAgeInput, VerifyAgeResponse, GuardianConsentInput, GuardianConsentResponse interfaces
+- Updated ConsentSubmissionSummary and ConsentSubmission with new age/guardian fields
+
+Frontend Service (consent.ts):
+- getAgeVerificationStatus() - Fetch age status for submission
+- verifyAge() - Submit manual age verification
+- addGuardianConsent() - Add guardian consent
+
+Frontend UI (ConsentForms.tsx):
+- Age verification section in submission detail modal
+- Status display: age requirement, age at signing, DOB, verification status
+- "Verify Age" button for manual verification by staff
+- "Add Guardian Consent" button for underage submissions
+- Guardian consent display showing name, relationship, contact, consent timestamp
+- Age Verify Modal: Shows age info, optional notes, confirm button
+- Guardian Consent Modal: Full form with name, relationship, phone, email, signature, notes
+- Enhanced status badges: Age OK with age, Underage warning, Guardian OK indicator
+- State management for age verification and guardian consent flows
+
+- Verified: Frontend build passes with no TypeScript errors
+- Verified: Backend Python syntax check passes
+Status: COMPLETE
+Next: P6.8 - Minor consent forms with guardian signature
