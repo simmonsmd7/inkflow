@@ -571,3 +571,38 @@ Database:
 - Verified: All endpoints registered correctly
 Status: COMPLETE
 Next: P3.9 - No-show tracking and deposit forfeiture rules
+
+=== ITERATION 20 ===
+Date: 2026-01-10
+Task: P3.9 - No-show tracking and deposit forfeiture rules
+Changes:
+Backend:
+- backend/app/models/booking.py: Added NO_SHOW to BookingRequestStatus enum;
+  Added no-show tracking fields (no_show_at, no_show_marked_by_id, no_show_notes)
+- backend/app/schemas/booking.py: Added MarkNoShowInput, NoShowResponse,
+  ClientNoShowHistoryItem, ClientNoShowHistory schemas; added no_show to status enum
+- backend/app/services/email.py: Added send_noshow_notification_email() with
+  HTML template showing deposit forfeiture status and next steps
+- backend/app/routers/bookings.py: Added endpoints:
+  - POST /requests/{id}/no-show - Mark booking as no-show with deposit forfeiture option
+  - GET /clients/{email}/no-show-history - Get client's no-show history with stats
+
+Frontend:
+- frontend/src/types/api.ts: Added no_show to BookingRequestStatus, plus
+  MarkNoShowInput, NoShowResponse, ClientNoShowHistoryItem, ClientNoShowHistory types
+- frontend/src/services/bookings.ts: Added markNoShow() and getClientNoShowHistory()
+- frontend/src/pages/BookingQueue.tsx: Added:
+  - "Mark No-Show" button for confirmed bookings (amber/warning color)
+  - No-show modal with notes, deposit forfeiture checkbox (default: forfeit)
+  - Notification toggle for sending no-show email
+  - Success state showing forfeiture status
+  - Added no_show to STATUS_CONFIG with amber styling
+  - Updated cancel button to exclude no_show status
+
+Database:
+- Added 3 new columns to booking_requests table (no_show_at, no_show_marked_by_id, no_show_notes)
+
+- Verified: Frontend build passes with no TypeScript errors
+- Verified: All endpoints registered correctly
+Status: COMPLETE
+Next: P4.1 - Appointment calendar for artists (week and day views)
