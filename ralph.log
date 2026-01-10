@@ -839,3 +839,49 @@ No code changes needed - P4.6 requirements were implemented as part of P4.1.
 - Verified: Conversation status badge shows correctly in list
 Status: COMPLETE (already implemented in P4.1)
 Next: P5.1 - Commission rules engine
+
+=== ITERATION 27 ===
+Date: 2026-01-10
+Task: P5.1 - Commission rules engine
+Changes:
+Backend:
+- backend/app/models/commission.py: NEW - CommissionRule model with percentage/flat_fee/tiered types, CommissionTier model for tiered rules, CommissionType enum
+- backend/app/models/user.py: Added commission_rule_id FK and commission_rule relationship
+- backend/app/models/studio.py: Added commission_rules relationship
+- backend/app/models/__init__.py: Export new models and CommissionType enum
+- backend/app/schemas/commission.py: NEW - Full Pydantic schemas:
+  - CommissionTierBase/Create/Update/Response
+  - CommissionRuleBase/Create/Update/Summary/Response
+  - CommissionRulesListResponse
+  - ArtistCommissionInfo, ArtistsWithCommissionResponse
+  - AssignCommissionRuleInput
+  - CommissionCalculationInput/Result
+- backend/app/schemas/__init__.py: Export new schemas
+- backend/app/routers/commissions.py: NEW - Full CRUD and calculation endpoints:
+  - GET/POST /commissions - List and create rules (owner only)
+  - GET/PUT/DELETE /commissions/{rule_id} - Manage individual rules
+  - GET /commissions/artists/assignments - List all artists with their rules
+  - PUT /commissions/artists/{artist_id}/assignment - Assign rule to artist
+  - POST /commissions/{rule_id}/calculate - Calculate commission on amount
+  - POST /commissions/artists/{artist_id}/calculate - Calculate using artist's rule
+- backend/app/routers/__init__.py: Export commissions_router
+- backend/app/main.py: Include commissions_router
+
+Features:
+- Three commission types: percentage, flat_fee, tiered
+- Tiered commission with revenue-based brackets
+- Studio default rule support (is_default flag)
+- Per-artist commission rule assignment
+- Commission calculation with breakdown details
+- Validation for tiered commission tier gaps/overlaps
+
+Database:
+- commission_rules table with studio_id, commission_type, percentage, flat_fee_amount
+- commission_tiers table with min_revenue, max_revenue, percentage
+- commission_rule_id column added to users table with FK
+
+- Verified: Frontend build passes with no TypeScript errors
+- Verified: Backend health check passes
+- Verified: All commission endpoints registered in OpenAPI spec
+Status: COMPLETE
+Next: P5.2 - Per-artist commission settings
