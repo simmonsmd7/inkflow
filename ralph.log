@@ -1176,4 +1176,78 @@ Frontend UI:
 - Verified: Frontend build passes with no TypeScript errors
 - Verified: Backend starts correctly with new endpoints
 Status: COMPLETE
-Next: P6.1 - Dashboard analytics for studio
+Next: P6.1 - Digital consent form builder
+
+=== ITERATION 38 ===
+Date: 2026-01-10
+Task: P6.1 - Digital consent form builder
+Changes:
+Backend Models:
+- backend/app/models/consent.py: NEW - Consent form models with:
+  - ConsentFieldType enum: text, textarea, checkbox, signature, date, select, radio, photo_id, heading, paragraph
+  - ConsentFormTemplate model: studio_id, name, description, version, header/footer text, fields (JSON), requires_photo_id, requires_signature, age_requirement, is_active, is_default, use_count
+  - ConsentFormSubmission model: template snapshot, client info, responses (JSON), signature data, photo ID, age verification, IP address, voided status
+  - ConsentAuditAction enum: created, viewed, downloaded, verified, voided, exported
+  - ConsentAuditLog model: submission_id, action, performed_by, IP, notes
+- backend/app/models/user.py: Added relationships for consent templates, verified photos, voided forms, audit logs
+- backend/app/models/studio.py: Added consent_templates and consent_submissions relationships
+- backend/app/models/booking.py: Added consent_submission relationship (one-to-one)
+- backend/app/models/__init__.py: Exported new consent models
+
+Backend Schemas:
+- backend/app/schemas/consent.py: NEW - Comprehensive Pydantic schemas:
+  - FormFieldBase/Create/Response for field definitions
+  - ConsentFormTemplateCreate/Update/Summary/Response
+  - ConsentFormSubmissionCreate, ConsentSubmissionSummary/Response/PublicResponse
+  - ConsentAuditLogResponse
+  - PhotoIdUpload, VerifyPhotoId, VoidConsent input/response schemas
+  - PrebuiltTemplateInfo for pre-built templates
+  - SigningForm input/response schemas for client-facing flow
+- backend/app/schemas/__init__.py: Exported all consent schemas
+
+Backend Router:
+- backend/app/routers/consent.py: NEW - Full consent management router:
+  - Pre-built tattoo consent template with 30 fields (health questions, acknowledgments, signature)
+  - GET /prebuilt - List pre-built template options
+  - POST /templates/from-prebuilt - Create template from pre-built
+  - CRUD endpoints for templates (list, get, create, update, delete)
+  - Submission endpoints (list, get, verify photo ID, void, audit log)
+  - Public signing endpoints for client-facing forms
+  - POST /submissions/{id}/photo-id - Photo ID upload
+  - Version incrementing on template updates
+- backend/app/routers/__init__.py: Exported consent_router
+- backend/app/main.py: Added consent_router, created uploads/photo_ids directory
+
+Frontend Types:
+- frontend/src/types/api.ts: Added 25+ TypeScript types for consent forms
+
+Frontend Service:
+- frontend/src/services/consent.ts: NEW - API service with:
+  - Template CRUD functions
+  - Pre-built template functions
+  - Submission management functions
+  - Helper functions: generateFieldId, getFieldTypeLabel, getFieldTypeIcon
+
+Frontend UI:
+- frontend/src/pages/ConsentForms.tsx: NEW - Consent form management page:
+  - Templates tab with list, create, edit, delete
+  - Pre-built template creation from dropdown
+  - Template editor modal with field builder
+  - Field type selector (10 types)
+  - Field options for select/radio
+  - Drag-and-drop style field ordering
+  - Submissions tab with search by email
+  - Submission detail modal
+  - Verify photo ID button
+  - Void submission with reason
+  - RBAC enforcement
+- frontend/src/pages/index.ts: Exported ConsentForms
+- frontend/src/App.tsx: Added /consent route and ConsentForms import
+- frontend/src/components/layout/Sidebar.tsx: Already had Consent Forms nav item
+
+- Verified: Frontend build passes with no TypeScript errors
+- Verified: Backend health check passes
+- Verified: All 13 consent endpoints registered in OpenAPI spec
+- Verified: Pre-built templates endpoint returns tattoo consent template
+Status: COMPLETE
+Next: P6.2 - Client-facing consent signing flow
