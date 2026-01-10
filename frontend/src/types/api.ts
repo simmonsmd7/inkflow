@@ -1522,3 +1522,92 @@ export interface AftercareSendInput {
   send_via?: 'email' | 'sms' | 'both';
   schedule_follow_ups?: boolean;
 }
+
+// === Follow-Up Management Types ===
+
+export interface FollowUpSummary {
+  id: string;
+  aftercare_sent_id: string;
+  follow_up_type: FollowUpType;
+  scheduled_for: string;
+  status: FollowUpStatus;
+  sent_at: string | null;
+  created_at: string;
+}
+
+export interface FollowUpResponse extends FollowUpSummary {
+  subject: string;
+  message_html: string;
+  message_plain: string;
+  send_via: string;
+  delivered_at: string | null;
+  failure_reason: string | null;
+}
+
+export interface FollowUpWithClientInfo extends FollowUpResponse {
+  client_name: string;
+  client_email: string;
+  appointment_date: string;
+  studio_name: string | null;
+}
+
+export interface FollowUpListResponse {
+  items: FollowUpSummary[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
+export interface PendingFollowUpsResponse {
+  items: FollowUpWithClientInfo[];
+  total: number;
+}
+
+export interface ProcessFollowUpsResult {
+  processed: number;
+  sent: number;
+  failed: number;
+  details: {
+    id: string;
+    type: string;
+    client_email: string;
+    status: string;
+    reason?: string;
+  }[];
+}
+
+export interface SendFollowUpInput {
+  send_via?: 'email' | 'sms' | null;
+}
+
+export interface SendFollowUpResponse {
+  id: string;
+  status: FollowUpStatus;
+  sent_at: string | null;
+  message: string;
+}
+
+export interface CancelFollowUpResponse {
+  id: string;
+  status: FollowUpStatus;
+  message: string;
+}
+
+export interface FollowUpUpdate {
+  scheduled_for?: string;
+  subject?: string;
+  message_html?: string;
+  message_plain?: string;
+  send_via?: 'email' | 'sms';
+}
+
+export interface FollowUpCreate {
+  aftercare_sent_id: string;
+  follow_up_type?: FollowUpType;
+  scheduled_for: string;
+  subject: string;
+  message_html: string;
+  message_plain: string;
+  send_via?: 'email' | 'sms';
+}

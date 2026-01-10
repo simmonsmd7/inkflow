@@ -14,6 +14,16 @@ import type {
   PrebuiltAftercareTemplatesResponse,
   TattooPlacement,
   TattooType,
+  FollowUpListResponse,
+  FollowUpResponse,
+  FollowUpUpdate,
+  PendingFollowUpsResponse,
+  ProcessFollowUpsResult,
+  SendFollowUpInput,
+  SendFollowUpResponse,
+  CancelFollowUpResponse,
+  FollowUpStatus,
+  FollowUpType,
 } from '../types/api';
 
 // === Pre-built Templates ===
@@ -161,6 +171,96 @@ export function getStatusColor(status: string): string {
     pending: 'bg-yellow-500/10 text-yellow-400',
     sent: 'bg-blue-500/10 text-blue-400',
     delivered: 'bg-green-500/10 text-green-400',
+    failed: 'bg-red-500/10 text-red-400',
+  };
+  return colors[status] || 'bg-ink-600 text-ink-400';
+}
+
+// === Follow-Up Management ===
+
+export async function listFollowUps(params?: {
+  page?: number;
+  page_size?: number;
+  status?: FollowUpStatus;
+  follow_up_type?: FollowUpType;
+  aftercare_sent_id?: string;
+}): Promise<FollowUpListResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.page) searchParams.set('page', params.page.toString());
+  if (params?.page_size) searchParams.set('page_size', params.page_size.toString());
+  if (params?.status) searchParams.set('status', params.status);
+  if (params?.follow_up_type) searchParams.set('follow_up_type', params.follow_up_type);
+  if (params?.aftercare_sent_id) searchParams.set('aftercare_sent_id', params.aftercare_sent_id);
+
+  const query = searchParams.toString();
+  return api.get<FollowUpListResponse>(`/aftercare/follow-ups${query ? `?${query}` : ''}`);
+}
+
+export async function getPendingFollowUps(limit?: number): Promise<PendingFollowUpsResponse> {
+  const query = limit ? `?limit=${limit}` : '';
+  return api.get<PendingFollowUpsResponse>(`/aftercare/follow-ups/pending${query}`);
+}
+
+export async function processFollowUps(limit?: number): Promise<ProcessFollowUpsResult> {
+  const query = limit ? `?limit=${limit}` : '';
+  return api.post<ProcessFollowUpsResult>(`/aftercare/follow-ups/process${query}`, {});
+}
+
+export async function getFollowUp(followUpId: string): Promise<FollowUpResponse> {
+  return api.get<FollowUpResponse>(`/aftercare/follow-ups/${followUpId}`);
+}
+
+export async function updateFollowUp(
+  followUpId: string,
+  data: FollowUpUpdate
+): Promise<FollowUpResponse> {
+  return api.patch<FollowUpResponse>(`/aftercare/follow-ups/${followUpId}`, data);
+}
+
+export async function sendFollowUpNow(
+  followUpId: string,
+  data?: SendFollowUpInput
+): Promise<SendFollowUpResponse> {
+  return api.post<SendFollowUpResponse>(
+    `/aftercare/follow-ups/${followUpId}/send`,
+    data || {}
+  );
+}
+
+export async function cancelFollowUp(followUpId: string): Promise<CancelFollowUpResponse> {
+  return api.post<CancelFollowUpResponse>(`/aftercare/follow-ups/${followUpId}/cancel`, {});
+}
+
+// === Follow-Up Helper Functions ===
+
+export function getFollowUpTypeLabel(type: FollowUpType): string {
+  const labels: Record<FollowUpType, string> = {
+    day_3: 'Day 3 Check-in',
+    week_1: 'Week 1 Check-in',
+    week_2: 'Week 2 Check-in',
+    week_4: 'Week 4 Check-in',
+    custom: 'Custom Follow-up',
+  };
+  return labels[type] || type;
+}
+
+export function getFollowUpStatusLabel(status: FollowUpStatus): string {
+  const labels: Record<FollowUpStatus, string> = {
+    scheduled: 'Scheduled',
+    sent: 'Sent',
+    delivered: 'Delivered',
+    cancelled: 'Cancelled',
+    failed: 'Failed',
+  };
+  return labels[status] || status;
+}
+
+export function getFollowUpStatusColor(status: FollowUpStatus): string {
+  const colors: Record<FollowUpStatus, string> = {
+    scheduled: 'bg-blue-500/10 text-blue-400',
+    sent: 'bg-green-500/10 text-green-400',
+    delivered: 'bg-green-500/10 text-green-400',
+    cancelled: 'bg-ink-600 text-ink-400',
     failed: 'bg-red-500/10 text-red-400',
   };
   return colors[status] || 'bg-ink-600 text-ink-400';

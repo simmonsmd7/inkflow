@@ -17,6 +17,12 @@ import {
   getPlacementLabel,
   getStatusLabel,
   getStatusColor,
+  listFollowUps,
+  sendFollowUpNow,
+  cancelFollowUp,
+  getFollowUpTypeLabel,
+  getFollowUpStatusLabel,
+  getFollowUpStatusColor,
 } from '../services/aftercare';
 import type {
   AftercareTemplateSummary,
@@ -27,6 +33,8 @@ import type {
   PrebuiltAftercareTemplate,
   TattooType,
   TattooPlacement,
+  FollowUpSummary,
+  FollowUpStatus,
 } from '../types/api';
 
 const TATTOO_TYPES: TattooType[] = [
@@ -41,7 +49,7 @@ const PLACEMENTS: TattooPlacement[] = [
   'stomach', 'neck', 'face', 'head', 'shoulder', 'hip', 'other',
 ];
 
-type TabType = 'templates' | 'sent';
+type TabType = 'templates' | 'sent' | 'followups';
 
 export function Aftercare() {
   const { user } = useAuth();
@@ -62,6 +70,12 @@ export function Aftercare() {
   // Sent aftercare state
   const [sentAftercare, setSentAftercare] = useState<AftercareSentSummary[]>([]);
   const [loadingSent, setLoadingSent] = useState(false);
+
+  // Follow-ups state
+  const [followUps, setFollowUps] = useState<FollowUpSummary[]>([]);
+  const [followUpFilter, setFollowUpFilter] = useState<FollowUpStatus | ''>('');
+  const [loadingFollowUps, setLoadingFollowUps] = useState(false);
+  const [processingFollowUp, setProcessingFollowUp] = useState<string | null>(null);
 
   // Edit form state
   const [editForm, setEditForm] = useState<AftercareTemplateCreate>({
@@ -94,10 +108,12 @@ export function Aftercare() {
   useEffect(() => {
     if (activeTab === 'templates') {
       loadTemplates();
-    } else {
+    } else if (activeTab === 'sent') {
       loadSentAftercare();
+    } else if (activeTab === 'followups') {
+      loadFollowUps();
     }
-  }, [activeTab]);
+  }, [activeTab, followUpFilter]);
 
   async function loadSentAftercare() {
     try {
@@ -110,6 +126,53 @@ export function Aftercare() {
       console.error(err);
     } finally {
       setLoadingSent(false);
+    }
+  }
+
+  async function loadFollowUps() {
+    try {
+      setLoadingFollowUps(true);
+      setError(null);
+      const response = await listFollowUps({
+        page_size: 50,
+        status: followUpFilter || undefined,
+      });
+      setFollowUps(response.items);
+    } catch (err) {
+      setError('Failed to load follow-ups');
+      console.error(err);
+    } finally {
+      setLoadingFollowUps(false);
+    }
+  }
+
+  async function handleSendFollowUp(id: string) {
+    try {
+      setProcessingFollowUp(id);
+      setError(null);
+      await sendFollowUpNow(id);
+      setSuccess('Follow-up sent successfully');
+      loadFollowUps();
+    } catch (err) {
+      setError('Failed to send follow-up');
+      console.error(err);
+    } finally {
+      setProcessingFollowUp(null);
+    }
+  }
+
+  async function handleCancelFollowUp(id: string) {
+    try {
+      setProcessingFollowUp(id);
+      setError(null);
+      await cancelFollowUp(id);
+      setSuccess('Follow-up cancelled');
+      loadFollowUps();
+    } catch (err) {
+      setError('Failed to cancel follow-up');
+      console.error(err);
+    } finally {
+      setProcessingFollowUp(null);
     }
   }
 
@@ -323,6 +386,16 @@ export function Aftercare() {
           >
             Sent Instructions
           </button>
+          <button
+            onClick={() => setActiveTab('followups')}
+            className={`py-3 px-1 border-b-2 transition-colors ${
+              activeTab === 'followups'
+                ? 'border-accent-primary text-ink-100 font-medium'
+                : 'border-transparent text-ink-400 hover:text-ink-300'
+            }`}
+          >
+            Follow-ups
+          </button>
         </nav>
       </div>
 
@@ -534,6 +607,148 @@ export function Aftercare() {
                             ? new Date(sent.sent_at).toLocaleDateString()
                             : '-'}
                         </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Follow-ups Tab Content */}
+      {activeTab === 'followups' && (
+        <>
+          {/* Filter controls */}
+          <div className="flex items-center gap-4 mb-4">
+            <label className="text-sm text-ink-400">Filter by status:</label>
+            <select
+              value={followUpFilter}
+              onChange={(e) => setFollowUpFilter(e.target.value as FollowUpStatus | '')}
+              className="px-3 py-1.5 bg-ink-800 border border-ink-600 rounded-lg text-ink-100 text-sm focus:outline-none focus:border-accent-primary"
+            >
+              <option value="">All</option>
+              <option value="scheduled">Scheduled</option>
+              <option value="sent">Sent</option>
+              <option value="delivered">Delivered</option>
+              <option value="cancelled">Cancelled</option>
+              <option value="failed">Failed</option>
+            </select>
+          </div>
+
+          {/* Loading */}
+          {loadingFollowUps && (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-primary"></div>
+            </div>
+          )}
+
+          {/* Empty state */}
+          {!loadingFollowUps && followUps.length === 0 && (
+            <div className="text-center py-12 bg-ink-800 rounded-xl border border-ink-700">
+              <svg
+                className="w-12 h-12 mx-auto text-ink-500 mb-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              <h3 className="text-lg font-medium text-ink-200 mb-2">No Follow-ups</h3>
+              <p className="text-ink-400">
+                {followUpFilter
+                  ? `No follow-ups with status "${getFollowUpStatusLabel(followUpFilter)}"`
+                  : 'Follow-up messages will appear here when aftercare is sent with scheduled follow-ups.'}
+              </p>
+            </div>
+          )}
+
+          {/* Follow-ups Table */}
+          {followUps.length > 0 && (
+            <div className="bg-ink-800 rounded-xl border border-ink-700 overflow-hidden">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-ink-700">
+                    <th className="text-left text-xs font-medium text-ink-400 px-4 py-3">Type</th>
+                    <th className="text-left text-xs font-medium text-ink-400 px-4 py-3">Scheduled For</th>
+                    <th className="text-left text-xs font-medium text-ink-400 px-4 py-3">Status</th>
+                    <th className="text-left text-xs font-medium text-ink-400 px-4 py-3">Sent At</th>
+                    <th className="text-left text-xs font-medium text-ink-400 px-4 py-3">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {followUps.map((fu) => (
+                    <tr
+                      key={fu.id}
+                      className="border-b border-ink-700/50 last:border-0 hover:bg-ink-700/30"
+                    >
+                      <td className="px-4 py-3">
+                        <span className="text-sm font-medium text-ink-100">
+                          {getFollowUpTypeLabel(fu.follow_up_type)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div>
+                          <p className="text-sm text-ink-300">
+                            {new Date(fu.scheduled_for).toLocaleDateString()}
+                          </p>
+                          <p className="text-xs text-ink-500">
+                            {new Date(fu.scheduled_for).toLocaleTimeString([], {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </p>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`text-xs px-2 py-1 rounded-full ${getFollowUpStatusColor(fu.status)}`}
+                        >
+                          {getFollowUpStatusLabel(fu.status)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-sm text-ink-400">
+                          {fu.sent_at ? new Date(fu.sent_at).toLocaleString() : '-'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {fu.status === 'scheduled' && (
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleSendFollowUp(fu.id)}
+                              disabled={processingFollowUp === fu.id}
+                              className="text-xs px-2 py-1 bg-accent-primary/20 text-accent-primary rounded hover:bg-accent-primary/30 disabled:opacity-50 transition-colors"
+                            >
+                              {processingFollowUp === fu.id ? 'Sending...' : 'Send Now'}
+                            </button>
+                            <button
+                              onClick={() => handleCancelFollowUp(fu.id)}
+                              disabled={processingFollowUp === fu.id}
+                              className="text-xs px-2 py-1 text-ink-400 hover:bg-ink-700 rounded transition-colors disabled:opacity-50"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        )}
+                        {fu.status === 'failed' && (
+                          <button
+                            onClick={() => handleSendFollowUp(fu.id)}
+                            disabled={processingFollowUp === fu.id}
+                            className="text-xs px-2 py-1 bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 disabled:opacity-50 transition-colors"
+                          >
+                            {processingFollowUp === fu.id ? 'Retrying...' : 'Retry'}
+                          </button>
+                        )}
+                        {(fu.status === 'sent' || fu.status === 'delivered' || fu.status === 'cancelled') && (
+                          <span className="text-xs text-ink-500">-</span>
+                        )}
                       </td>
                     </tr>
                   ))}

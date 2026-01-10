@@ -287,3 +287,73 @@ class HealingIssueListResponse(BaseModel):
     page: int
     page_size: int
     total_pages: int
+
+
+# === Follow-Up Management Schemas ===
+
+class FollowUpListResponse(BaseModel):
+    """Paginated list of follow-ups."""
+
+    items: list[FollowUpSummary]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
+class FollowUpWithClientInfo(FollowUpResponse):
+    """Follow-up with client and aftercare context."""
+
+    client_name: str
+    client_email: str
+    appointment_date: datetime
+    studio_name: str | None = None
+
+
+class PendingFollowUpsResponse(BaseModel):
+    """List of pending follow-ups ready to send."""
+
+    items: list[FollowUpWithClientInfo]
+    total: int
+
+
+class ProcessFollowUpsResult(BaseModel):
+    """Result of processing scheduled follow-ups."""
+
+    processed: int = Field(description="Number of follow-ups processed")
+    sent: int = Field(description="Number successfully sent")
+    failed: int = Field(description="Number that failed to send")
+    details: list[dict] = Field(default_factory=list, description="Details of each processed follow-up")
+
+
+class SendFollowUpInput(BaseModel):
+    """Input for manually sending a follow-up."""
+
+    send_via: Literal["email", "sms"] | None = Field(default=None, description="Override default send method")
+
+
+class SendFollowUpResponse(BaseModel):
+    """Response after sending a follow-up."""
+
+    id: UUID
+    status: FollowUpStatus
+    sent_at: datetime | None
+    message: str
+
+
+class CancelFollowUpResponse(BaseModel):
+    """Response after cancelling a follow-up."""
+
+    id: UUID
+    status: FollowUpStatus
+    message: str
+
+
+class FollowUpUpdate(BaseModel):
+    """Update a scheduled follow-up."""
+
+    scheduled_for: datetime | None = None
+    subject: str | None = Field(default=None, max_length=200)
+    message_html: str | None = None
+    message_plain: str | None = None
+    send_via: Literal["email", "sms"] | None = None

@@ -1054,3 +1054,493 @@ async def view_aftercare_instructions(
         follow_ups=follow_ups,
         can_report_issue=True,
     )
+
+
+# === Follow-Up Management Endpoints ===
+
+from app.schemas.aftercare import (
+    CancelFollowUpResponse,
+    FollowUpListResponse,
+    FollowUpResponse,
+    FollowUpUpdate,
+    FollowUpWithClientInfo,
+    PendingFollowUpsResponse,
+    ProcessFollowUpsResult,
+    SendFollowUpInput,
+    SendFollowUpResponse,
+)
+
+
+def follow_up_to_summary(fu: AftercareFollowUp) -> FollowUpSummary:
+    """Convert follow-up model to summary schema."""
+    return FollowUpSummary(
+        id=fu.id,
+        aftercare_sent_id=fu.aftercare_sent_id,
+        follow_up_type=fu.follow_up_type.value,
+        scheduled_for=fu.scheduled_for,
+        status=fu.status.value,
+        sent_at=fu.sent_at,
+        created_at=fu.created_at,
+    )
+
+
+def follow_up_to_response(fu: AftercareFollowUp) -> FollowUpResponse:
+    """Convert follow-up model to full response schema."""
+    return FollowUpResponse(
+        id=fu.id,
+        aftercare_sent_id=fu.aftercare_sent_id,
+        follow_up_type=fu.follow_up_type.value,
+        scheduled_for=fu.scheduled_for,
+        status=fu.status.value,
+        sent_at=fu.sent_at,
+        created_at=fu.created_at,
+        subject=fu.subject,
+        message_html=fu.message_html,
+        message_plain=fu.message_plain,
+        send_via=fu.send_via,
+        delivered_at=fu.delivered_at,
+        failure_reason=fu.failure_reason,
+    )
+
+
+def follow_up_with_client_info(
+    fu: AftercareFollowUp,
+    sent: AftercareSent,
+    studio_name: str | None = None,
+) -> FollowUpWithClientInfo:
+    """Convert follow-up model to response with client info."""
+    return FollowUpWithClientInfo(
+        id=fu.id,
+        aftercare_sent_id=fu.aftercare_sent_id,
+        follow_up_type=fu.follow_up_type.value,
+        scheduled_for=fu.scheduled_for,
+        status=fu.status.value,
+        sent_at=fu.sent_at,
+        created_at=fu.created_at,
+        subject=fu.subject,
+        message_html=fu.message_html,
+        message_plain=fu.message_plain,
+        send_via=fu.send_via,
+        delivered_at=fu.delivered_at,
+        failure_reason=fu.failure_reason,
+        client_name=sent.client_name,
+        client_email=sent.client_email,
+        appointment_date=sent.appointment_date,
+        studio_name=studio_name,
+    )
+
+
+@router.get("/follow-ups", response_model=FollowUpListResponse)
+async def list_follow_ups(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    status_filter: Optional[str] = Query(default=None, alias="status"),
+    follow_up_type: Optional[str] = Query(default=None),
+    aftercare_sent_id: Optional[str] = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """List follow-up messages for the studio."""
+    studio = await get_user_studio(current_user, db)
+
+    # Build query with join to aftercare_sent for studio filtering
+    stmt = (
+        select(AftercareFollowUp)
+        .join(AftercareSent, AftercareFollowUp.aftercare_sent_id == AftercareSent.id)
+        .where(AftercareSent.studio_id == studio.id)
+    )
+
+    if status_filter:
+        stmt = stmt.where(AftercareFollowUp.status == FollowUpStatus(status_filter))
+
+    if follow_up_type:
+        stmt = stmt.where(AftercareFollowUp.follow_up_type == FollowUpType(follow_up_type))
+
+    if aftercare_sent_id:
+        stmt = stmt.where(AftercareFollowUp.aftercare_sent_id == aftercare_sent_id)
+
+    # Count
+    count_stmt = select(func.count()).select_from(stmt.subquery())
+    total = (await db.execute(count_stmt)).scalar() or 0
+
+    # Paginate
+    stmt = stmt.order_by(AftercareFollowUp.scheduled_for.asc())
+    stmt = stmt.offset((page - 1) * page_size).limit(page_size)
+
+    result = await db.execute(stmt)
+    follow_ups = result.scalars().all()
+
+    return FollowUpListResponse(
+        items=[follow_up_to_summary(fu) for fu in follow_ups],
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=(total + page_size - 1) // page_size,
+    )
+
+
+@router.get("/follow-ups/pending", response_model=PendingFollowUpsResponse)
+async def get_pending_follow_ups(
+    limit: int = Query(default=50, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Get follow-ups that are scheduled and ready to send.
+
+    Returns follow-ups where scheduled_for <= now and status is 'scheduled'.
+    """
+    studio = await get_user_studio(current_user, db)
+    now = datetime.utcnow()
+
+    stmt = (
+        select(AftercareFollowUp)
+        .join(AftercareSent, AftercareFollowUp.aftercare_sent_id == AftercareSent.id)
+        .where(
+            AftercareSent.studio_id == studio.id,
+            AftercareFollowUp.status == FollowUpStatus.SCHEDULED,
+            AftercareFollowUp.scheduled_for <= now,
+        )
+        .options(selectinload(AftercareFollowUp.aftercare_sent))
+        .order_by(AftercareFollowUp.scheduled_for.asc())
+        .limit(limit)
+    )
+
+    result = await db.execute(stmt)
+    follow_ups = result.scalars().all()
+
+    items = []
+    for fu in follow_ups:
+        sent = fu.aftercare_sent
+        # Get studio name
+        studio_stmt = select(Studio).where(Studio.id == sent.studio_id)
+        studio_result = await db.execute(studio_stmt)
+        studio_record = studio_result.scalar_one_or_none()
+
+        items.append(follow_up_with_client_info(
+            fu,
+            sent,
+            studio_name=studio_record.name if studio_record else None,
+        ))
+
+    return PendingFollowUpsResponse(items=items, total=len(items))
+
+
+@router.post("/follow-ups/process", response_model=ProcessFollowUpsResult)
+async def process_scheduled_follow_ups(
+    limit: int = Query(default=100, ge=1, le=500),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role([UserRole.OWNER])),
+):
+    """
+    Process and send all scheduled follow-ups that are due.
+
+    This endpoint is designed to be called by a cron job or scheduler.
+    It finds all follow-ups where scheduled_for <= now and sends them.
+    """
+    from app.services.email import email_service
+    from app.services.sms import sms_service
+
+    studio = await get_user_studio(current_user, db)
+    now = datetime.utcnow()
+
+    # Get pending follow-ups
+    stmt = (
+        select(AftercareFollowUp)
+        .join(AftercareSent, AftercareFollowUp.aftercare_sent_id == AftercareSent.id)
+        .where(
+            AftercareSent.studio_id == studio.id,
+            AftercareFollowUp.status == FollowUpStatus.SCHEDULED,
+            AftercareFollowUp.scheduled_for <= now,
+        )
+        .options(selectinload(AftercareFollowUp.aftercare_sent))
+        .order_by(AftercareFollowUp.scheduled_for.asc())
+        .limit(limit)
+    )
+
+    result = await db.execute(stmt)
+    follow_ups = result.scalars().all()
+
+    processed = 0
+    sent_count = 0
+    failed_count = 0
+    details = []
+
+    for fu in follow_ups:
+        processed += 1
+        sent = fu.aftercare_sent
+        success = False
+
+        try:
+            if fu.send_via == "email":
+                success = await email_service.send_email(
+                    to_email=sent.client_email,
+                    subject=fu.subject,
+                    html_content=fu.message_html,
+                    plain_content=fu.message_plain,
+                )
+            elif fu.send_via == "sms" and sent.client_phone:
+                success = await sms_service.send_sms(
+                    to_phone=sent.client_phone,
+                    message=fu.message_plain[:1500],
+                )
+
+            if success:
+                fu.status = FollowUpStatus.SENT
+                fu.sent_at = datetime.utcnow()
+                sent_count += 1
+                details.append({
+                    "id": str(fu.id),
+                    "type": fu.follow_up_type.value,
+                    "client_email": sent.client_email,
+                    "status": "sent",
+                })
+            else:
+                fu.status = FollowUpStatus.FAILED
+                fu.failure_reason = "Send operation returned false"
+                failed_count += 1
+                details.append({
+                    "id": str(fu.id),
+                    "type": fu.follow_up_type.value,
+                    "client_email": sent.client_email,
+                    "status": "failed",
+                    "reason": "Send operation failed",
+                })
+        except Exception as e:
+            fu.status = FollowUpStatus.FAILED
+            fu.failure_reason = str(e)
+            failed_count += 1
+            details.append({
+                "id": str(fu.id),
+                "type": fu.follow_up_type.value,
+                "client_email": sent.client_email,
+                "status": "failed",
+                "reason": str(e),
+            })
+
+    await db.commit()
+
+    return ProcessFollowUpsResult(
+        processed=processed,
+        sent=sent_count,
+        failed=failed_count,
+        details=details,
+    )
+
+
+@router.get("/follow-ups/{follow_up_id}", response_model=FollowUpResponse)
+async def get_follow_up(
+    follow_up_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get a specific follow-up message."""
+    studio = await get_user_studio(current_user, db)
+
+    stmt = (
+        select(AftercareFollowUp)
+        .join(AftercareSent, AftercareFollowUp.aftercare_sent_id == AftercareSent.id)
+        .where(
+            AftercareFollowUp.id == follow_up_id,
+            AftercareSent.studio_id == studio.id,
+        )
+    )
+    result = await db.execute(stmt)
+    follow_up = result.scalar_one_or_none()
+
+    if not follow_up:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Follow-up not found"
+        )
+
+    return follow_up_to_response(follow_up)
+
+
+@router.patch("/follow-ups/{follow_up_id}", response_model=FollowUpResponse)
+async def update_follow_up(
+    follow_up_id: str,
+    update_data: FollowUpUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role([UserRole.OWNER, UserRole.ARTIST])),
+):
+    """
+    Update a scheduled follow-up.
+
+    Can only update follow-ups that are still in 'scheduled' status.
+    """
+    studio = await get_user_studio(current_user, db)
+
+    stmt = (
+        select(AftercareFollowUp)
+        .join(AftercareSent, AftercareFollowUp.aftercare_sent_id == AftercareSent.id)
+        .where(
+            AftercareFollowUp.id == follow_up_id,
+            AftercareSent.studio_id == studio.id,
+        )
+    )
+    result = await db.execute(stmt)
+    follow_up = result.scalar_one_or_none()
+
+    if not follow_up:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Follow-up not found"
+        )
+
+    if follow_up.status != FollowUpStatus.SCHEDULED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot update follow-up with status '{follow_up.status.value}'"
+        )
+
+    # Apply updates
+    update_dict = update_data.model_dump(exclude_unset=True)
+    for field, value in update_dict.items():
+        setattr(follow_up, field, value)
+
+    await db.commit()
+    await db.refresh(follow_up)
+
+    return follow_up_to_response(follow_up)
+
+
+@router.post("/follow-ups/{follow_up_id}/send", response_model=SendFollowUpResponse)
+async def send_follow_up_now(
+    follow_up_id: str,
+    data: SendFollowUpInput | None = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role([UserRole.OWNER, UserRole.ARTIST])),
+):
+    """
+    Manually send a follow-up message immediately.
+
+    Can send scheduled follow-ups early or resend failed ones.
+    """
+    from app.services.email import email_service
+    from app.services.sms import sms_service
+
+    studio = await get_user_studio(current_user, db)
+
+    stmt = (
+        select(AftercareFollowUp)
+        .join(AftercareSent, AftercareFollowUp.aftercare_sent_id == AftercareSent.id)
+        .where(
+            AftercareFollowUp.id == follow_up_id,
+            AftercareSent.studio_id == studio.id,
+        )
+        .options(selectinload(AftercareFollowUp.aftercare_sent))
+    )
+    result = await db.execute(stmt)
+    follow_up = result.scalar_one_or_none()
+
+    if not follow_up:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Follow-up not found"
+        )
+
+    if follow_up.status not in (FollowUpStatus.SCHEDULED, FollowUpStatus.FAILED):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot send follow-up with status '{follow_up.status.value}'"
+        )
+
+    sent = follow_up.aftercare_sent
+    send_via = data.send_via if data and data.send_via else follow_up.send_via
+    success = False
+
+    try:
+        if send_via == "email":
+            success = await email_service.send_email(
+                to_email=sent.client_email,
+                subject=follow_up.subject,
+                html_content=follow_up.message_html,
+                plain_content=follow_up.message_plain,
+            )
+        elif send_via == "sms" and sent.client_phone:
+            success = await sms_service.send_sms(
+                to_phone=sent.client_phone,
+                message=follow_up.message_plain[:1500],
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot send via SMS - no phone number on record"
+            )
+    except Exception as e:
+        follow_up.status = FollowUpStatus.FAILED
+        follow_up.failure_reason = str(e)
+        await db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to send: {str(e)}"
+        )
+
+    if success:
+        follow_up.status = FollowUpStatus.SENT
+        follow_up.sent_at = datetime.utcnow()
+        follow_up.failure_reason = None
+        await db.commit()
+
+        return SendFollowUpResponse(
+            id=follow_up.id,
+            status=follow_up.status.value,
+            sent_at=follow_up.sent_at,
+            message=f"Follow-up sent successfully via {send_via}",
+        )
+    else:
+        follow_up.status = FollowUpStatus.FAILED
+        follow_up.failure_reason = "Send operation returned false"
+        await db.commit()
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to send follow-up"
+        )
+
+
+@router.post("/follow-ups/{follow_up_id}/cancel", response_model=CancelFollowUpResponse)
+async def cancel_follow_up(
+    follow_up_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role([UserRole.OWNER, UserRole.ARTIST])),
+):
+    """
+    Cancel a scheduled follow-up.
+
+    Can only cancel follow-ups that are still in 'scheduled' status.
+    """
+    studio = await get_user_studio(current_user, db)
+
+    stmt = (
+        select(AftercareFollowUp)
+        .join(AftercareSent, AftercareFollowUp.aftercare_sent_id == AftercareSent.id)
+        .where(
+            AftercareFollowUp.id == follow_up_id,
+            AftercareSent.studio_id == studio.id,
+        )
+    )
+    result = await db.execute(stmt)
+    follow_up = result.scalar_one_or_none()
+
+    if not follow_up:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Follow-up not found"
+        )
+
+    if follow_up.status != FollowUpStatus.SCHEDULED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot cancel follow-up with status '{follow_up.status.value}'"
+        )
+
+    follow_up.status = FollowUpStatus.CANCELLED
+    await db.commit()
+
+    return CancelFollowUpResponse(
+        id=follow_up.id,
+        status=follow_up.status.value,
+        message="Follow-up cancelled successfully",
+    )
