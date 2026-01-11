@@ -101,8 +101,12 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
           )}
         </button>
 
-        {/* Notifications */}
-        <button className="relative p-2 rounded-lg text-ink-400 hover:text-ink-100 hover:bg-ink-700 transition-colors">
+        {/* Notifications - links to Inbox */}
+        <button
+          onClick={() => navigate('/inbox')}
+          className="relative p-2 rounded-lg text-ink-400 hover:text-ink-100 hover:bg-ink-700 transition-colors"
+          title="View messages"
+        >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path
               strokeLinecap="round"

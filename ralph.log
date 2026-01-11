@@ -462,3 +462,19 @@ Total Commits: 2
 
 All production-critical checks passed.
 Application ready for next improvement cycle.
+
+--- Session: 2026-01-10 (New Cycle) ---
+Category A - Bug Hunting
+
+BUG #12: Notifications button non-functional
+- Location: frontend/src/components/layout/Header.tsx:105-119
+- Cause: Bell icon button with red notification dot had no onClick handler
+- Fix: Added onClick={() => navigate('/inbox')} and title="View messages"
+- Status: FIXED
+
+FINDING: Search bar placeholder only
+- Location: frontend/src/components/layout/Header.tsx:43-52
+- The search bar input shows "Search clients, bookings, messages..." placeholder
+- Has ⌘K keyboard shortcut hint but no actual functionality
+- Recommendation: Implement global search or command palette
+- Status: DOCUMENTED (significant feature work needed)
