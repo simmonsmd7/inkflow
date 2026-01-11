@@ -95,12 +95,18 @@ export function LandingPage() {
       </nav>
 
       {/* Hero Section */}
-      <section className="py-20 sm:py-32">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-ink-100 mb-6">
+      <section className="py-20 sm:py-32 relative overflow-hidden">
+        {/* Background gradient orbs */}
+        <div className="absolute top-1/2 left-1/4 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-accent-primary/20 rounded-full blur-[120px] pointer-events-none" />
+        <div className="absolute top-1/3 right-1/4 translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-accent-secondary/15 rounded-full blur-[100px] pointer-events-none" />
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-ink-100 mb-6 leading-tight">
             Run your tattoo business,
             <br />
-            <span className="text-accent-primary">not paperwork</span>
+            <span className="bg-gradient-to-r from-accent-primary via-purple-400 to-accent-secondary bg-clip-text text-transparent animate-pulse">
+              not paperwork
+            </span>
           </h1>
           <p className="text-xl text-ink-400 max-w-2xl mx-auto mb-10">
             The all-in-one platform for tattoo artists and studios. Manage bookings, collect deposits, handle consent forms, and track aftercare - all in one place.
