@@ -4,11 +4,12 @@ import re
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Form, HTTPException, status
+from fastapi import APIRouter, Form, Header, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db_context
+from app.models.booking import BookingRequest, BookingRequestStatus
 from app.models.message import (
     Conversation,
     ConversationStatus,
@@ -16,6 +17,7 @@ from app.models.message import (
     MessageChannel,
     MessageDirection,
 )
+from app.services.stripe_service import stripe_service
 
 router = APIRouter(prefix="/webhooks", tags=["Webhooks"])
 
@@ -307,4 +309,117 @@ async def test_inbound_sms_endpoint() -> dict:
     return {
         "status": "ok",
         "message": "Inbound SMS webhook is active",
+    }
+
+
+@router.post("/stripe")
+async def handle_stripe_webhook(
+    request: Request,
+    stripe_signature: str = Header(None, alias="Stripe-Signature"),
+) -> dict:
+    """
+    Handle Stripe webhook events.
+
+    This endpoint receives events from Stripe, including:
+    - checkout.session.completed: Payment was successful
+    - payment_intent.succeeded: Payment intent completed
+
+    The webhook signature is verified to ensure the request is from Stripe.
+    """
+    # Get raw body for signature verification
+    payload = await request.body()
+
+    # Verify the webhook signature
+    event = stripe_service.construct_webhook_event(payload, stripe_signature or "")
+
+    if event is None:
+        # If Stripe is not configured or signature invalid, return 400
+        if not stripe_service.is_configured:
+            return {"status": "ignored", "reason": "stripe_not_configured"}
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid webhook signature",
+        )
+
+    # Handle checkout.session.completed event
+    if event.type == "checkout.session.completed":
+        session = event.data.object
+
+        # Extract booking info from session metadata
+        payment_info = stripe_service.handle_payment_success(session)
+        booking_request_id = payment_info.get("booking_request_id")
+        payment_intent_id = payment_info.get("payment_intent_id")
+
+        if not booking_request_id:
+            return {
+                "status": "ignored",
+                "reason": "no_booking_request_id",
+                "event_type": event.type,
+            }
+
+        # Update the booking status
+        async with get_db_context() as db:
+            try:
+                booking_uuid = uuid.UUID(booking_request_id)
+            except ValueError:
+                return {
+                    "status": "error",
+                    "reason": "invalid_booking_request_id",
+                }
+
+            result = await db.execute(
+                select(BookingRequest).where(
+                    BookingRequest.id == booking_uuid,
+                    BookingRequest.deleted_at.is_(None),
+                )
+            )
+            booking = result.scalar_one_or_none()
+
+            if not booking:
+                return {
+                    "status": "error",
+                    "reason": "booking_not_found",
+                    "booking_request_id": booking_request_id,
+                }
+
+            # Only update if still in DEPOSIT_REQUESTED status
+            if booking.status == BookingRequestStatus.DEPOSIT_REQUESTED:
+                booking.status = BookingRequestStatus.DEPOSIT_PAID
+                booking.deposit_paid_at = datetime.now(timezone.utc)
+                booking.deposit_stripe_payment_intent_id = payment_intent_id
+
+                await db.commit()
+
+                return {
+                    "status": "success",
+                    "event_type": event.type,
+                    "booking_request_id": booking_request_id,
+                    "new_status": "deposit_paid",
+                }
+            else:
+                return {
+                    "status": "ignored",
+                    "reason": "booking_not_in_deposit_requested_status",
+                    "current_status": booking.status.value,
+                }
+
+    # Return success for other event types (we don't need to process them)
+    return {
+        "status": "ignored",
+        "reason": "unhandled_event_type",
+        "event_type": event.type,
+    }
+
+
+@router.post("/stripe/test")
+async def test_stripe_webhook_endpoint() -> dict:
+    """
+    Test endpoint to verify Stripe webhook is accessible.
+
+    Returns a simple success response for health checking.
+    """
+    return {
+        "status": "ok",
+        "message": "Stripe webhook is active",
+        "stripe_configured": stripe_service.is_configured,
     }

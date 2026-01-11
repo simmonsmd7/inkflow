@@ -1278,3 +1278,90 @@ Total commits this session: 3 (iterations 29-30 + fix)
 Application Status: Production Ready
 
 Next: Continue iteration loop with Category C (Edge Case) or G (Performance)
+
+=== ITERATION 31 - Landing Page Redesign: Gradient Hero ===
+Date: 2026-01-10
+Category: Landing Page Redesign
+Item Completed: Make headline more impactful with gradient text or animation
+
+Changes Made:
+- Added purple-to-cyan gradient effect on "not paperwork" headline text
+- Implemented bg-gradient-to-r from-accent-primary via-purple-400 to-accent-secondary
+- Added subtle pulse animation to gradient text for visual interest
+- Added two background gradient orbs (blurred circles) for depth:
+  - Purple orb (accent-primary/20) on left side
+  - Cyan orb (accent-secondary/15) on right side
+- Added relative positioning and z-index for proper layering
+- Improved line height with leading-tight class
+
+Visual Result:
+- Hero section now has a modern, polished look
+- Gradient text draws attention to the key message
+- Background orbs create subtle ambient lighting effect
+- Professional SaaS landing page aesthetic achieved
+
+Build Status: PASS
+Commit: 3935dde
+File Modified: frontend/src/pages/LandingPage.tsx
+
+Remaining Checklist Items:
+- [ ] Add smooth scroll animations (fade-in, slide-up on scroll)
+- [ ] Add subtle hover effects and micro-interactions
+- [ ] Improve typography hierarchy and spacing
+- [x] Add gradient accents and visual depth (DONE - hero section)
+- [ ] Ensure consistent spacing and alignment
+- [ ] Add a compelling subheadline
+- [ ] Consider adding a hero image/illustration or mockup
+- [ ] Make feature cards more visually engaging
+- [ ] Add icons with better visual treatment
+- [ ] Consider alternating layout or grid improvements
+- [ ] Add subtle animations on hover (feature cards)
+- [ ] Add smooth section transitions
+- [ ] Improve mobile responsiveness
+- [ ] Ensure accessibility (contrast, focus states)
+- [ ] Expand footer with links (Features, Pricing, Contact)
+- [ ] Add social media icons placeholder
+
+Next Suggestion: Add scroll animations or improve feature card hover effects
+
+=== ITERATION 31 - Category A: Bug Hunting (Payment Status Fix) ===
+Date: 2026-01-10
+Category: A (Bug Hunting)
+Pages Checked: /bookings, /pay-deposit/:token, Stripe Checkout, Stripe Webhooks
+Issue Found: Critical payment status bug
+
+BUG DESCRIPTION:
+- Owner sends deposit request to customer
+- Customer pays via Stripe checkout (payment succeeds)
+- Booking status does NOT update - still shows "Deposit Requested"
+- Owner never sees that payment was received
+
+ROOT CAUSE:
+- No Stripe webhook handler existed in the codebase
+- The webhooks.py router only handled email and SMS webhooks
+- When Stripe sent checkout.session.completed events, there was no endpoint to receive them
+- The stub payment path (for testing) correctly updated status, but real Stripe payments didn't
+
+FIX IMPLEMENTED:
+- Added Stripe webhook handler to backend/app/routers/webhooks.py
+- Created POST /api/v1/webhooks/stripe endpoint to handle Stripe events
+- Created POST /api/v1/webhooks/stripe/test endpoint for health checking
+- Handler validates webhook signatures using Stripe SDK
+- Processes checkout.session.completed events
+- Extracts booking_request_id from session metadata
+- Updates booking status from DEPOSIT_REQUESTED to DEPOSIT_PAID
+- Sets deposit_paid_at timestamp and stores payment_intent_id
+
+VERIFICATION:
+- Started Stripe CLI webhook listener (stripe listen --forward-to localhost:8000/api/v1/webhooks/stripe)
+- Created deposit request for Storm Taylor ($300 deposit)
+- Completed test payment with card 4242424242424242
+- Webhook received: checkout.session.completed -> 200 OK
+- Booking status updated from "Deposit Requested" to "Deposit Paid" ✓
+- Owner can now see updated status on /bookings page ✓
+
+Build Status: PASS
+File Modified: backend/app/routers/webhooks.py (added ~100 lines)
+
+Status: FIXED
+Next Suggestion: Continue testing other payment flows and edge cases
