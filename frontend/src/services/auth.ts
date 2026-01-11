@@ -104,6 +104,16 @@ export const authService = {
       { skipAuth: true }
     );
   },
+
+  /**
+   * Create a business during onboarding.
+   */
+  async createBusiness(businessName: string, businessEmail: string): Promise<MessageResponse> {
+    return api.post<MessageResponse>(
+      '/api/v1/auth/onboarding/create-business',
+      { business_name: businessName, business_email: businessEmail }
+    );
+  },
 };
 
 export default authService;

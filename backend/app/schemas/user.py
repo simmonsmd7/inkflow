@@ -118,6 +118,14 @@ class AuthResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserResponse
+    has_studio: bool = False
+
+
+class OnboardingRequest(BaseModel):
+    """Schema for onboarding - creating a business."""
+
+    business_name: str = Field(..., min_length=2, max_length=255)
+    business_email: EmailStr
 
 
 class MessageResponse(BaseModel):

@@ -28,9 +28,11 @@ import {
   DepositPayment,
   ForgotPassword,
   Inbox,
+  LandingPage,
   Login,
   NoShowTracking,
   NotFound,
+  Onboarding,
   PaymentSuccess,
   PopularTimeSlots,
   Register,
@@ -45,6 +47,9 @@ import {
 function App() {
   return (
     <Routes>
+      {/* Public landing page */}
+      <Route path="/" element={<LandingPage />} />
+
       {/* Public routes - no auth required */}
       <Route path="/book/:studioSlug" element={<BookingForm />} />
       <Route path="/pay-deposit/:token" element={<DepositPayment />} />
@@ -59,6 +64,9 @@ function App() {
       <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+
+      {/* Onboarding route - requires auth but no layout */}
+      <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
 
       {/* Client Portal routes - public (login/register) */}
       <Route path="/client/login" element={<ClientLogin />} />
@@ -85,7 +93,6 @@ function App() {
           <ProtectedRoute>
             <Layout>
               <Routes>
-                <Route path="/" element={<Dashboard />} />
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/inbox" element={<Inbox />} />
                 <Route path="/bookings" element={<BookingQueue />} />

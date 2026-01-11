@@ -1,39 +1,53 @@
 /**
- * Login page for user authentication.
+ * Onboarding page for new users to set up their business.
  */
 
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { authService } from '../services/auth';
 
+interface FormData {
+  business_name: string;
+  business_email: string;
+}
+
 interface FormErrors {
-  email?: string;
-  password?: string;
+  business_name?: string;
+  business_email?: string;
   general?: string;
 }
 
-export function Login() {
+export function Onboarding() {
   const navigate = useNavigate();
-  const { refreshUser } = useAuth();
+  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
-  const [formData, setFormData] = useState({
-    email: '',
-    password: '',
+  const [formData, setFormData] = useState<FormData>({
+    business_name: '',
+    business_email: '',
   });
+
+  // Pre-fill email from user account
+  useEffect(() => {
+    if (user?.email) {
+      setFormData((prev) => ({ ...prev, business_email: user.email }));
+    }
+  }, [user]);
 
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
 
-    if (!formData.email) {
-      newErrors.email = 'Email is required';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = 'Please enter a valid email address';
+    if (!formData.business_name.trim()) {
+      newErrors.business_name = 'Business name is required';
+    } else if (formData.business_name.trim().length < 2) {
+      newErrors.business_name = 'Business name must be at least 2 characters';
     }
 
-    if (!formData.password) {
-      newErrors.password = 'Password is required';
+    if (!formData.business_email.trim()) {
+      newErrors.business_email = 'Business email is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.business_email)) {
+      newErrors.business_email = 'Please enter a valid email address';
     }
 
     setErrors(newErrors);
@@ -60,23 +74,14 @@ export function Login() {
     setErrors({});
 
     try {
-      // Login returns has_studio to determine redirect
-      const response = await authService.login(formData.email, formData.password);
-
-      // Refresh auth context with user data
-      await refreshUser();
-
-      // Smart redirect based on user's studio ownership and role
-      if (!response.has_studio && response.user.role === 'owner') {
-        // New owner without a studio - go to onboarding
-        navigate('/onboarding');
-      } else {
-        // Existing user with studio or non-owner - go to dashboard
-        navigate('/dashboard');
-      }
+      await authService.createBusiness(formData.business_name, formData.business_email);
+      // Navigate to dashboard with success message
+      navigate('/dashboard', {
+        state: { message: 'Your business has been created successfully!' }
+      });
     } catch (error) {
       const errorMessage =
-        error instanceof Error ? error.message : 'Login failed. Please try again.';
+        error instanceof Error ? error.message : 'Failed to create business. Please try again.';
       setErrors({ general: errorMessage });
     } finally {
       setIsLoading(false);
@@ -88,19 +93,21 @@ export function Login() {
       <div className="max-w-md w-full">
         {/* Logo and heading */}
         <div className="text-center mb-8">
-          <Link to="/" className="inline-flex items-center justify-center gap-3 mb-4">
+          <div className="inline-flex items-center justify-center gap-3 mb-4">
             <div className="w-12 h-12 bg-gradient-to-br from-accent-primary to-accent-secondary rounded-xl flex items-center justify-center">
               <span className="text-xl font-bold text-white">IF</span>
             </div>
             <span className="text-2xl font-bold text-ink-100">InkFlow</span>
-          </Link>
-          <h1 className="text-xl font-semibold text-ink-100">Welcome back</h1>
-          <p className="text-ink-400 mt-1">Sign in to your account</p>
+          </div>
+          <h1 className="text-xl font-semibold text-ink-100">Set up your business</h1>
+          <p className="text-ink-400 mt-1">
+            Let's get your studio up and running
+          </p>
         </div>
 
-        {/* Login form */}
+        {/* Onboarding form */}
         <div className="bg-ink-800 rounded-xl border border-ink-700 p-6">
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-5">
             {/* General error */}
             {errors.general && (
               <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
@@ -108,68 +115,69 @@ export function Login() {
               </div>
             )}
 
-            {/* Email */}
+            {/* Welcome message */}
+            <div className="p-4 bg-accent-primary/10 border border-accent-primary/20 rounded-lg">
+              <p className="text-sm text-ink-200">
+                Welcome, <span className="font-medium text-ink-100">{user?.first_name}</span>!
+                Create your studio to start accepting bookings.
+              </p>
+            </div>
+
+            {/* Business name */}
             <div>
               <label
-                htmlFor="email"
+                htmlFor="business_name"
                 className="block text-sm font-medium text-ink-200 mb-1.5"
               >
-                Email address
+                Business name <span className="text-red-400">*</span>
               </label>
               <input
-                type="email"
-                id="email"
-                name="email"
-                value={formData.email}
+                type="text"
+                id="business_name"
+                name="business_name"
+                value={formData.business_name}
                 onChange={handleChange}
-                autoComplete="email"
                 className={`
                   w-full px-4 py-2.5 bg-ink-700 border rounded-lg text-ink-100
                   placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-accent-primary/50
                   transition-colors
-                  ${errors.email ? 'border-red-500' : 'border-ink-600'}
+                  ${errors.business_name ? 'border-red-500' : 'border-ink-600'}
                 `}
-                placeholder="you@example.com"
+                placeholder="e.g., Midnight Ink Studio"
               />
-              {errors.email && (
-                <p className="text-red-400 text-sm mt-1">{errors.email}</p>
+              {errors.business_name && (
+                <p className="text-red-400 text-sm mt-1">{errors.business_name}</p>
               )}
             </div>
 
-            {/* Password */}
+            {/* Business email */}
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label
-                  htmlFor="password"
-                  className="block text-sm font-medium text-ink-200"
-                >
-                  Password
-                </label>
-                <Link
-                  to="/forgot-password"
-                  className="text-sm text-accent-primary hover:underline"
-                >
-                  Forgot password?
-                </Link>
-              </div>
+              <label
+                htmlFor="business_email"
+                className="block text-sm font-medium text-ink-200 mb-1.5"
+              >
+                Business email <span className="text-red-400">*</span>
+              </label>
               <input
-                type="password"
-                id="password"
-                name="password"
-                value={formData.password}
+                type="email"
+                id="business_email"
+                name="business_email"
+                value={formData.business_email}
                 onChange={handleChange}
-                autoComplete="current-password"
                 className={`
                   w-full px-4 py-2.5 bg-ink-700 border rounded-lg text-ink-100
                   placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-accent-primary/50
                   transition-colors
-                  ${errors.password ? 'border-red-500' : 'border-ink-600'}
+                  ${errors.business_email ? 'border-red-500' : 'border-ink-600'}
                 `}
-                placeholder="Enter your password"
+                placeholder="studio@example.com"
               />
-              {errors.password && (
-                <p className="text-red-400 text-sm mt-1">{errors.password}</p>
+              {errors.business_email && (
+                <p className="text-red-400 text-sm mt-1">{errors.business_email}</p>
               )}
+              <p className="text-ink-500 text-xs mt-1">
+                This email will be used for client communications
+              </p>
             </div>
 
             {/* Submit button */}
@@ -177,12 +185,12 @@ export function Login() {
               type="submit"
               disabled={isLoading}
               className={`
-                w-full py-2.5 px-4 rounded-lg font-medium text-white
+                w-full py-3 px-4 rounded-lg font-medium text-white
                 transition-all duration-200
                 ${
                   isLoading
                     ? 'bg-accent-primary/50 cursor-not-allowed'
-                    : 'bg-accent-primary hover:bg-accent-primary/90 active:scale-[0.98]'
+                    : 'bg-accent-primary hover:bg-accent-primary/80 active:scale-[0.98]'
                 }
               `}
             >
@@ -207,25 +215,22 @@ export function Login() {
                       d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                     />
                   </svg>
-                  Signing in...
+                  Creating your studio...
                 </span>
               ) : (
-                'Sign in'
+                'Create Studio'
               )}
             </button>
           </form>
-
-          {/* Register link */}
-          <p className="text-center text-sm text-ink-400 mt-6 pt-6 border-t border-ink-700">
-            Don't have an account?{' '}
-            <Link to="/register" className="text-accent-primary hover:underline">
-              Register
-            </Link>
-          </p>
         </div>
+
+        {/* Info note */}
+        <p className="text-center text-sm text-ink-500 mt-4">
+          You can update your studio details anytime in Settings
+        </p>
       </div>
     </div>
   );
 }
 
-export default Login;
+export default Onboarding;

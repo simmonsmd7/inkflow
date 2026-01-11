@@ -1,16 +1,21 @@
 """Authentication router for user registration, login, and verification."""
 
+import re
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.database import get_db
+from app.models.studio import Studio
+from app.models.user import User, UserRole
 from app.schemas.user import (
     AuthResponse,
     EmailVerification,
     MessageResponse,
+    OnboardingRequest,
     PasswordReset,
     PasswordResetRequest,
     UserCreate,
@@ -28,7 +33,6 @@ from app.services.auth import (
     get_user_by_verification_token,
     reset_user_password,
 )
-from app.models.user import User
 from app.services.email import email_service
 
 settings = get_settings()
@@ -182,9 +186,13 @@ async def login(
     # Create access token
     access_token = create_access_token(user.id)
 
+    # Check if user owns any studios
+    has_studio = len(user.owned_studios) > 0 if user.owned_studios else False
+
     return AuthResponse(
         access_token=access_token,
         user=UserResponse.model_validate(user),
+        has_studio=has_studio,
     )
 
 
@@ -275,5 +283,86 @@ async def reset_password(
 
     return MessageResponse(
         message="Password reset successfully. You can now log in with your new password.",
+        success=True,
+    )
+
+
+def _generate_slug(name: str) -> str:
+    """Generate a URL-friendly slug from studio name."""
+    slug = name.lower()
+    slug = re.sub(r"[^a-z0-9]+", "-", slug)
+    slug = slug.strip("-")
+    return slug
+
+
+async def _ensure_unique_slug(db: AsyncSession, base_slug: str) -> str:
+    """Ensure the slug is unique, appending a number if necessary."""
+    slug = base_slug
+    counter = 1
+
+    while True:
+        query = select(Studio).where(
+            Studio.slug == slug,
+            Studio.deleted_at.is_(None),
+        )
+        result = await db.execute(query)
+        existing = result.scalar_one_or_none()
+
+        if not existing:
+            return slug
+
+        slug = f"{base_slug}-{counter}"
+        counter += 1
+
+
+@router.post("/onboarding/create-business", response_model=MessageResponse)
+async def create_business(
+    data: OnboardingRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MessageResponse:
+    """
+    Create a new studio for the current user during onboarding.
+
+    This endpoint is intended for new users who don't have a studio yet.
+    """
+    # Check if user already has a studio
+    if current_user.owned_studios and len(current_user.owned_studios) > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You already have a studio. Please use the settings page to update it.",
+        )
+
+    # Only owners and artists can create studios
+    if current_user.role not in [UserRole.OWNER, UserRole.ARTIST]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only owners and artists can create studios.",
+        )
+
+    # Generate unique slug
+    base_slug = _generate_slug(data.business_name)
+    unique_slug = await _ensure_unique_slug(db, base_slug)
+
+    # Create the studio
+    studio = Studio(
+        name=data.business_name,
+        slug=unique_slug,
+        email=data.business_email,
+        owner_id=current_user.id,
+        timezone="America/New_York",
+    )
+    db.add(studio)
+
+    # Update user role to owner if not already
+    if current_user.role != UserRole.OWNER:
+        current_user.role = UserRole.OWNER
+        db.add(current_user)
+
+    await db.flush()
+    await db.commit()
+
+    return MessageResponse(
+        message=f"Studio '{data.business_name}' created successfully!",
         success=True,
     )
