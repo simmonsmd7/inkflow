@@ -1021,6 +1021,101 @@ async def create_pay_period(
     return PayPeriodResponse.model_validate(pay_period)
 
 
+@router.get("/pay-periods/unassigned", response_model=EarnedCommissionsListResponse)
+async def list_unassigned_commissions(
+    current_user: User = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+) -> EarnedCommissionsListResponse:
+    """
+    List commissions that are not assigned to any pay period.
+    Useful for knowing which commissions need to be added to a pay period.
+    Owner only.
+    """
+    studio = await get_user_studio(db, current_user)
+
+    # Build query for unassigned commissions
+    base_query = select(EarnedCommission).where(
+        EarnedCommission.studio_id == studio.id,
+        EarnedCommission.pay_period_id.is_(None),
+    )
+
+    # Count total
+    count_query = select(func.count()).select_from(base_query.subquery())
+    count_result = await db.execute(count_query)
+    total = count_result.scalar() or 0
+
+    # Get summary totals
+    sum_query = select(
+        func.coalesce(func.sum(EarnedCommission.service_total), 0).label("total_service"),
+        func.coalesce(func.sum(EarnedCommission.studio_commission), 0).label("total_studio_commission"),
+        func.coalesce(func.sum(EarnedCommission.artist_payout), 0).label("total_artist_payout"),
+        func.coalesce(func.sum(EarnedCommission.tips_amount), 0).label("total_tips"),
+    ).where(
+        EarnedCommission.studio_id == studio.id,
+        EarnedCommission.pay_period_id.is_(None),
+    )
+    sum_result = await db.execute(sum_query)
+    sums = sum_result.first()
+
+    # Get paginated results
+    query = (
+        base_query
+        .options(
+            selectinload(EarnedCommission.booking_request),
+            selectinload(EarnedCommission.artist),
+        )
+        .order_by(EarnedCommission.completed_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    result = await db.execute(query)
+    commissions = result.scalars().all()
+
+    # Build response
+    items = []
+    for comm in commissions:
+        booking = comm.booking_request
+        artist = comm.artist
+        items.append(
+            EarnedCommissionWithDetails(
+                id=comm.id,
+                booking_request_id=comm.booking_request_id,
+                artist_id=comm.artist_id,
+                studio_id=comm.studio_id,
+                commission_rule_id=comm.commission_rule_id,
+                commission_rule_name=comm.commission_rule_name,
+                commission_type=comm.commission_type,
+                service_total=comm.service_total,
+                studio_commission=comm.studio_commission,
+                artist_payout=comm.artist_payout,
+                tips_amount=comm.tips_amount,
+                calculation_details=comm.calculation_details,
+                completed_at=comm.completed_at,
+                created_at=comm.created_at,
+                pay_period_start=comm.pay_period_start,
+                pay_period_end=comm.pay_period_end,
+                paid_at=comm.paid_at,
+                payout_reference=comm.payout_reference,
+                client_name=booking.client_name if booking else "Unknown",
+                design_idea=booking.design_idea[:100] if booking else None,
+                artist_name=artist.full_name if artist else None,
+            )
+        )
+
+    return EarnedCommissionsListResponse(
+        commissions=items,
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_service=sums.total_service if sums else 0,
+        total_studio_commission=sums.total_studio_commission if sums else 0,
+        total_artist_payout=sums.total_artist_payout if sums else 0,
+        total_tips=sums.total_tips if sums else 0,
+    )
+
+
 @router.get("/pay-periods/{pay_period_id}", response_model=PayPeriodWithCommissions)
 async def get_pay_period_by_id(
     pay_period_id: uuid.UUID,
@@ -1284,101 +1379,6 @@ async def delete_pay_period(
     await db.commit()
 
     return MessageResponse(message="Pay period deleted successfully")
-
-
-@router.get("/pay-periods/unassigned", response_model=EarnedCommissionsListResponse)
-async def list_unassigned_commissions(
-    current_user: User = Depends(require_owner),
-    db: AsyncSession = Depends(get_db),
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
-) -> EarnedCommissionsListResponse:
-    """
-    List commissions that are not assigned to any pay period.
-    Useful for knowing which commissions need to be added to a pay period.
-    Owner only.
-    """
-    studio = await get_user_studio(db, current_user)
-
-    # Build query for unassigned commissions
-    base_query = select(EarnedCommission).where(
-        EarnedCommission.studio_id == studio.id,
-        EarnedCommission.pay_period_id.is_(None),
-    )
-
-    # Count total
-    count_query = select(func.count()).select_from(base_query.subquery())
-    count_result = await db.execute(count_query)
-    total = count_result.scalar() or 0
-
-    # Get summary totals
-    sum_query = select(
-        func.coalesce(func.sum(EarnedCommission.service_total), 0).label("total_service"),
-        func.coalesce(func.sum(EarnedCommission.studio_commission), 0).label("total_studio_commission"),
-        func.coalesce(func.sum(EarnedCommission.artist_payout), 0).label("total_artist_payout"),
-        func.coalesce(func.sum(EarnedCommission.tips_amount), 0).label("total_tips"),
-    ).where(
-        EarnedCommission.studio_id == studio.id,
-        EarnedCommission.pay_period_id.is_(None),
-    )
-    sum_result = await db.execute(sum_query)
-    sums = sum_result.first()
-
-    # Get paginated results
-    query = (
-        base_query
-        .options(
-            selectinload(EarnedCommission.booking_request),
-            selectinload(EarnedCommission.artist),
-        )
-        .order_by(EarnedCommission.completed_at.desc())
-        .offset((page - 1) * page_size)
-        .limit(page_size)
-    )
-    result = await db.execute(query)
-    commissions = result.scalars().all()
-
-    # Build response
-    items = []
-    for comm in commissions:
-        booking = comm.booking_request
-        artist = comm.artist
-        items.append(
-            EarnedCommissionWithDetails(
-                id=comm.id,
-                booking_request_id=comm.booking_request_id,
-                artist_id=comm.artist_id,
-                studio_id=comm.studio_id,
-                commission_rule_id=comm.commission_rule_id,
-                commission_rule_name=comm.commission_rule_name,
-                commission_type=comm.commission_type,
-                service_total=comm.service_total,
-                studio_commission=comm.studio_commission,
-                artist_payout=comm.artist_payout,
-                tips_amount=comm.tips_amount,
-                calculation_details=comm.calculation_details,
-                completed_at=comm.completed_at,
-                created_at=comm.created_at,
-                pay_period_start=comm.pay_period_start,
-                pay_period_end=comm.pay_period_end,
-                paid_at=comm.paid_at,
-                payout_reference=comm.payout_reference,
-                client_name=booking.client_name if booking else "Unknown",
-                design_idea=booking.design_idea[:100] if booking else None,
-                artist_name=artist.full_name if artist else None,
-            )
-        )
-
-    return EarnedCommissionsListResponse(
-        commissions=items,
-        total=total,
-        page=page,
-        page_size=page_size,
-        total_service=sums.total_service if sums else 0,
-        total_studio_commission=sums.total_studio_commission if sums else 0,
-        total_artist_payout=sums.total_artist_payout if sums else 0,
-        total_tips=sums.total_tips if sums else 0,
-    )
 
 
 # ============ Payout Reports ============
