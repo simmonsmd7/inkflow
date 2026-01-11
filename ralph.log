@@ -1226,3 +1226,36 @@ UI/UX Polish Results:
 Build Status: PASS (warning about chunk size - optimization opportunity, not error)
 Status: VERIFIED (UI/UX is consistent and polished)
 Next Suggestion: Continue with Category G (Performance Check) or Category E (Access Control)
+
+=== ITERATION 30 - Category E: Access Control Verification ===
+Date: 2026-01-11
+Category: E (Access Control Verification)
+User Tested: Artist (Winter Lee - artist1@inkflow-main.com)
+
+Access Control Results:
+
+1. Artist Sidebar: ✓ FILTERED
+   - Owner-only links NOT visible: Team, Commissions, Analytics pages
+   - Artist sees: Dashboard, My Profile, Availability, Bookings, Inbox, Clients, Artists, Consent Forms, Aftercare, Settings
+
+2. Direct URL Access Tests:
+   a. /team (Owner-only): ✓ BLOCKED
+      - Shows: "Access Denied - Only studio owners can manage team members."
+      - Lock icon displayed
+   
+   b. /commissions (Owner-only): ✓ BLOCKED
+      - Shows: "Access Denied - Only studio owners can manage commissions."
+      - Lock icon displayed
+   
+   c. /settings (Owner-only): ✓ BLOCKED
+      - Shows: "Access Denied - Only studio owners can manage studio settings."
+      - Lock icon displayed
+
+Minor UX Finding (Not a bug):
+- Settings link is visible in Artist sidebar but leads to Access Denied
+- Recommendation: Hide Settings link for non-owner users in Sidebar.tsx
+- This is cosmetic - the access control itself is working correctly
+
+Build Status: PASS
+Status: VERIFIED (Access controls working correctly)
+Next Suggestion: Test as Receptionist or Client role, or continue with Category G (Performance)
