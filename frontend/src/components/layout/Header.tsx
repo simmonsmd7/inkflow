@@ -115,7 +115,10 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
         </button>
 
         {/* Quick Actions */}
-        <button className="flex items-center gap-2 px-3 py-2 bg-accent-primary text-white rounded-lg text-sm font-medium hover:bg-accent-primary/80 transition-colors">
+        <button
+          onClick={() => navigate('/bookings')}
+          className="flex items-center gap-2 px-3 py-2 bg-accent-primary text-white rounded-lg text-sm font-medium hover:bg-accent-primary/80 transition-colors"
+        >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
