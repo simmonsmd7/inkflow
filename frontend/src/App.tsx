@@ -28,6 +28,7 @@ import {
   Inbox,
   Login,
   NoShowTracking,
+  NotFound,
   PaymentSuccess,
   PopularTimeSlots,
   Register,
@@ -98,6 +99,8 @@ function App() {
                 <Route path="/consent" element={<ConsentForms />} />
                 <Route path="/aftercare" element={<Aftercare />} />
                 <Route path="/settings" element={<StudioSettings />} />
+                {/* Catch-all 404 route */}
+                <Route path="*" element={<NotFound />} />
               </Routes>
             </Layout>
           </ProtectedRoute>

@@ -27,6 +27,7 @@ export { ForgotPassword } from './ForgotPassword';
 export { Inbox } from './Inbox';
 export { Login } from './Login';
 export { default as NoShowTracking } from './NoShowTracking';
+export { NotFound } from './NotFound';
 export { PaymentSuccess } from './PaymentSuccess';
 export { default as PopularTimeSlots } from './PopularTimeSlots';
 export { Register } from './Register';
