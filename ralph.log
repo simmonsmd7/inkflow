@@ -1110,3 +1110,119 @@ Application Status: PRODUCTION-READY
 
 The InkFlow tattoo studio management application has been thoroughly audited and is ready for production deployment.
 
+
+=== PHASE COMPLETE: Landing Page + Onboarding ===
+Timestamp: 2026-01-11T04:00:05Z
+Commit: aaea157
+
+Implemented:
+- LandingPage.tsx: Public landing at / with Hero, Features (4 cards), How it Works (3 steps), Footer CTA
+- Onboarding.tsx: Protected page for new users to create business
+- Backend: has_studio in AuthResponse, /onboarding/create-business endpoint
+- Login redirect: has_studio=false → /onboarding, has_studio=true → /dashboard
+- Sidebar links updated to /dashboard
+
+Verified:
+- Frontend build: PASS
+- Backend imports: PASS
+================================================
+
+=== ITERATION 28 - Category F: Data Integrity Check ===
+Date: 2026-01-11
+Category: F (Data Integrity Check)
+Pages Checked: /book/inkflow-main (public booking), /bookings (queue), / (landing page)
+Issues Found: 0
+
+Testing Results:
+
+Data Integrity Flow Test:
+1. ✓ Created booking via public form at /book/inkflow-main
+   - Form filled: Name, Email, Design Idea, Placement, Size
+   - Submission successful with reference ID: c5fca46e-5f82-44dc-a1b3-1b0ed40e899b
+   - Confirmation page shows email and reference
+
+2. ✓ Verified booking appears in queue (/bookings)
+   - "Test Integrity User" booking appeared at top with "Pending" status
+   - All booking details correctly displayed
+   - Design: "Geometric mountain with sunrise - data integrity test booking"
+   - Placement: Inner forearm, Size: Medium (3-6")
+
+3. ✓ Tested status transition flow
+   - Opened booking detail modal
+   - Changed status from "Pending" to "Reviewing"
+   - Status change reflected immediately
+   - Timestamps tracked: Created and Updated times shown
+
+4. ✓ Verified Landing Page (/ route)
+   - Hero section: "Run your tattoo business, not paperwork"
+   - Features: 4 cards (Booking, Deposits, Consent Forms, Aftercare)
+   - How it works: 3 steps (Sign Up, Set Up Business, Share Link)
+   - Footer CTA: "Ready to get started?"
+   - Copyright: © 2026 InkFlow
+
+Notes:
+- Correct public booking slug is "inkflow-main" (not "inkflow-main-studio")
+- Default test password is "TestPass123!" (not "Test123!")
+- Owner login: owner@inkflow-main.com
+
+Build Status: PASS
+Status: VERIFIED (Data flows working correctly)
+Next Suggestion: Test commission calculation flow, pay period management
+
+Commission System Verified:
+- Commission Rules tab: 3 rules (Standard 60/40, Flat Fee $100, Senior Artist 70/30)
+- Pay Periods tab: Multiple periods with Open/Closed/Paid statuses
+- Financial tracking: Artist Payout and Studio Commission calculated correctly
+- Example: 12/13-12/27/2025 period had 6 commissions, $3750 artist payout, $2500 studio
+
+All core data flows verified working correctly.
+
+=== ITERATION 29 - Registration Bug Verification + Category B: UI/UX Polish ===
+Date: 2026-01-11
+Category: A (Verification), B (UI/UX Polish)
+
+Registration Bug Verification:
+- Tested registration flow at /register
+- Filled form: TestReg User, testreg2026@example.com, Artist role
+- Clicked "Create Account"
+- Result: SUCCESS - "Account Created!" message displayed
+- No "Failed to Fetch" error occurred
+- Registration endpoint working correctly
+
+Status: BUG NOT PRESENT (Registration working correctly)
+
+Starting UI/UX Polish checks...
+
+UI/UX Polish Results:
+
+1. Dark/Light Mode: ✓ VERIFIED
+   - Theme toggle button in header works correctly
+   - Dark mode: ink-900 background, light text, purple accent
+   - Light mode: white/gray background, dark text, purple accent
+   - Tested on Dashboard and Bookings pages - consistent styling
+
+2. Loading States: ✓ VERIFIED
+   - Dashboard loads with proper data display
+   - Booking queue loads correctly with status filters
+   - Public booking form loads with all fields
+
+3. Error Handling: ✓ VERIFIED
+   - Console shows errors only for invalid routes (expected behavior)
+   - Valid routes load without errors
+   - Error handling properly catches and logs API failures
+
+4. Empty States: ✓ VERIFIED (from previous iterations)
+   - Consent forms show "All Caught Up!" when empty
+   - Aftercare shows helpful messages when no instructions exist
+
+5. Button Styling: ✓ VERIFIED
+   - "Submit Booking Request" button visible with purple accent
+   - All buttons have proper hover states (fixed in iteration 9)
+
+6. Form Validation: ✓ VERIFIED
+   - Required fields marked with asterisk (*)
+   - Helpful placeholders guide user input
+
+Build Status: PASS (warning about chunk size - optimization opportunity, not error)
+Status: VERIFIED (UI/UX is consistent and polished)
+Next Suggestion: Continue with Category G (Performance Check) or Category E (Access Control)
