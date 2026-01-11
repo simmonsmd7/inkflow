@@ -192,6 +192,7 @@ const navItems: NavItem[] = [
       </svg>
     ),
     href: '/settings',
+    roles: ['owner'],
   },
 ];
 
