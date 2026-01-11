@@ -419,6 +419,7 @@ async def get_booking_request(
         deposit_requested_at=booking.deposit_requested_at,
         deposit_request_expires_at=booking.deposit_request_expires_at,
         deposit_paid_at=booking.deposit_paid_at,
+        deposit_stripe_payment_intent_id=booking.deposit_stripe_payment_intent_id,
         preferred_dates=booking.preferred_dates,
         scheduled_date=booking.scheduled_date,
         scheduled_duration_hours=booking.scheduled_duration_hours,

@@ -128,6 +128,7 @@ class BookingRequestResponse(BaseModel):
     deposit_requested_at: datetime | None = None
     deposit_request_expires_at: datetime | None = None
     deposit_paid_at: datetime | None = None
+    deposit_stripe_payment_intent_id: str | None = None
 
     # Scheduling
     preferred_dates: str | None = None
