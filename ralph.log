@@ -1259,3 +1259,10 @@ Minor UX Finding (Not a bug):
 Build Status: PASS
 Status: VERIFIED (Access controls working correctly)
 Next Suggestion: Test as Receptionist or Client role, or continue with Category G (Performance)
+
+=== FIX APPLIED: Settings Link Visibility ===
+Date: 2026-01-11
+Issue: Settings link visible in sidebar for non-owner users
+Fix: Added roles: ['owner'] to Settings nav item in Sidebar.tsx
+Result: Settings link now hidden for Artist and Receptionist roles
+Verified: Artist (Winter Lee) sidebar no longer shows Settings
