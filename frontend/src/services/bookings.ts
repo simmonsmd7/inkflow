@@ -14,12 +14,16 @@ import type {
   BookingSubmissionResponse,
   CancelInput,
   CancelResponse,
+  CancelWithRefundInput,
+  CancelWithRefundResponse,
   ClientNoShowHistory,
   ConfirmBookingInput,
   DepositPaymentInfo,
   MarkNoShowInput,
   NoShowResponse,
   ReferenceImage,
+  RefundInput,
+  RefundResponse,
   RescheduleInput,
   RescheduleResponse,
   SendDepositRequestInput,
@@ -248,5 +252,35 @@ export async function markNoShow(
 export async function getClientNoShowHistory(email: string): Promise<ClientNoShowHistory> {
   return api.get<ClientNoShowHistory>(
     `/api/v1/bookings/clients/${encodeURIComponent(email)}/no-show-history`
+  );
+}
+
+// ============================================================================
+// REFUND ENDPOINTS
+// ============================================================================
+
+/**
+ * Issue a refund for a cancelled or no-show booking.
+ */
+export async function issueRefund(
+  requestId: string,
+  data: RefundInput
+): Promise<RefundResponse> {
+  return api.post<RefundResponse>(
+    `/api/v1/bookings/requests/${requestId}/refund`,
+    data
+  );
+}
+
+/**
+ * Cancel a booking and immediately issue a refund.
+ */
+export async function cancelWithRefund(
+  requestId: string,
+  data: CancelWithRefundInput
+): Promise<CancelWithRefundResponse> {
+  return api.post<CancelWithRefundResponse>(
+    `/api/v1/bookings/requests/${requestId}/cancel-with-refund`,
+    data
   );
 }

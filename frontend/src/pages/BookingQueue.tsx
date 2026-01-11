@@ -13,6 +13,8 @@ import {
   rescheduleBooking,
   cancelBooking,
   markNoShow,
+  issueRefund,
+  cancelWithRefund,
 } from '../services/bookings';
 import type {
   BookingConfirmationResponse,
@@ -22,7 +24,10 @@ import type {
   BookingRequestUpdate,
   CancelledBy,
   CancelResponse,
+  CancelWithRefundResponse,
   NoShowResponse,
+  RefundResponse,
+  RefundType,
   RescheduleResponse,
   SendDepositRequestResponse,
 } from '../types/api';
@@ -152,6 +157,29 @@ export function BookingQueue() {
   const [markingNoShow, setMarkingNoShow] = useState(false);
   const [noShowSuccess, setNoShowSuccess] = useState<NoShowResponse | null>(null);
 
+  // Refund state
+  const [showRefundModal, setShowRefundModal] = useState(false);
+  const [refundData, setRefundData] = useState({
+    refund_type: 'full' as RefundType,
+    refund_amount: '',
+    reason: '',
+    notify_client: true,
+  });
+  const [issuingRefund, setIssuingRefund] = useState(false);
+  const [refundSuccess, setRefundSuccess] = useState<RefundResponse | null>(null);
+
+  // Cancel with refund state
+  const [showCancelRefundModal, setShowCancelRefundModal] = useState(false);
+  const [cancelRefundData, setCancelRefundData] = useState({
+    reason: '',
+    cancelled_by: 'studio' as CancelledBy,
+    refund_type: 'full' as RefundType,
+    refund_amount: '',
+    notify_client: true,
+  });
+  const [cancellingWithRefund, setCancellingWithRefund] = useState(false);
+  const [cancelRefundSuccess, setCancelRefundSuccess] = useState<CancelWithRefundResponse | null>(null);
+
   // Check if user has access
   const hasAccess = user && (user.role === 'artist' || user.role === 'owner');
 
@@ -161,6 +189,21 @@ export function BookingQueue() {
       loadRequests();
     }
   }, [statusFilter, page, hasAccess]);
+
+  // Auto-refresh polling for real-time status updates (e.g., when customer pays deposit)
+  // Polls every 30 seconds to detect backend changes from webhooks
+  useEffect(() => {
+    if (!hasAccess) return;
+
+    const pollInterval = setInterval(() => {
+      // Only auto-refresh if not in a modal and there are pending deposit requests
+      if (!selectedRequest) {
+        loadRequests();
+      }
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(pollInterval);
+  }, [hasAccess, selectedRequest]);
 
   // RBAC check - must be after all hooks
   if (!hasAccess) {
@@ -463,6 +506,116 @@ export function BookingQueue() {
     } finally {
       setMarkingNoShow(false);
     }
+  }
+
+  // Refund modal handlers
+  function openRefundModal() {
+    if (!selectedRequest) return;
+    setRefundData({
+      refund_type: 'full',
+      refund_amount: selectedRequest.deposit_amount
+        ? (selectedRequest.deposit_amount / 100).toFixed(2)
+        : '',
+      reason: '',
+      notify_client: true,
+    });
+    setShowRefundModal(true);
+    setRefundSuccess(null);
+  }
+
+  async function handleIssueRefund() {
+    if (!selectedRequest) return;
+    setIssuingRefund(true);
+    setModalError(null);
+    try {
+      const response = await issueRefund(selectedRequest.id, {
+        refund_type: refundData.refund_type,
+        refund_amount_cents:
+          refundData.refund_type === 'partial' && refundData.refund_amount
+            ? Math.round(parseFloat(refundData.refund_amount) * 100)
+            : undefined,
+        reason: refundData.reason || undefined,
+        notify_client: refundData.notify_client,
+      });
+      setRefundSuccess(response);
+      // Refresh the selected request
+      const updated = await getBookingRequest(selectedRequest.id);
+      setSelectedRequest(updated);
+      loadRequests();
+    } catch (err) {
+      setModalError(err instanceof Error ? err.message : 'Failed to issue refund');
+    } finally {
+      setIssuingRefund(false);
+    }
+  }
+
+  // Cancel with refund modal handlers
+  function openCancelRefundModal() {
+    if (!selectedRequest) return;
+    setCancelRefundData({
+      reason: '',
+      cancelled_by: 'studio',
+      refund_type: 'full',
+      refund_amount: selectedRequest.deposit_amount
+        ? (selectedRequest.deposit_amount / 100).toFixed(2)
+        : '',
+      notify_client: true,
+    });
+    setShowCancelRefundModal(true);
+    setCancelRefundSuccess(null);
+  }
+
+  async function handleCancelWithRefund() {
+    if (!selectedRequest) return;
+    setCancellingWithRefund(true);
+    setModalError(null);
+    try {
+      const response = await cancelWithRefund(selectedRequest.id, {
+        reason: cancelRefundData.reason || undefined,
+        cancelled_by: cancelRefundData.cancelled_by,
+        refund_type: cancelRefundData.refund_type,
+        refund_amount_cents:
+          cancelRefundData.refund_type === 'partial' && cancelRefundData.refund_amount
+            ? Math.round(parseFloat(cancelRefundData.refund_amount) * 100)
+            : undefined,
+        notify_client: cancelRefundData.notify_client,
+      });
+      setCancelRefundSuccess(response);
+      // Refresh the selected request
+      const updated = await getBookingRequest(selectedRequest.id);
+      setSelectedRequest(updated);
+      loadRequests();
+    } catch (err) {
+      setModalError(err instanceof Error ? err.message : 'Failed to cancel and refund');
+    } finally {
+      setCancellingWithRefund(false);
+    }
+  }
+
+  // Helper to check if refund is possible
+  function canIssueRefund(): boolean {
+    if (!selectedRequest) return false;
+    // Can only refund if:
+    // - Status is cancelled or no_show
+    // - Deposit was paid (has payment intent)
+    // - No refund has been issued yet
+    return (
+      (selectedRequest.status === 'cancelled' || selectedRequest.status === 'no_show') &&
+      !!selectedRequest.deposit_stripe_payment_intent_id &&
+      !selectedRequest.refunded_at
+    );
+  }
+
+  // Helper to check if cancel with refund is possible
+  function canCancelWithRefund(): boolean {
+    if (!selectedRequest) return false;
+    // Can only cancel with refund if:
+    // - Status is deposit_paid or confirmed
+    // - Deposit was paid (has payment intent)
+    return (
+      (selectedRequest.status === 'deposit_paid' || selectedRequest.status === 'confirmed') &&
+      !!selectedRequest.deposit_stripe_payment_intent_id
+    );
   }
 
   async function handleStatusChange(newStatus: BookingRequestStatus) {
@@ -915,19 +1068,51 @@ export function BookingQueue() {
                           {saving ? 'Saving...' : 'Save Quote'}
                         </button>
 
-                        {/* Send Deposit Request button - only show when quote exists and status allows */}
-                        {selectedRequest.quoted_price &&
-                          (selectedRequest.status === 'reviewing' ||
-                            selectedRequest.status === 'quoted') && (
-                            <button
-                              onClick={openDepositModal}
-                              className="w-full py-2 mt-2 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-lg transition-colors"
-                            >
-                              Send Deposit Request
-                            </button>
-                          )}
+                        {/* STATE MACHINE BUTTON VISIBILITY:
+                            - PENDING: Start Review (status change)
+                            - REVIEWING: Send Quote or Reject
+                            - QUOTED: Request Deposit or Cancel
+                            - DEPOSIT_REQUESTED: Cancel (waiting for payment)
+                            - DEPOSIT_PAID: Confirm Appointment or Cancel & Refund
+                            - CONFIRMED: Mark Complete, Mark No-Show, Reschedule, or Cancel & Refund
+                            - COMPLETED: No buttons (final state)
+                            - NO_SHOW: Issue Refund (if deposit was paid)
+                            - CANCELLED: Issue Refund (if deposit was paid)
+                            - REJECTED: No buttons (final state)
+                        */}
 
-                        {/* Confirm Appointment button - only show when deposit is paid */}
+                        {/* PENDING: Start Review button */}
+                        {selectedRequest.status === 'pending' && (
+                          <button
+                            onClick={() => handleStatusChange('reviewing')}
+                            disabled={saving}
+                            className="w-full py-2 mt-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
+                          >
+                            {saving ? 'Starting...' : 'Start Review'}
+                          </button>
+                        )}
+
+                        {/* REVIEWING: Send Deposit Request (only if quote exists) */}
+                        {selectedRequest.status === 'reviewing' && selectedRequest.quoted_price && (
+                          <button
+                            onClick={openDepositModal}
+                            className="w-full py-2 mt-2 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-lg transition-colors"
+                          >
+                            Send Deposit Request
+                          </button>
+                        )}
+
+                        {/* QUOTED: Send Deposit Request */}
+                        {selectedRequest.status === 'quoted' && (
+                          <button
+                            onClick={openDepositModal}
+                            className="w-full py-2 mt-2 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-lg transition-colors"
+                          >
+                            Send Deposit Request
+                          </button>
+                        )}
+
+                        {/* DEPOSIT_PAID: Confirm Appointment */}
                         {selectedRequest.status === 'deposit_paid' && (
                           <button
                             onClick={openConfirmModal}
@@ -937,30 +1122,50 @@ export function BookingQueue() {
                           </button>
                         )}
 
-                        {/* Reschedule button - only show when booking is confirmed */}
-                        {selectedRequest.status === 'confirmed' && selectedRequest.scheduled_date && (
-                          <button
-                            onClick={openRescheduleModal}
-                            className="w-full py-2 mt-2 bg-sky-600 hover:bg-sky-700 text-white font-medium rounded-lg transition-colors"
-                          >
-                            Reschedule Appointment
-                          </button>
-                        )}
-
-                        {/* Mark No-Show button - only show for confirmed bookings */}
+                        {/* CONFIRMED: Reschedule, Mark No-Show, Mark Complete */}
                         {selectedRequest.status === 'confirmed' && (
+                          <>
+                            {selectedRequest.scheduled_date && (
+                              <button
+                                onClick={openRescheduleModal}
+                                className="w-full py-2 mt-2 bg-sky-600 hover:bg-sky-700 text-white font-medium rounded-lg transition-colors"
+                              >
+                                Reschedule Appointment
+                              </button>
+                            )}
+                            <button
+                              onClick={openNoShowModal}
+                              className="w-full py-2 mt-2 bg-amber-600 hover:bg-amber-700 text-white font-medium rounded-lg transition-colors"
+                            >
+                              Mark No-Show
+                            </button>
+                            <button
+                              onClick={() => handleStatusChange('completed')}
+                              disabled={saving}
+                              className="w-full py-2 mt-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
+                            >
+                              {saving ? 'Completing...' : 'Mark Complete'}
+                            </button>
+                          </>
+                        )}
+
+                        {/* Cancel & Refund button - for DEPOSIT_PAID or CONFIRMED with deposit */}
+                        {canCancelWithRefund() && (
                           <button
-                            onClick={openNoShowModal}
-                            className="w-full py-2 mt-2 bg-amber-600 hover:bg-amber-700 text-white font-medium rounded-lg transition-colors"
+                            onClick={openCancelRefundModal}
+                            className="w-full py-2 mt-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors"
                           >
-                            Mark No-Show
+                            Cancel & Refund
                           </button>
                         )}
 
-                        {/* Cancel button - show for most statuses except cancelled/completed/no_show */}
-                        {selectedRequest.status !== 'cancelled' &&
-                          selectedRequest.status !== 'completed' &&
-                          selectedRequest.status !== 'no_show' && (
+                        {/* Regular Cancel button - for statuses without deposit paid */}
+                        {(selectedRequest.status === 'pending' ||
+                          selectedRequest.status === 'reviewing' ||
+                          selectedRequest.status === 'quoted' ||
+                          selectedRequest.status === 'deposit_requested' ||
+                          selectedRequest.status === 'rejected') &&
+                          selectedRequest.status !== 'cancelled' && (
                             <button
                               onClick={openCancelModal}
                               className="w-full py-2 mt-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors"
@@ -968,6 +1173,27 @@ export function BookingQueue() {
                               Cancel Booking
                             </button>
                           )}
+
+                        {/* Issue Refund button - for NO_SHOW or CANCELLED with deposit paid */}
+                        {canIssueRefund() && (
+                          <button
+                            onClick={openRefundModal}
+                            className="w-full py-2 mt-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors"
+                          >
+                            Issue Refund
+                          </button>
+                        )}
+
+                        {/* Reject button - for REVIEWING status */}
+                        {selectedRequest.status === 'reviewing' && (
+                          <button
+                            onClick={() => handleStatusChange('rejected')}
+                            disabled={saving}
+                            className="w-full py-2 mt-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
+                          >
+                            {saving ? 'Rejecting...' : 'Reject Request'}
+                          </button>
+                        )}
                       </div>
                     </div>
 
@@ -1885,6 +2111,412 @@ export function BookingQueue() {
                       className="flex-1 py-2 bg-amber-600 hover:bg-amber-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {markingNoShow ? 'Marking...' : 'Mark No-Show'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Refund Modal */}
+      {showRefundModal && selectedRequest && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-ink-900 rounded-lg w-full max-w-md">
+            <div className="border-b border-ink-700 p-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-ink-100">Issue Refund</h2>
+              <button
+                onClick={() => setShowRefundModal(false)}
+                className="p-2 hover:bg-ink-800 rounded-lg transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-4">
+              {refundSuccess ? (
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg
+                      className="w-8 h-8 text-green-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-semibold text-ink-100 mb-2">Refund Issued</h3>
+                  <p className="text-ink-400 mb-4">
+                    {refundSuccess.notification_sent
+                      ? `A refund confirmation has been sent to ${selectedRequest.client_email}.`
+                      : 'The refund has been processed.'}
+                  </p>
+                  <div className="bg-ink-800 rounded-lg p-3 text-left mb-4">
+                    <p className="text-sm text-ink-400">Refund Amount:</p>
+                    <p className="text-lg font-semibold text-green-400">
+                      ${(refundSuccess.refund_amount / 100).toFixed(2)}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowRefundModal(false);
+                      closeModal();
+                    }}
+                    className="w-full py-2 bg-ink-700 hover:bg-ink-600 text-ink-200 font-medium rounded-lg transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3">
+                    <p className="text-green-400 text-sm">
+                      Issue a refund for this {selectedRequest.status === 'no_show' ? 'no-show' : 'cancelled'} booking.
+                    </p>
+                  </div>
+
+                  {selectedRequest.deposit_amount && selectedRequest.deposit_amount > 0 && (
+                    <div className="bg-ink-800 rounded-lg p-3">
+                      <p className="text-sm text-ink-400">Original Deposit:</p>
+                      <p className="text-ink-200 font-semibold">
+                        ${(selectedRequest.deposit_amount / 100).toFixed(2)}
+                      </p>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-sm font-medium text-ink-300 mb-2">
+                      Refund Type
+                    </label>
+                    <div className="flex gap-3">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="refund_type"
+                          value="full"
+                          checked={refundData.refund_type === 'full'}
+                          onChange={() => setRefundData((d) => ({ ...d, refund_type: 'full' }))}
+                          className="w-4 h-4 text-accent focus:ring-accent bg-ink-800 border-ink-700"
+                        />
+                        <span className="text-ink-200">Full Refund</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="refund_type"
+                          value="partial"
+                          checked={refundData.refund_type === 'partial'}
+                          onChange={() => setRefundData((d) => ({ ...d, refund_type: 'partial' }))}
+                          className="w-4 h-4 text-accent focus:ring-accent bg-ink-800 border-ink-700"
+                        />
+                        <span className="text-ink-200">Partial Refund</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {refundData.refund_type === 'partial' && (
+                    <div>
+                      <label className="block text-sm font-medium text-ink-300 mb-1">
+                        Refund Amount ($)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        max={selectedRequest.deposit_amount ? selectedRequest.deposit_amount / 100 : undefined}
+                        value={refundData.refund_amount}
+                        onChange={(e) => setRefundData((d) => ({ ...d, refund_amount: e.target.value }))}
+                        className="w-full px-3 py-2 bg-ink-800 border border-ink-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
+                        placeholder="Enter refund amount"
+                      />
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-sm font-medium text-ink-300 mb-1">
+                      Reason (optional)
+                    </label>
+                    <textarea
+                      value={refundData.reason}
+                      onChange={(e) => setRefundData((d) => ({ ...d, reason: e.target.value }))}
+                      rows={2}
+                      className="w-full px-3 py-2 bg-ink-800 border border-ink-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent resize-none"
+                      placeholder="Reason for refund..."
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="refund_notify_client"
+                      checked={refundData.notify_client}
+                      onChange={(e) =>
+                        setRefundData((d) => ({
+                          ...d,
+                          notify_client: e.target.checked,
+                        }))
+                      }
+                      className="w-4 h-4 rounded border-ink-700 bg-ink-800 text-accent focus:ring-accent"
+                    />
+                    <label
+                      htmlFor="refund_notify_client"
+                      className="text-sm text-ink-300 cursor-pointer"
+                    >
+                      Send refund confirmation email
+                    </label>
+                  </div>
+
+                  {modalError && (
+                    <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3">
+                      <p className="text-red-400 text-sm">{modalError}</p>
+                    </div>
+                  )}
+
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      onClick={() => setShowRefundModal(false)}
+                      className="flex-1 py-2 bg-ink-700 hover:bg-ink-600 text-ink-200 font-medium rounded-lg transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleIssueRefund}
+                      disabled={issuingRefund || (refundData.refund_type === 'partial' && !refundData.refund_amount)}
+                      className="flex-1 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {issuingRefund ? 'Processing...' : 'Issue Refund'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel With Refund Modal */}
+      {showCancelRefundModal && selectedRequest && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-ink-900 rounded-lg w-full max-w-md">
+            <div className="border-b border-ink-700 p-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-ink-100">Cancel & Refund</h2>
+              <button
+                onClick={() => setShowCancelRefundModal(false)}
+                className="p-2 hover:bg-ink-800 rounded-lg transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-4">
+              {cancelRefundSuccess ? (
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg
+                      className="w-8 h-8 text-green-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-semibold text-ink-100 mb-2">Booking Cancelled & Refunded</h3>
+                  <p className="text-ink-400 mb-4">
+                    {cancelRefundSuccess.notification_sent
+                      ? `A cancellation and refund confirmation has been sent to ${selectedRequest.client_email}.`
+                      : 'The booking has been cancelled and refunded.'}
+                  </p>
+                  <div className="bg-ink-800 rounded-lg p-3 text-left mb-4">
+                    <p className="text-sm text-ink-400">Refund Amount:</p>
+                    <p className="text-lg font-semibold text-green-400">
+                      ${(cancelRefundSuccess.refund_amount / 100).toFixed(2)}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowCancelRefundModal(false);
+                      closeModal();
+                    }}
+                    className="w-full py-2 bg-ink-700 hover:bg-ink-600 text-ink-200 font-medium rounded-lg transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3">
+                    <p className="text-red-400 text-sm">
+                      Cancel this booking and issue a refund for the deposit.
+                    </p>
+                  </div>
+
+                  {selectedRequest.deposit_amount && selectedRequest.deposit_amount > 0 && (
+                    <div className="bg-ink-800 rounded-lg p-3">
+                      <p className="text-sm text-ink-400">Deposit Paid:</p>
+                      <p className="text-ink-200 font-semibold">
+                        ${(selectedRequest.deposit_amount / 100).toFixed(2)}
+                      </p>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-sm font-medium text-ink-300 mb-2">
+                      Cancelled By
+                    </label>
+                    <div className="flex gap-3">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="cancelled_by"
+                          value="studio"
+                          checked={cancelRefundData.cancelled_by === 'studio'}
+                          onChange={() => setCancelRefundData((d) => ({ ...d, cancelled_by: 'studio' }))}
+                          className="w-4 h-4 text-accent focus:ring-accent bg-ink-800 border-ink-700"
+                        />
+                        <span className="text-ink-200">Studio</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="cancelled_by"
+                          value="client"
+                          checked={cancelRefundData.cancelled_by === 'client'}
+                          onChange={() => setCancelRefundData((d) => ({ ...d, cancelled_by: 'client' }))}
+                          className="w-4 h-4 text-accent focus:ring-accent bg-ink-800 border-ink-700"
+                        />
+                        <span className="text-ink-200">Client</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-ink-300 mb-2">
+                      Refund Type
+                    </label>
+                    <div className="flex gap-3">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="cancel_refund_type"
+                          value="full"
+                          checked={cancelRefundData.refund_type === 'full'}
+                          onChange={() => setCancelRefundData((d) => ({ ...d, refund_type: 'full' }))}
+                          className="w-4 h-4 text-accent focus:ring-accent bg-ink-800 border-ink-700"
+                        />
+                        <span className="text-ink-200">Full Refund</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="cancel_refund_type"
+                          value="partial"
+                          checked={cancelRefundData.refund_type === 'partial'}
+                          onChange={() => setCancelRefundData((d) => ({ ...d, refund_type: 'partial' }))}
+                          className="w-4 h-4 text-accent focus:ring-accent bg-ink-800 border-ink-700"
+                        />
+                        <span className="text-ink-200">Partial Refund</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {cancelRefundData.refund_type === 'partial' && (
+                    <div>
+                      <label className="block text-sm font-medium text-ink-300 mb-1">
+                        Refund Amount ($)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        max={selectedRequest.deposit_amount ? selectedRequest.deposit_amount / 100 : undefined}
+                        value={cancelRefundData.refund_amount}
+                        onChange={(e) => setCancelRefundData((d) => ({ ...d, refund_amount: e.target.value }))}
+                        className="w-full px-3 py-2 bg-ink-800 border border-ink-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
+                        placeholder="Enter refund amount"
+                      />
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-sm font-medium text-ink-300 mb-1">
+                      Cancellation Reason (optional)
+                    </label>
+                    <textarea
+                      value={cancelRefundData.reason}
+                      onChange={(e) => setCancelRefundData((d) => ({ ...d, reason: e.target.value }))}
+                      rows={2}
+                      className="w-full px-3 py-2 bg-ink-800 border border-ink-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent resize-none"
+                      placeholder="Reason for cancellation..."
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="cancel_refund_notify_client"
+                      checked={cancelRefundData.notify_client}
+                      onChange={(e) =>
+                        setCancelRefundData((d) => ({
+                          ...d,
+                          notify_client: e.target.checked,
+                        }))
+                      }
+                      className="w-4 h-4 rounded border-ink-700 bg-ink-800 text-accent focus:ring-accent"
+                    />
+                    <label
+                      htmlFor="cancel_refund_notify_client"
+                      className="text-sm text-ink-300 cursor-pointer"
+                    >
+                      Send cancellation & refund confirmation email
+                    </label>
+                  </div>
+
+                  {modalError && (
+                    <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3">
+                      <p className="text-red-400 text-sm">{modalError}</p>
+                    </div>
+                  )}
+
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      onClick={() => setShowCancelRefundModal(false)}
+                      className="flex-1 py-2 bg-ink-700 hover:bg-ink-600 text-ink-200 font-medium rounded-lg transition-colors"
+                    >
+                      Go Back
+                    </button>
+                    <button
+                      onClick={handleCancelWithRefund}
+                      disabled={cancellingWithRefund || (cancelRefundData.refund_type === 'partial' && !cancelRefundData.refund_amount)}
+                      className="flex-1 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {cancellingWithRefund ? 'Processing...' : 'Cancel & Refund'}
                     </button>
                   </div>
                 </div>

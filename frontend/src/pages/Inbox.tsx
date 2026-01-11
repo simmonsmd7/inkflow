@@ -107,36 +107,55 @@ export function Inbox() {
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [templateSearch, setTemplateSearch] = useState('');
 
-  // Load conversations
-  useEffect(() => {
-    async function loadConversations() {
-      try {
+  // Load conversations function (reusable for initial load and polling)
+  async function loadConversationsData(isPolling = false) {
+    try {
+      if (!isPolling) {
         setLoading(true);
         setError(null);
-        const params: {
-          status?: ConversationStatus;
-          assigned_to_me?: boolean;
-          search?: string;
-        } = {};
-        if (statusFilter !== 'all') params.status = statusFilter;
-        if (assignedToMe) params.assigned_to_me = true;
-        if (searchQuery.trim()) params.search = searchQuery.trim();
+      }
+      const params: {
+        status?: ConversationStatus;
+        assigned_to_me?: boolean;
+        search?: string;
+      } = {};
+      if (statusFilter !== 'all') params.status = statusFilter;
+      if (assignedToMe) params.assigned_to_me = true;
+      if (searchQuery.trim()) params.search = searchQuery.trim();
 
-        const [conversationsData, statsData] = await Promise.all([
-          listConversations(params),
-          getInboxStats(),
-        ]);
-        setConversations(conversationsData.conversations);
-        setStats(statsData);
-      } catch (err) {
+      const [conversationsData, statsData] = await Promise.all([
+        listConversations(params),
+        getInboxStats(),
+      ]);
+      setConversations(conversationsData.conversations);
+      setStats(statsData);
+    } catch (err) {
+      if (!isPolling) {
         setError(err instanceof Error ? err.message : 'Failed to load conversations');
-      } finally {
+      }
+    } finally {
+      if (!isPolling) {
         setLoading(false);
       }
     }
+  }
 
-    loadConversations();
+  // Load conversations on filter changes
+  useEffect(() => {
+    loadConversationsData();
   }, [statusFilter, assignedToMe, searchQuery]);
+
+  // Auto-refresh polling for real-time message updates (every 30 seconds)
+  useEffect(() => {
+    const pollInterval = setInterval(() => {
+      // Only poll when not actively viewing a conversation (to avoid disrupting the user)
+      if (!selectedConversation) {
+        loadConversationsData(true);
+      }
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(pollInterval);
+  }, [statusFilter, assignedToMe, searchQuery, selectedConversation]);
 
   // Load team members for assignment dropdown
   useEffect(() => {

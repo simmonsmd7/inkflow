@@ -179,6 +179,21 @@ class BookingRequest(BaseModel, SoftDeleteMixin):
     )
     no_show_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
+    # Refund tracking
+    refund_amount: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # In cents
+    refund_stripe_id: Mapped[Optional[str]] = mapped_column(
+        String(255), nullable=True
+    )  # Stripe refund ID (e.g., re_xxx)
+    refunded_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    refund_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    refund_initiated_by_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
     # Relationships
     studio: Mapped["Studio"] = relationship("Studio", back_populates="booking_requests")
     preferred_artist: Mapped[Optional["User"]] = relationship(

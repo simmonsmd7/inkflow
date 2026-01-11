@@ -151,6 +151,12 @@ class BookingRequestResponse(BaseModel):
     no_show_marked_by_id: UUID | None = None
     no_show_notes: str | None = None
 
+    # Refund tracking
+    refund_amount: int | None = None
+    refund_stripe_id: str | None = None
+    refunded_at: datetime | None = None
+    refund_reason: str | None = None
+
     # Internal
     internal_notes: str | None = None
 
@@ -381,3 +387,77 @@ class ClientNoShowHistory(BaseModel):
     no_show_rate: float  # Percentage 0-100
     total_forfeited_deposits: int  # In cents
     no_shows: list[ClientNoShowHistoryItem]
+
+
+class RefundInput(BaseModel):
+    """Input for issuing a refund."""
+
+    refund_type: str = Field(
+        default="full",
+        pattern="^(full|partial)$",
+        description="Type of refund: full or partial",
+    )
+    refund_amount_cents: int | None = Field(
+        None,
+        ge=100,
+        description="Amount to refund in cents (required for partial refunds)",
+    )
+    reason: str | None = Field(
+        None, max_length=500, description="Reason for refund"
+    )
+    notify_client: bool = Field(
+        default=True, description="Whether to send refund confirmation email to client"
+    )
+
+
+class RefundResponse(BaseModel):
+    """Response after issuing a refund."""
+
+    message: str
+    request_id: UUID
+    refund_amount: int
+    refund_stripe_id: str
+    refunded_at: datetime
+    refund_reason: str | None
+    notification_sent: bool
+    stub_mode: bool = False
+
+
+class CancelWithRefundInput(BaseModel):
+    """Input for cancelling a booking with immediate refund."""
+
+    reason: str | None = Field(None, max_length=500, description="Reason for cancellation")
+    cancelled_by: str = Field(
+        default="studio",
+        pattern="^(client|artist|studio)$",
+        description="Who initiated the cancellation",
+    )
+    refund_type: str = Field(
+        default="full",
+        pattern="^(full|partial)$",
+        description="Type of refund: full or partial",
+    )
+    refund_amount_cents: int | None = Field(
+        None,
+        ge=100,
+        description="Amount to refund in cents (required for partial refunds)",
+    )
+    notify_client: bool = Field(
+        default=True, description="Whether to send notification emails to client"
+    )
+
+
+class CancelWithRefundResponse(BaseModel):
+    """Response after cancelling a booking with refund."""
+
+    message: str
+    request_id: UUID
+    status: str
+    cancelled_at: datetime
+    cancelled_by: str
+    refund_amount: int
+    refund_stripe_id: str
+    refunded_at: datetime
+    cancellation_notification_sent: bool
+    refund_notification_sent: bool
+    stub_mode: bool = False

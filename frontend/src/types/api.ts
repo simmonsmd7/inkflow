@@ -421,6 +421,13 @@ export interface BookingRequest {
   scheduled_duration_hours: number | null;
   internal_notes: string | null;
   reference_images: ReferenceImage[];
+  // Refund tracking
+  refund_amount: number | null;
+  refund_stripe_id: string | null;
+  refunded_at: string | null;
+  refund_reason: string | null;
+  // Deposit payment info
+  deposit_stripe_payment_intent_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -541,6 +548,49 @@ export interface NoShowResponse {
   deposit_forfeited: boolean;
   deposit_amount: number | null;
   notification_sent: boolean;
+}
+
+// Refund types
+export type RefundType = 'full' | 'partial';
+
+export interface RefundInput {
+  refund_type?: RefundType;
+  refund_amount_cents?: number | null;
+  reason?: string | null;
+  notify_client?: boolean;
+}
+
+export interface RefundResponse {
+  message: string;
+  request_id: string;
+  refund_amount: number;
+  refund_stripe_id: string;
+  refunded_at: string;
+  refund_reason: string | null;
+  notification_sent: boolean;
+  stub_mode: boolean;
+}
+
+export interface CancelWithRefundInput {
+  reason?: string | null;
+  cancelled_by?: CancelledBy;
+  refund_type?: RefundType;
+  refund_amount_cents?: number | null;
+  notify_client?: boolean;
+}
+
+export interface CancelWithRefundResponse {
+  message: string;
+  request_id: string;
+  status: string;
+  cancelled_at: string;
+  cancelled_by: string;
+  refund_amount: number;
+  refund_stripe_id: string;
+  refunded_at: string;
+  cancellation_notification_sent: boolean;
+  refund_notification_sent: boolean;
+  stub_mode: boolean;
 }
 
 export interface ClientNoShowHistoryItem {

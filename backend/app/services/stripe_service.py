@@ -168,6 +168,97 @@ class StripeService:
             "customer_email": session.get("customer_email"),
         }
 
+    async def create_refund(
+        self,
+        *,
+        payment_intent_id: str,
+        amount_cents: int | None = None,
+        reason: str = "requested_by_customer",
+    ) -> dict:
+        """
+        Create a refund for a payment.
+
+        Args:
+            payment_intent_id: The Stripe payment intent ID to refund
+            amount_cents: Amount to refund in cents (None = full refund)
+            reason: Reason for refund - one of 'duplicate', 'fraudulent', 'requested_by_customer'
+
+        Returns:
+            Dictionary with refund details or stub info
+        """
+        if not self._is_configured:
+            # Stub mode - simulate successful refund
+            stub_refund_id = f"stub_refund_{payment_intent_id}_{datetime.now(timezone.utc).timestamp()}"
+            print(f"[STRIPE STUB] Create refund:")
+            print(f"  Payment Intent: {payment_intent_id}")
+            print(f"  Amount: ${(amount_cents or 0) / 100:.2f} (None = full refund)")
+            print(f"  Reason: {reason}")
+            print(f"  Stub Refund ID: {stub_refund_id}")
+            return {
+                "stub_mode": True,
+                "refund_id": stub_refund_id,
+                "status": "succeeded",
+                "amount": amount_cents,
+                "message": "Stripe not configured - using stub mode",
+            }
+
+        try:
+            # Build refund parameters
+            refund_params = {
+                "payment_intent": payment_intent_id,
+                "reason": reason,
+            }
+            if amount_cents is not None:
+                refund_params["amount"] = amount_cents
+
+            refund = stripe.Refund.create(**refund_params)
+
+            return {
+                "stub_mode": False,
+                "refund_id": refund.id,
+                "status": refund.status,
+                "amount": refund.amount,
+                "currency": refund.currency,
+            }
+        except stripe.error.StripeError as e:
+            print(f"[STRIPE ERROR] Refund failed: {e}")
+            return {
+                "stub_mode": False,
+                "error": True,
+                "message": str(e),
+            }
+
+    async def get_refund_status(self, refund_id: str) -> dict:
+        """
+        Get the status of a refund.
+
+        Args:
+            refund_id: The Stripe refund ID
+
+        Returns:
+            Dictionary with refund status
+        """
+        if not self._is_configured:
+            return {
+                "stub_mode": True,
+                "refund_id": refund_id,
+                "status": "succeeded",
+            }
+
+        try:
+            refund = stripe.Refund.retrieve(refund_id)
+            return {
+                "refund_id": refund.id,
+                "status": refund.status,
+                "amount": refund.amount,
+                "currency": refund.currency,
+            }
+        except stripe.error.StripeError as e:
+            return {
+                "error": True,
+                "message": str(e),
+            }
+
 
 # Global instance
 stripe_service = StripeService()

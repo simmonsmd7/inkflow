@@ -32,6 +32,8 @@ from app.schemas.booking import (
     BookingSubmissionResponse,
     CancelInput,
     CancelResponse,
+    CancelWithRefundInput,
+    CancelWithRefundResponse,
     CheckoutSessionResponse,
     ClientNoShowHistory,
     ClientNoShowHistoryItem,
@@ -40,6 +42,8 @@ from app.schemas.booking import (
     MarkNoShowInput,
     NoShowResponse,
     ReferenceImageResponse,
+    RefundInput,
+    RefundResponse,
     RescheduleInput,
     RescheduleResponse,
     SendDepositRequestInput,
@@ -1434,4 +1438,288 @@ async def get_client_no_show_history(
         no_show_rate=round(no_show_rate, 1),
         total_forfeited_deposits=total_forfeited,
         no_shows=no_shows,
+    )
+
+
+# ============================================================================
+# REFUND ENDPOINTS
+# ============================================================================
+
+
+@router.post(
+    "/requests/{request_id}/refund",
+    response_model=RefundResponse,
+)
+async def issue_refund(
+    request_id: uuid.UUID,
+    data: RefundInput,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> RefundResponse:
+    """
+    Issue a refund for a booking.
+
+    Can only refund bookings where:
+    - Status is CANCELLED or NO_SHOW
+    - Deposit was paid (deposit_stripe_payment_intent_id exists)
+    - No refund has already been issued
+    """
+    # Get booking request with relationships
+    result = await db.execute(
+        select(BookingRequest)
+        .where(BookingRequest.id == request_id, BookingRequest.deleted_at.is_(None))
+        .options(
+            selectinload(BookingRequest.studio),
+        )
+    )
+    booking = result.scalar_one_or_none()
+
+    if not booking:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Booking request not found",
+        )
+
+    # Only owners can issue refunds
+    if current_user.role != UserRole.OWNER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only studio owners can issue refunds",
+        )
+
+    # Can only refund cancelled or no-show bookings
+    if booking.status not in [BookingRequestStatus.CANCELLED, BookingRequestStatus.NO_SHOW]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot refund booking with status '{booking.status.value}'. Must be cancelled or no-show.",
+        )
+
+    # Check that deposit was paid
+    if not booking.deposit_stripe_payment_intent_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot refund - no payment was recorded for this booking",
+        )
+
+    # Check that refund hasn't already been issued
+    if booking.refunded_at:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Refund has already been issued for this booking",
+        )
+
+    # Determine refund amount
+    if data.refund_type == "partial":
+        if not data.refund_amount_cents:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="refund_amount_cents is required for partial refunds",
+            )
+        refund_amount = data.refund_amount_cents
+        if refund_amount > (booking.deposit_amount or 0):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Refund amount cannot exceed original deposit of ${(booking.deposit_amount or 0) / 100:.2f}",
+            )
+    else:
+        # Full refund
+        refund_amount = booking.deposit_amount or 0
+
+    # Issue refund via Stripe
+    refund_result = await stripe_service.create_refund(
+        payment_intent_id=booking.deposit_stripe_payment_intent_id,
+        amount_cents=refund_amount if data.refund_type == "partial" else None,
+        reason="requested_by_customer",
+    )
+
+    if refund_result.get("error"):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to process refund: {refund_result.get('message')}",
+        )
+
+    # Update booking with refund info
+    now = datetime.now(timezone.utc)
+    booking.refund_amount = refund_amount
+    booking.refund_stripe_id = refund_result.get("refund_id")
+    booking.refunded_at = now
+    booking.refund_reason = data.reason
+    booking.refund_initiated_by_id = current_user.id
+    booking.deposit_forfeited = False  # Clear forfeited flag since we're refunding
+
+    await db.commit()
+    await db.refresh(booking)
+
+    # Send refund confirmation email
+    notification_sent = False
+    if data.notify_client:
+        notification_sent = await email_service.send_refund_confirmation_email(
+            to_email=booking.client_email,
+            client_name=booking.client_name,
+            studio_name=booking.studio.name,
+            refund_amount=refund_amount,
+            original_deposit=booking.deposit_amount or 0,
+            reason=data.reason,
+            is_partial=data.refund_type == "partial",
+        )
+
+    return RefundResponse(
+        message="Refund processed successfully",
+        request_id=booking.id,
+        refund_amount=refund_amount,
+        refund_stripe_id=booking.refund_stripe_id or "",
+        refunded_at=booking.refunded_at,
+        refund_reason=data.reason,
+        notification_sent=notification_sent,
+        stub_mode=refund_result.get("stub_mode", False),
+    )
+
+
+@router.post(
+    "/requests/{request_id}/cancel-with-refund",
+    response_model=CancelWithRefundResponse,
+)
+async def cancel_booking_with_refund(
+    request_id: uuid.UUID,
+    data: CancelWithRefundInput,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> CancelWithRefundResponse:
+    """
+    Cancel a booking and immediately issue a refund.
+
+    Only works for bookings where deposit has been paid (status DEPOSIT_PAID or CONFIRMED).
+    """
+    # Get booking request with relationships
+    result = await db.execute(
+        select(BookingRequest)
+        .where(BookingRequest.id == request_id, BookingRequest.deleted_at.is_(None))
+        .options(
+            selectinload(BookingRequest.studio),
+            selectinload(BookingRequest.assigned_artist),
+            selectinload(BookingRequest.preferred_artist),
+        )
+    )
+    booking = result.scalar_one_or_none()
+
+    if not booking:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Booking request not found",
+        )
+
+    # Only owners can cancel with refund
+    if current_user.role != UserRole.OWNER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only studio owners can cancel with refund",
+        )
+
+    # Can only cancel-with-refund for deposit_paid or confirmed bookings
+    if booking.status not in [BookingRequestStatus.DEPOSIT_PAID, BookingRequestStatus.CONFIRMED]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot cancel with refund for status '{booking.status.value}'. Must be deposit_paid or confirmed.",
+        )
+
+    # Check that deposit was paid
+    if not booking.deposit_stripe_payment_intent_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot refund - no payment was recorded for this booking",
+        )
+
+    # Determine refund amount
+    if data.refund_type == "partial":
+        if not data.refund_amount_cents:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="refund_amount_cents is required for partial refunds",
+            )
+        refund_amount = data.refund_amount_cents
+        if refund_amount > (booking.deposit_amount or 0):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Refund amount cannot exceed original deposit of ${(booking.deposit_amount or 0) / 100:.2f}",
+            )
+    else:
+        # Full refund
+        refund_amount = booking.deposit_amount or 0
+
+    # Issue refund via Stripe
+    refund_result = await stripe_service.create_refund(
+        payment_intent_id=booking.deposit_stripe_payment_intent_id,
+        amount_cents=refund_amount if data.refund_type == "partial" else None,
+        reason="requested_by_customer",
+    )
+
+    if refund_result.get("error"):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to process refund: {refund_result.get('message')}",
+        )
+
+    # Update booking status to cancelled with refund info
+    now = datetime.now(timezone.utc)
+    booking.status = BookingRequestStatus.CANCELLED
+    booking.cancelled_at = now
+    booking.cancelled_by = data.cancelled_by
+    booking.cancellation_reason = data.reason
+    booking.deposit_forfeited = False  # Not forfeited - we're refunding
+    booking.refund_amount = refund_amount
+    booking.refund_stripe_id = refund_result.get("refund_id")
+    booking.refunded_at = now
+    booking.refund_reason = data.reason
+    booking.refund_initiated_by_id = current_user.id
+
+    await db.commit()
+    await db.refresh(booking)
+
+    # Send cancellation notification email
+    cancellation_notification_sent = False
+    if data.notify_client:
+        artist = booking.assigned_artist or booking.preferred_artist
+        artist_name = artist.full_name if artist else None
+        scheduled_date_str = None
+        if booking.scheduled_date:
+            scheduled_date_str = booking.scheduled_date.strftime("%B %d, %Y at %I:%M %p")
+
+        cancellation_notification_sent = await email_service.send_cancellation_notification_email(
+            to_email=booking.client_email,
+            client_name=booking.client_name,
+            studio_name=booking.studio.name,
+            artist_name=artist_name,
+            design_summary=booking.design_idea,
+            scheduled_date=scheduled_date_str,
+            cancelled_by=data.cancelled_by,
+            reason=data.reason,
+            deposit_amount=booking.deposit_amount,
+            deposit_forfeited=False,  # Not forfeited - refunding
+        )
+
+    # Send refund confirmation email
+    refund_notification_sent = False
+    if data.notify_client:
+        refund_notification_sent = await email_service.send_refund_confirmation_email(
+            to_email=booking.client_email,
+            client_name=booking.client_name,
+            studio_name=booking.studio.name,
+            refund_amount=refund_amount,
+            original_deposit=booking.deposit_amount or 0,
+            reason=data.reason,
+            is_partial=data.refund_type == "partial",
+        )
+
+    return CancelWithRefundResponse(
+        message="Booking cancelled and refund processed successfully",
+        request_id=booking.id,
+        status="cancelled",
+        cancelled_at=booking.cancelled_at,
+        cancelled_by=booking.cancelled_by or "studio",
+        refund_amount=refund_amount,
+        refund_stripe_id=booking.refund_stripe_id or "",
+        refunded_at=booking.refunded_at,
+        cancellation_notification_sent=cancellation_notification_sent,
+        refund_notification_sent=refund_notification_sent,
+        stub_mode=refund_result.get("stub_mode", False),
     )

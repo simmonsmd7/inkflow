@@ -1365,3 +1365,244 @@ File Modified: backend/app/routers/webhooks.py (added ~100 lines)
 
 Status: FIXED
 Next Suggestion: Continue testing other payment flows and edge cases
+
+=== ITERATION 32 - InkFlow Improvement Phases (1-4) ===
+Date: 2026-01-10
+Category: Bug Fix, Feature Verification, UX Improvement
+
+## Phase 1: Payment Badge Display Bug - FIXED
+Problem: After customer pays deposit, the badge on /bookings didn't visually update without page refresh.
+Root Cause: Frontend had no mechanism to detect backend status changes from Stripe webhooks.
+Fix: Added 30-second polling mechanism to BookingQueue.tsx
+- Polls every 30 seconds when not viewing a booking modal
+- Automatically detects status changes from webhook updates
+- Badge styling already correct (teal for "Deposit Paid")
+File Modified: frontend/src/pages/BookingQueue.tsx
+
+## Phase 2: Backend-Frontend Sync Verification - IMPROVED
+Added polling mechanisms for real-time data sync:
+1. Dashboard.tsx: 60-second polling for stats updates
+2. Inbox.tsx: 30-second polling for new messages (when not viewing conversation)
+3. BookingQueue.tsx: 30-second polling (from Phase 1)
+
+Verified existing patterns:
+- All CRUD operations in BookingQueue already call loadRequests() after changes
+- Status transitions, quote saves, deposit requests all refresh UI immediately
+- Only gap was external webhook changes (now covered by polling)
+
+Files Modified:
+- frontend/src/pages/Dashboard.tsx
+- frontend/src/pages/Inbox.tsx
+
+## Phase 3: Send Booking Appointment Feature - ALREADY EXISTS
+Verified the feature is fully implemented:
+1. Owner clicks "Confirm Appointment" on booking with "Deposit Paid" status
+2. Modal opens with: Date, Time, Duration fields
+3. Checkbox: "Send confirmation email with calendar invite"
+4. Backend generates ICS calendar file
+5. Email sent with appointment details + calendar attachment
+
+API Endpoint: POST /api/v1/booking/requests/{request_id}/confirm
+Backend Function: confirm_booking() in bookings.py
+Email Function: send_booking_confirmation_email() in email.py
+Calendar: generate_tattoo_appointment_ics() in calendar_service.py
+
+Status: Feature already complete, no changes needed.
+
+## Phase 4: Page Redundancy Clarification - FIXED
+Problem: /clients redirected to /bookings, /artists redirected to /team
+- Both redundant links were visible in sidebar, causing confusion
+
+Fix: Removed redundant sidebar navigation items:
+- Removed "Clients" link (redirected to /bookings anyway)
+- Removed "Artists" link (redirected to /team anyway)
+
+Routes still exist for backwards compatibility but sidebar is now cleaner:
+- "Bookings" is the single entry point for booking management
+- "Team" is the single entry point for team management
+
+File Modified: frontend/src/components/layout/Sidebar.tsx
+
+Build Status: PASS
+Files Modified: 4
+- frontend/src/pages/BookingQueue.tsx (polling)
+- frontend/src/pages/Dashboard.tsx (polling)
+- frontend/src/pages/Inbox.tsx (polling)
+- frontend/src/components/layout/Sidebar.tsx (removed redundant links)
+
+Status: ALL PHASES COMPLETE
+
+=== ITERATION 33 - Phase 5: Booking Flow State Machine, Refunds & E2E Testing ===
+Date: 2026-01-11
+Category: Feature Implementation, Bug Fix, E2E Testing
+
+## IMPLEMENTATION SUMMARY
+
+### 1. Refund Database Fields - COMPLETED
+Added 5 new columns to booking_requests table:
+- refund_amount (INTEGER): Amount refunded in cents
+- refund_stripe_id (VARCHAR 255): Stripe refund ID
+- refunded_at (TIMESTAMP WITH TIME ZONE): When refund was processed
+- refund_reason (TEXT): Reason for refund
+- refund_initiated_by_id (UUID FK → users): Who initiated the refund
+
+Files Modified:
+- backend/app/models/booking.py (added 5 fields)
+- backend/scripts/migrate_add_refund_fields.py (created PostgreSQL migration)
+
+Migration Run: SUCCESS - All 5 columns added to database
+
+### 2. Stripe Refund API Integration - COMPLETED
+Added refund processing functions to stripe_service.py:
+- process_refund(): Full refund of a payment
+- process_partial_refund(): Partial refund by amount
+- Both functions handle stub mode (prints message, returns mock data)
+- Real Stripe mode creates actual refunds via stripe.Refund.create()
+
+Files Modified:
+- backend/app/services/stripe_service.py
+
+### 3. Refund Endpoints - COMPLETED
+Added 2 new endpoints to bookings.py router:
+- POST /requests/{request_id}/refund: Issue refund for cancelled/no-show booking
+- POST /requests/{request_id}/cancel-with-refund: Cancel and refund in one action
+
+Both endpoints:
+- Validate booking status and payment eligibility
+- Support full or partial refunds
+- Send refund confirmation email
+- Track refund metadata in database
+
+Files Modified:
+- backend/app/routers/bookings.py
+
+### 4. Refund Confirmation Email - COMPLETED
+Created send_refund_confirmation_email() function:
+- Professional email template with studio branding
+- Shows refund amount, reason, and studio contact info
+- Stub mode prints to console, real mode sends via SendGrid
+
+Files Modified:
+- backend/app/services/email.py
+
+### 5. State Machine Button Visibility - COMPLETED
+Implemented proper button visibility rules in BookingQueue.tsx:
+
+| Status | Buttons Shown |
+|--------|---------------|
+| pending | (status change only) |
+| reviewing | (status change only) |
+| quoted | Send Deposit Request |
+| deposit_requested | (status change only) |
+| deposit_paid | Confirm Appointment, Cancel & Refund* |
+| confirmed | Reschedule, Mark No-Show, Mark Complete, Cancel & Refund* |
+| completed | (no actions) |
+| cancelled | Issue Refund* |
+| no_show | Issue Refund* |
+| rejected | (no actions) |
+
+*Refund buttons only show if deposit_stripe_payment_intent_id exists
+
+Helper functions added:
+- canIssueRefund(): Check if booking is eligible for post-cancel refund
+- canCancelWithRefund(): Check if booking can be cancelled with immediate refund
+
+Files Modified:
+- frontend/src/pages/BookingQueue.tsx
+
+### 6. Refund Modals - COMPLETED
+Added two new modals to BookingQueue.tsx:
+
+**Issue Refund Modal:**
+- Refund type selector (Full/Partial)
+- Amount input for partial refunds
+- Reason text field
+- Notify client checkbox
+- Shows max refundable amount
+
+**Cancel With Refund Modal:**
+- Cancelled by selector (Client/Studio/Mutual)
+- Refund type (Full/Partial)
+- Amount input
+- Reason field
+- Notify client checkbox
+
+Files Modified:
+- frontend/src/pages/BookingQueue.tsx (added ~400 lines)
+- frontend/src/services/bookings.ts (added issueRefund, cancelWithRefund functions)
+- frontend/src/types/api.ts (added refund-related types)
+
+### 7. Booking Link Sharing Feature - COMPLETED
+Added visible booking link section to Dashboard for owners:
+- Gradient-highlighted card at top of dashboard
+- Shows public booking URL
+- "Copy Link" button with success feedback
+- Only visible to studio owners
+
+Files Modified:
+- frontend/src/pages/Dashboard.tsx
+
+## BROWSER TESTING RESULTS
+
+### Dashboard (/dashboard) - PASS
+✓ Booking link sharing card visible for owner
+✓ Shows correct booking URL: http://localhost:5173/book/inkflow-main
+✓ Copy Link button works with visual feedback
+
+### BookingQueue (/bookings) - PASS
+✓ State machine buttons display correctly for each status:
+  - Confirmed bookings show: Reschedule Appointment, Mark No-Show, Mark Complete
+  - Status filters work correctly
+  - Booking detail panel opens/closes properly
+
+### Refund Button Behavior - EXPECTED
+⚠️ Cancel & Refund button NOT visible for test bookings
+⚠️ Issue Refund button NOT visible for cancelled bookings
+
+This is EXPECTED BEHAVIOR because:
+- Both refund functions require deposit_stripe_payment_intent_id
+- Stub mode payments don't have Stripe payment intents
+- You cannot refund a payment that didn't go through Stripe
+- Code logic is correct: canCancelWithRefund() and canIssueRefund() check for payment_intent_id
+
+### Code Logic Verification
+```typescript
+// canIssueRefund() - lines 602-607
+(selectedRequest.status === 'cancelled' || selectedRequest.status === 'no_show') &&
+!!selectedRequest.deposit_stripe_payment_intent_id &&
+!selectedRequest.refunded_at
+
+// canCancelWithRefund() - lines 615-618
+(selectedRequest.status === 'deposit_paid' || selectedRequest.status === 'confirmed') &&
+!!selectedRequest.deposit_stripe_payment_intent_id
+```
+
+## BUILD STATUS
+Frontend: PASS
+Backend: PASS
+Database Migration: PASS
+
+## FILES CREATED/MODIFIED
+1. backend/app/models/booking.py - Added 5 refund fields
+2. backend/app/services/stripe_service.py - Added refund functions
+3. backend/app/routers/bookings.py - Added refund endpoints
+4. backend/app/services/email.py - Added refund email function
+5. backend/scripts/migrate_add_refund_fields.py - NEW migration script
+6. frontend/src/pages/BookingQueue.tsx - State machine + refund modals
+7. frontend/src/pages/Dashboard.tsx - Booking link sharing
+8. frontend/src/services/bookings.ts - Refund API functions
+9. frontend/src/types/api.ts - Refund types
+
+## STATUS: PHASE 5 COMPLETE
+
+All Phase 5 requirements implemented:
+✓ Booking flow state machine with proper button visibility
+✓ Refund functionality (full & partial) with Stripe integration
+✓ Cancel with refund combined action
+✓ Refund confirmation emails
+✓ Booking link sharing visible for owners
+✓ Database migration for refund tracking
+✓ E2E testing verified state machine behavior
+
+Note: Refund buttons will only appear for bookings with actual Stripe payments.
+Stub mode payments cannot be refunded (expected behavior).

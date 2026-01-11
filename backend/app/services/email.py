@@ -1145,6 +1145,91 @@ Powered by InkFlow
             )
         )
 
+    async def send_refund_confirmation_email(
+        self,
+        to_email: str,
+        client_name: str,
+        studio_name: str,
+        refund_amount: int,
+        original_deposit: int,
+        reason: str | None = None,
+        is_partial: bool = False,
+    ) -> bool:
+        """Send refund confirmation email to client."""
+        refund_formatted = f"${refund_amount / 100:.2f}"
+        deposit_formatted = f"${original_deposit / 100:.2f}"
+
+        refund_type = "partial" if is_partial else "full"
+
+        reason_section = ""
+        reason_html = ""
+        if reason:
+            reason_section = f"\nReason: {reason}\n"
+            reason_html = f"""
+            <p style="margin: 5px 0;"><strong>Reason:</strong> {reason}</p>
+            """
+
+        body_text = f"""Hi {client_name},
+
+We're writing to confirm that a {refund_type} refund has been processed for your tattoo booking.
+
+REFUND DETAILS
+--------------
+Refund Amount: {refund_formatted}
+Original Deposit: {deposit_formatted}
+{reason_section}
+The refund will be credited back to your original payment method within 5-10 business days, depending on your bank.
+
+If you have any questions about this refund, please don't hesitate to contact us.
+
+Best,
+{studio_name}
+Powered by InkFlow
+"""
+
+        body_html = f"""
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+    <div style="background-color: #059669; padding: 20px; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Refund Confirmed</h1>
+    </div>
+
+    <div style="padding: 30px;">
+        <p>Hi {client_name},</p>
+        <p>We're writing to confirm that a <strong>{refund_type} refund</strong> has been processed for your tattoo booking.</p>
+
+        <div style="background-color: #ecfdf5; border-left: 4px solid #059669; padding: 20px; border-radius: 8px; margin: 25px 0;">
+            <h3 style="margin: 0 0 15px 0; color: #065f46;">Refund Details</h3>
+            <p style="margin: 5px 0; font-size: 24px; color: #059669;"><strong>{refund_formatted}</strong></p>
+            <p style="margin: 5px 0;"><strong>Original Deposit:</strong> {deposit_formatted}</p>
+            {reason_html}
+        </div>
+
+        <div style="background-color: #f0f9ff; border-left: 4px solid #0ea5e9; padding: 15px; margin: 20px 0;">
+            <p style="margin: 0; color: #0369a1;">
+                <strong>Processing Time:</strong> The refund will be credited back to your original payment method within 5-10 business days, depending on your bank.
+            </p>
+        </div>
+
+        <p>If you have any questions about this refund, please don't hesitate to contact us.</p>
+    </div>
+
+    <div style="background-color: #f5f5f5; padding: 15px; text-align: center;">
+        <p style="color: #999; font-size: 12px; margin: 0;">
+            {studio_name} • Powered by <a href="https://inkflow.io" style="color: #e11d48;">InkFlow</a>
+        </p>
+    </div>
+</div>
+"""
+
+        return await self.send(
+            EmailMessage(
+                to_email=to_email,
+                subject=f"Refund Confirmed: {refund_formatted} from {studio_name}",
+                body_text=body_text,
+                body_html=body_html,
+            )
+        )
+
     async def send_conversation_message(
         self,
         to_email: str,
