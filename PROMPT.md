@@ -32,7 +32,52 @@ Implemented in Iteration 33:
 
 ---
 
-## Phase 6: E2E Stripe Refund Testing (CURRENT)
+## Phase 6a: Start Stripe Webhook Listener (CURRENT - DO THIS FIRST)
+
+**Problem:** Stripe payments complete on Stripe's side but the backend never receives the webhook event to update booking status. The Stripe CLI webhook listener MUST be running for local development.
+
+**Goal:** Start the Stripe CLI webhook listener in the background so payment webhooks are forwarded to the local backend.
+
+### Steps
+
+**Step 1: Start Stripe CLI Webhook Listener in Background**
+```bash
+/opt/homebrew/bin/stripe listen --forward-to localhost:8000/api/v1/webhooks/stripe > stripe_webhook.log 2>&1 &
+echo $! > stripe_webhook.pid
+sleep 2
+cat stripe_webhook.log | head -20
+```
+
+**Step 2: Extract and Update Webhook Secret**
+The Stripe CLI outputs a webhook signing secret like `whsec_xxxxx`. Extract it:
+```bash
+grep -o 'whsec_[a-zA-Z0-9]*' stripe_webhook.log | head -1
+```
+If this secret differs from `STRIPE_WEBHOOK_SECRET` in `backend/.env`, update the .env file with the new secret and restart the backend.
+
+**Step 3: Verify Webhook Listener is Running**
+```bash
+ps aux | grep "stripe listen" | grep -v grep
+tail -5 stripe_webhook.log
+```
+You should see the stripe process running and the log showing it's ready.
+
+**Step 4: Test Webhook Endpoint**
+```bash
+curl -X POST http://localhost:8000/api/v1/webhooks/stripe/test
+```
+Should return: `{"status":"ok","message":"Stripe webhook is active","stripe_configured":true}`
+
+### Success Criteria
+- [ ] Stripe CLI webhook listener running in background
+- [ ] Webhook secret in .env matches the one from Stripe CLI (or CLI started with existing secret)
+- [ ] `/api/v1/webhooks/stripe/test` returns stripe_configured: true
+
+**IMPORTANT:** If the webhook listener dies, restart it before testing payments. Check with `ps aux | grep stripe`.
+
+---
+
+## Phase 6b: E2E Stripe Payment & Refund Testing
 
 **Problem:** Refund code was implemented but never tested with real Stripe payments. Refund buttons don't appear because test bookings have no `deposit_stripe_payment_intent_id`.
 
@@ -41,15 +86,7 @@ Implemented in Iteration 33:
 ### Prerequisites
 1. Backend running on port 8000
 2. Frontend running on port 5173
-3. Stripe CLI available (`/opt/homebrew/bin/stripe`)
-
-### Step-by-Step Testing
-
-**Step 1: Start Stripe CLI Webhook Listener**
-```bash
-stripe listen --forward-to localhost:8000/api/v1/webhooks/stripe
-```
-Keep this running in a separate terminal. Note the webhook signing secret it displays.
+3. **Phase 6a COMPLETE** - Stripe CLI webhook listener running in background
 
 **Step 2: Create a New Booking**
 - Go to http://localhost:5173/book/inkflow-main
@@ -113,7 +150,11 @@ Or check https://dashboard.stripe.com/test/payments - the payment should show as
 ---
 
 ## Execution Order
-Phases 1-5 are complete. Focus on Phase 6 (E2E Stripe Refund Testing). After completing, append findings to `ralph.log`.
+Phases 1-5 are complete.
+1. **Phase 6a FIRST** - Start webhook listener (required for payment webhooks to work)
+2. **Phase 6b** - E2E payment + refund testing
+
+After completing, append findings to `ralph.log`.
 
 ## When Complete
-Output "TASK_COMPLETE" after Phase 6 is verified working with actual Stripe refunds.
+Output "TASK_COMPLETE" after Phase 6b is verified working with actual Stripe refunds.
