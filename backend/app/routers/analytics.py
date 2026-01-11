@@ -424,7 +424,7 @@ async def get_dashboard(
     business_days = int(days_in_month * 5 / 7)  # Approximate
     total_available = artist_count * 8 * business_days
 
-    occupancy_rate = (booked_hours / total_available * 100) if total_available > 0 else 0
+    occupancy_rate = min((booked_hours / total_available * 100), 100.0) if total_available > 0 else 0
 
     booking_count_for_avg = completed_bookings + confirmed_count
     avg_duration = booked_hours / booking_count_for_avg if booking_count_for_avg > 0 else 0

@@ -113,7 +113,18 @@ Total bugs found and fixed: 7
 Total commits made: 5
 All pages tested and functional as Owner role
 
+BUG #8: Occupancy rate showing impossible 157.1%
+- Location: backend/app/routers/analytics.py:427
+- Cause: Same issue as conversion rate - no upper bound on percentage
+- Fix: Added min() to cap occupancy_rate at 100%
+- Status: FIXED
+
+=== Role-Based Access Testing ===
+Artist Role (Winter Lee):
+- Dashboard: OK (shows artist-specific view)
+- Commissions page: Correctly blocked with "Access Denied"
+- Sidebar shows reduced menu (no admin pages)
+
 Next steps:
-- Test as Artist role
 - Test as Receptionist role
 - Continue Category B: UI/UX Polish
