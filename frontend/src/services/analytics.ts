@@ -250,7 +250,7 @@ export async function getRevenueChart(
   const params = new URLSearchParams({ range_type: rangeType });
   if (startDate) params.append('start_date', startDate);
   if (endDate) params.append('end_date', endDate);
-  return api.get<RevenueChartResponse>(`/analytics/revenue/chart?${params}`);
+  return api.get<RevenueChartResponse>(`/api/v1/analytics/revenue/chart?${params}`);
 }
 
 /**
@@ -264,7 +264,7 @@ export async function getBookingBreakdown(
   const params = new URLSearchParams({ range_type: rangeType });
   if (startDate) params.append('start_date', startDate);
   if (endDate) params.append('end_date', endDate);
-  return api.get<BookingAnalyticsResponse>(`/analytics/bookings/breakdown?${params}`);
+  return api.get<BookingAnalyticsResponse>(`/api/v1/analytics/bookings/breakdown?${params}`);
 }
 
 /**
@@ -278,7 +278,7 @@ export async function getNoShowMetrics(
   const params = new URLSearchParams({ range_type: rangeType });
   if (startDate) params.append('start_date', startDate);
   if (endDate) params.append('end_date', endDate);
-  return api.get<NoShowMetrics>(`/analytics/no-shows?${params}`);
+  return api.get<NoShowMetrics>(`/api/v1/analytics/no-shows?${params}`);
 }
 
 /**
@@ -292,7 +292,7 @@ export async function getClientRetention(
   const params = new URLSearchParams({ range_type: rangeType });
   if (startDate) params.append('start_date', startDate);
   if (endDate) params.append('end_date', endDate);
-  return api.get<ClientRetentionMetrics>(`/analytics/retention?${params}`);
+  return api.get<ClientRetentionMetrics>(`/api/v1/analytics/retention?${params}`);
 }
 
 /**

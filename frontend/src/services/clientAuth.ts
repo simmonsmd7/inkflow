@@ -68,6 +68,7 @@ export const clientAuthService = {
   async getMe(): Promise<ClientDetailResponse> {
     const token = this.getToken();
     return api.get<ClientDetailResponse>('/api/v1/client/auth/me', {
+      skipAuth: true,
       headers: {
         Authorization: `Bearer ${token}`,
       },

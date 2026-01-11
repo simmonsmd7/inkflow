@@ -104,7 +104,7 @@ export default function ClientRetention() {
           <select
             value={selectedPreset}
             onChange={(e) => handlePresetChange(e.target.value)}
-            className="bg-ink-700 border border-ink-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-accent-500"
+            className="bg-ink-700 border border-ink-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
           >
             {presetRanges.map((range) => (
               <option key={range.value} value={range.value}>
@@ -120,14 +120,14 @@ export default function ClientRetention() {
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="bg-ink-700 border border-ink-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-accent-500"
+                className="bg-ink-700 border border-ink-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
               />
               <span className="text-ink-400">to</span>
               <input
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="bg-ink-700 border border-ink-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-accent-500"
+                className="bg-ink-700 border border-ink-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
               />
             </>
           )}
@@ -242,12 +242,12 @@ export default function ClientRetention() {
             <div className="flex items-center justify-between p-4 bg-ink-700/50 rounded-lg">
               <div>
                 <p className="text-ink-400 text-sm">Average LTV</p>
-                <p className="text-2xl font-bold text-accent-400">
+                <p className="text-2xl font-bold text-accent-secondary">
                   {formatCurrency(report.lifetime_value.average_lifetime_value)}
                 </p>
               </div>
-              <div className="w-12 h-12 bg-accent-500/20 rounded-full flex items-center justify-center">
-                <svg className="w-6 h-6 text-accent-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-12 h-12 bg-accent-primary/20 rounded-full flex items-center justify-center">
+                <svg className="w-6 h-6 text-accent-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
@@ -310,7 +310,7 @@ export default function ClientRetention() {
                       <td className="py-3 w-48">
                         <div className="h-4 bg-ink-700 rounded-full overflow-hidden">
                           <div
-                            className="h-full bg-accent-500 transition-all"
+                            className="h-full bg-accent-primary transition-all"
                             style={{ width: `${barWidth}%` }}
                           />
                         </div>
@@ -386,7 +386,7 @@ export default function ClientRetention() {
                   </div>
 
                   <div className="text-right">
-                    <p className="text-accent-400 font-semibold">{formatCurrency(client.total_spent)}</p>
+                    <p className="text-accent-secondary font-semibold">{formatCurrency(client.total_spent)}</p>
                     <p className="text-ink-500 text-xs">
                       Since {new Date(client.first_visit).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
                     </p>
@@ -422,7 +422,7 @@ export default function ClientRetention() {
             <p className="text-ink-400 text-sm">Lapsed (90+ days)</p>
           </div>
           <div className="text-center">
-            <p className="text-3xl font-bold text-accent-400">
+            <p className="text-3xl font-bold text-accent-secondary">
               {report.lifetime_value.average_bookings.toFixed(1)}
             </p>
             <p className="text-ink-400 text-sm">Avg Bookings/Client</p>
@@ -446,17 +446,17 @@ interface MetricCardProps {
 function MetricCard({ title, value, subtitle, icon, highlight, warning }: MetricCardProps) {
   return (
     <div className={`bg-ink-800 rounded-lg p-4 ${
-      highlight ? 'ring-2 ring-accent-500/50' :
+      highlight ? 'ring-2 ring-accent-primary/50' :
       warning ? 'ring-2 ring-red-500/50' : ''
     }`}>
       <div className="flex items-center justify-between mb-2">
         <span className="text-ink-400 text-sm">{title}</span>
-        <span className={highlight ? 'text-accent-400' : warning ? 'text-red-400' : 'text-ink-400'}>
+        <span className={highlight ? 'text-accent-secondary' : warning ? 'text-red-400' : 'text-ink-400'}>
           {icon}
         </span>
       </div>
       <p className={`text-2xl font-bold ${
-        highlight ? 'text-accent-400' : warning ? 'text-red-400' : 'text-white'
+        highlight ? 'text-accent-secondary' : warning ? 'text-red-400' : 'text-white'
       }`}>
         {value}
       </p>

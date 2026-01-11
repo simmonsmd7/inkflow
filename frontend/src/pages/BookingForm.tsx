@@ -272,7 +272,7 @@ export function BookingForm() {
           <h1 className="text-2xl font-bold text-white mb-4">Request Submitted!</h1>
           <p className="text-ink-400 mb-6">
             Thank you for your booking request. We'll review your submission and get back to you soon at{' '}
-            <span className="text-accent-400">{formData.client_email}</span>.
+            <span className="text-accent-secondary">{formData.client_email}</span>.
           </p>
           <p className="text-sm text-ink-500">
             Reference: <code className="bg-ink-800 px-2 py-1 rounded">{requestId}</code>
@@ -315,7 +315,7 @@ export function BookingForm() {
                   onChange={(e) => updateField('client_name', e.target.value)}
                   className={`w-full px-4 py-2 bg-ink-800 border ${
                     validationErrors.client_name ? 'border-red-500' : 'border-ink-700'
-                  } rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-accent-500`}
+                  } rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-accent-primary`}
                   placeholder="John Doe"
                 />
                 {validationErrors.client_name && (
@@ -333,7 +333,7 @@ export function BookingForm() {
                   onChange={(e) => updateField('client_email', e.target.value)}
                   className={`w-full px-4 py-2 bg-ink-800 border ${
                     validationErrors.client_email ? 'border-red-500' : 'border-ink-700'
-                  } rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-accent-500`}
+                  } rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-accent-primary`}
                   placeholder="john@example.com"
                 />
                 {validationErrors.client_email && (
@@ -349,7 +349,7 @@ export function BookingForm() {
                   type="tel"
                   value={formData.client_phone}
                   onChange={(e) => updateField('client_phone', e.target.value)}
-                  className="w-full px-4 py-2 bg-ink-800 border border-ink-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-accent-500"
+                  className="w-full px-4 py-2 bg-ink-800 border border-ink-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                   placeholder="(555) 123-4567"
                 />
               </div>
@@ -371,7 +371,7 @@ export function BookingForm() {
                   rows={4}
                   className={`w-full px-4 py-2 bg-ink-800 border ${
                     validationErrors.design_idea ? 'border-red-500' : 'border-ink-700'
-                  } rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-accent-500 resize-none`}
+                  } rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-accent-primary resize-none`}
                   placeholder="Describe your tattoo idea in detail. Include style preferences (traditional, realism, watercolor, etc.), specific elements, and any meaningful symbolism..."
                 />
                 {validationErrors.design_idea && (
@@ -390,7 +390,7 @@ export function BookingForm() {
                     onChange={(e) => updateField('placement', e.target.value)}
                     className={`w-full px-4 py-2 bg-ink-800 border ${
                       validationErrors.placement ? 'border-red-500' : 'border-ink-700'
-                    } rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-accent-500`}
+                    } rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-accent-primary`}
                     placeholder="e.g., Inner forearm, Upper back"
                   />
                   {validationErrors.placement && (
@@ -405,7 +405,7 @@ export function BookingForm() {
                   <select
                     value={formData.size}
                     onChange={(e) => updateField('size', e.target.value)}
-                    className="w-full px-4 py-2 bg-ink-800 border border-ink-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-accent-500"
+                    className="w-full px-4 py-2 bg-ink-800 border border-ink-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                   >
                     {TATTOO_SIZES.map((size) => (
                       <option key={size.value} value={size.value}>
@@ -424,7 +424,7 @@ export function BookingForm() {
                   <select
                     value={formData.color_preference}
                     onChange={(e) => updateField('color_preference', e.target.value)}
-                    className="w-full px-4 py-2 bg-ink-800 border border-ink-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-accent-500"
+                    className="w-full px-4 py-2 bg-ink-800 border border-ink-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                   >
                     <option value="">Select...</option>
                     {COLOR_OPTIONS.map((option) => (
@@ -442,7 +442,7 @@ export function BookingForm() {
                   <select
                     value={formData.budget_range}
                     onChange={(e) => updateField('budget_range', e.target.value)}
-                    className="w-full px-4 py-2 bg-ink-800 border border-ink-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-accent-500"
+                    className="w-full px-4 py-2 bg-ink-800 border border-ink-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                   >
                     <option value="">Select...</option>
                     {BUDGET_OPTIONS.map((option) => (
@@ -460,7 +460,7 @@ export function BookingForm() {
                     type="checkbox"
                     checked={formData.is_cover_up}
                     onChange={(e) => updateField('is_cover_up', e.target.checked)}
-                    className="w-5 h-5 rounded border-ink-700 bg-ink-800 text-accent-500 focus:ring-accent-500 focus:ring-offset-ink-900"
+                    className="w-5 h-5 rounded border-ink-700 bg-ink-800 text-accent-primary focus:ring-accent-primary focus:ring-offset-ink-900"
                   />
                   <span className="text-ink-300">This is a cover-up</span>
                 </label>
@@ -470,7 +470,7 @@ export function BookingForm() {
                     type="checkbox"
                     checked={formData.is_first_tattoo}
                     onChange={(e) => updateField('is_first_tattoo', e.target.checked)}
-                    className="w-5 h-5 rounded border-ink-700 bg-ink-800 text-accent-500 focus:ring-accent-500 focus:ring-offset-ink-900"
+                    className="w-5 h-5 rounded border-ink-700 bg-ink-800 text-accent-primary focus:ring-accent-primary focus:ring-offset-ink-900"
                   />
                   <span className="text-ink-300">This is my first tattoo</span>
                 </label>
@@ -495,7 +495,7 @@ export function BookingForm() {
                   />
                   {img.uploading && (
                     <div className="absolute inset-0 bg-ink-900/80 flex items-center justify-center">
-                      <div className="w-6 h-6 border-2 border-accent-400 border-t-transparent rounded-full animate-spin" />
+                      <div className="w-6 h-6 border-2 border-accent-secondary border-t-transparent rounded-full animate-spin" />
                     </div>
                   )}
                   {img.error && (
@@ -525,7 +525,7 @@ export function BookingForm() {
               ))}
 
               {images.length < 5 && (
-                <label className="aspect-square rounded-lg border-2 border-dashed border-ink-700 hover:border-accent-500 transition-colors cursor-pointer flex flex-col items-center justify-center gap-2">
+                <label className="aspect-square rounded-lg border-2 border-dashed border-ink-700 hover:border-accent-primary transition-colors cursor-pointer flex flex-col items-center justify-center gap-2">
                   <svg className="w-8 h-8 text-ink-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                   </svg>
@@ -560,7 +560,7 @@ export function BookingForm() {
                   <select
                     value={formData.preferred_artist_id}
                     onChange={(e) => updateField('preferred_artist_id', e.target.value)}
-                    className="w-full px-4 py-2 bg-ink-800 border border-ink-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-accent-500"
+                    className="w-full px-4 py-2 bg-ink-800 border border-ink-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                   >
                     <option value="">No preference</option>
                     {artists.map((artist) => (
@@ -581,7 +581,7 @@ export function BookingForm() {
                   type="text"
                   value={formData.preferred_dates}
                   onChange={(e) => updateField('preferred_dates', e.target.value)}
-                  className="w-full px-4 py-2 bg-ink-800 border border-ink-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-accent-500"
+                  className="w-full px-4 py-2 bg-ink-800 border border-ink-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                   placeholder="e.g., Weekends only, After 3pm, Anytime in March"
                 />
               </div>
@@ -594,7 +594,7 @@ export function BookingForm() {
                   value={formData.additional_notes}
                   onChange={(e) => updateField('additional_notes', e.target.value)}
                   rows={3}
-                  className="w-full px-4 py-2 bg-ink-800 border border-ink-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-accent-500 resize-none"
+                  className="w-full px-4 py-2 bg-ink-800 border border-ink-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-accent-primary resize-none"
                   placeholder="Anything else we should know?"
                 />
               </div>
@@ -605,7 +605,7 @@ export function BookingForm() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full py-3 px-4 bg-accent-500 hover:bg-accent-600 disabled:bg-ink-700 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+            className="w-full py-3 px-4 bg-accent-primary hover:bg-accent-primary/80 disabled:bg-ink-700 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
           >
             {submitting ? (
               <>

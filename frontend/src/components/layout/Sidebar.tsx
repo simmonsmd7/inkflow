@@ -211,9 +211,9 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     return item.roles.includes(user.role);
   });
 
-  // Get user initials
+  // Get user initials (with fallbacks for empty names)
   const userInitials = user
-    ? `${user.first_name[0]}${user.last_name[0]}`.toUpperCase()
+    ? `${user.first_name?.[0] || ''}${user.last_name?.[0] || ''}`.toUpperCase() || 'U'
     : 'U';
 
   return (

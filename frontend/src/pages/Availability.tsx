@@ -301,7 +301,7 @@ export function Availability() {
           <button
             onClick={handleSaveSchedule}
             disabled={saving}
-            className="px-4 py-2 bg-accent-500 text-white rounded-lg hover:bg-accent-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-primary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {saving ? 'Saving...' : 'Save Schedule'}
           </button>
@@ -333,7 +333,7 @@ export function Availability() {
                 <button
                   onClick={() => handleDayToggle(dayIndex)}
                   className={`relative w-12 h-6 rounded-full transition-colors ${
-                    daySchedule.enabled ? 'bg-accent-500' : 'bg-ink-600'
+                    daySchedule.enabled ? 'bg-accent-primary' : 'bg-ink-600'
                   }`}
                 >
                   <span
@@ -349,7 +349,7 @@ export function Availability() {
                     <select
                       value={daySchedule.start}
                       onChange={(e) => handleTimeChange(dayIndex, 'start', e.target.value)}
-                      className="bg-ink-700 border border-ink-600 rounded-lg px-3 py-2 text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-500"
+                      className="bg-ink-700 border border-ink-600 rounded-lg px-3 py-2 text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-primary"
                     >
                       {TIME_OPTIONS.map((time) => (
                         <option key={time} value={time}>
@@ -361,7 +361,7 @@ export function Availability() {
                     <select
                       value={daySchedule.end}
                       onChange={(e) => handleTimeChange(dayIndex, 'end', e.target.value)}
-                      className="bg-ink-700 border border-ink-600 rounded-lg px-3 py-2 text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-500"
+                      className="bg-ink-700 border border-ink-600 rounded-lg px-3 py-2 text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-primary"
                     >
                       {TIME_OPTIONS.map((time) => (
                         <option key={time} value={time}>
@@ -466,7 +466,7 @@ export function Availability() {
                   onChange={(e) =>
                     setNewTimeOff((prev) => ({ ...prev, start_date: e.target.value }))
                   }
-                  className="w-full bg-ink-700 border border-ink-600 rounded-lg px-3 py-2 text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-500"
+                  className="w-full bg-ink-700 border border-ink-600 rounded-lg px-3 py-2 text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-primary"
                 />
               </div>
 
@@ -481,7 +481,7 @@ export function Availability() {
                     setNewTimeOff((prev) => ({ ...prev, end_date: e.target.value }))
                   }
                   min={newTimeOff.start_date}
-                  className="w-full bg-ink-700 border border-ink-600 rounded-lg px-3 py-2 text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-500"
+                  className="w-full bg-ink-700 border border-ink-600 rounded-lg px-3 py-2 text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-primary"
                 />
               </div>
 
@@ -496,7 +496,7 @@ export function Availability() {
                     setNewTimeOff((prev) => ({ ...prev, reason: e.target.value }))
                   }
                   placeholder="e.g., Vacation, Personal day"
-                  className="w-full bg-ink-700 border border-ink-600 rounded-lg px-3 py-2 text-ink-100 placeholder-ink-500 focus:outline-none focus:ring-2 focus:ring-accent-500"
+                  className="w-full bg-ink-700 border border-ink-600 rounded-lg px-3 py-2 text-ink-100 placeholder-ink-500 focus:outline-none focus:ring-2 focus:ring-accent-primary"
                 />
               </div>
             </div>
@@ -511,7 +511,7 @@ export function Availability() {
               <button
                 onClick={handleAddTimeOff}
                 disabled={saving || !newTimeOff.start_date || !newTimeOff.end_date}
-                className="flex-1 px-4 py-2 bg-accent-500 text-white rounded-lg hover:bg-accent-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="flex-1 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-primary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {saving ? 'Adding...' : 'Add Time Off'}
               </button>

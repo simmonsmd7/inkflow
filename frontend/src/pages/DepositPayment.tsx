@@ -81,7 +81,7 @@ export function DepositPayment() {
   if (loading) {
     return (
       <div className="min-h-screen bg-ink-900 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-accent-500"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-accent-primary"></div>
       </div>
     );
   }
@@ -175,7 +175,7 @@ export function DepositPayment() {
               )}
               <div className="flex justify-between text-lg font-semibold">
                 <span className="text-ink-200">Deposit Due</span>
-                <span className="text-accent-400">{formatCurrency(depositInfo.deposit_amount)}</span>
+                <span className="text-accent-secondary">{formatCurrency(depositInfo.deposit_amount)}</span>
               </div>
               {depositInfo.quoted_price && (
                 <p className="text-xs text-ink-500">
@@ -212,7 +212,7 @@ export function DepositPayment() {
               <button
                 onClick={handlePayDeposit}
                 disabled={processingPayment}
-                className="w-full bg-accent-600 hover:bg-accent-500 disabled:bg-ink-600 disabled:cursor-not-allowed text-white font-semibold py-4 px-6 rounded-lg transition-colors flex items-center justify-center gap-3"
+                className="w-full bg-accent-primary hover:bg-accent-primary/80 disabled:bg-ink-600 disabled:cursor-not-allowed text-white font-semibold py-4 px-6 rounded-lg transition-colors flex items-center justify-center gap-3"
               >
                 {processingPayment ? (
                   <>

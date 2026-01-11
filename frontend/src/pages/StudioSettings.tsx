@@ -13,6 +13,8 @@ import {
 } from '../services/studios';
 import type { Studio, StudioCreate, StudioUpdate, BusinessHours, BusinessHoursDay } from '../types/api';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
 type DayKey = typeof DAYS[number];
 
@@ -274,7 +276,7 @@ export function StudioSettings() {
               <div className="w-24 h-24 rounded-xl bg-ink-700 flex items-center justify-center overflow-hidden border-2 border-dashed border-ink-600">
                 {studio.logo_url ? (
                   <img
-                    src={`http://localhost:8000${studio.logo_url}`}
+                    src={`${API_URL}${studio.logo_url}`}
                     alt="Studio logo"
                     className="w-full h-full object-cover"
                   />

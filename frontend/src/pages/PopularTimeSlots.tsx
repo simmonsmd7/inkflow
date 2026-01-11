@@ -102,11 +102,11 @@ export default function PopularTimeSlots() {
   const getHeatmapColor = (count: number, maxCount: number): string => {
     if (count === 0) return 'bg-ink-700';
     const intensity = count / maxCount;
-    if (intensity > 0.8) return 'bg-accent-500';
-    if (intensity > 0.6) return 'bg-accent-600';
-    if (intensity > 0.4) return 'bg-accent-700';
-    if (intensity > 0.2) return 'bg-accent-800';
-    return 'bg-accent-900';
+    if (intensity > 0.8) return 'bg-accent-primary';
+    if (intensity > 0.6) return 'bg-accent-primary/80';
+    if (intensity > 0.4) return 'bg-accent-primary/60';
+    if (intensity > 0.2) return 'bg-accent-primary/40';
+    return 'bg-accent-primary/20';
   };
 
   // Get bar width as percentage
@@ -168,7 +168,7 @@ export default function PopularTimeSlots() {
         <select
           value={timeRange}
           onChange={(e) => setTimeRange(e.target.value as TimeRange)}
-          className="bg-ink-700 border border-ink-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-accent-500"
+          className="bg-ink-700 border border-ink-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
         >
           <option value="week">This Week</option>
           <option value="month">This Month</option>
@@ -279,15 +279,15 @@ export default function PopularTimeSlots() {
               <span className="text-ink-500 text-xs">None</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-4 h-4 rounded bg-accent-900" />
+              <div className="w-4 h-4 rounded bg-accent-primary/30" />
               <span className="text-ink-500 text-xs">Low</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-4 h-4 rounded bg-accent-700" />
+              <div className="w-4 h-4 rounded bg-accent-primary/60" />
               <span className="text-ink-500 text-xs">Medium</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-4 h-4 rounded bg-accent-500" />
+              <div className="w-4 h-4 rounded bg-accent-primary" />
               <span className="text-ink-500 text-xs">High</span>
             </div>
           </div>
@@ -306,7 +306,7 @@ export default function PopularTimeSlots() {
                 <div className="flex-1 h-6 bg-ink-700 rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all ${
-                      index === 0 ? 'bg-accent-500' : 'bg-accent-600'
+                      index === 0 ? 'bg-accent-primary' : 'bg-accent-primary'
                     }`}
                     style={{ width: getBarWidth(day.count, maxDayCount) }}
                   />
@@ -368,7 +368,7 @@ export default function PopularTimeSlots() {
                 <tr key={`${slot.day_of_week}-${slot.hour}`} className="border-b border-ink-700/50">
                   <td className="py-3 text-ink-400">#{index + 1}</td>
                   <td className="py-3">
-                    <span className={`font-medium ${index === 0 ? 'text-accent-400' : 'text-white'}`}>
+                    <span className={`font-medium ${index === 0 ? 'text-accent-secondary' : 'text-white'}`}>
                       {getDayName(slot.day_of_week)}
                     </span>
                   </td>
@@ -448,16 +448,16 @@ function MetricCard({ title, value, subtitle, icon, highlight }: MetricCardProps
   return (
     <div className={`rounded-lg border p-4 ${
       highlight
-        ? 'bg-accent-500/10 border-accent-500/30'
+        ? 'bg-accent-primary/10 border-accent-primary/30'
         : 'bg-ink-800 border-ink-700'
     }`}>
       <div className="flex items-center justify-between mb-2">
         <span className="text-ink-400 text-sm">{title}</span>
-        <div className={`${highlight ? 'text-accent-400' : 'text-ink-500'}`}>
+        <div className={`${highlight ? 'text-accent-secondary' : 'text-ink-500'}`}>
           {icon}
         </div>
       </div>
-      <div className={`text-2xl font-bold ${highlight ? 'text-accent-400' : 'text-white'}`}>
+      <div className={`text-2xl font-bold ${highlight ? 'text-accent-secondary' : 'text-white'}`}>
         {value}
       </div>
       <p className="text-ink-500 text-sm mt-1">{subtitle}</p>
@@ -475,7 +475,7 @@ interface InsightCardProps {
 
 function InsightCard({ icon, title, description, color }: InsightCardProps) {
   const colorClasses = {
-    accent: 'bg-accent-500/10 border-accent-500/20 text-accent-400',
+    accent: 'bg-accent-primary/10 border-accent-primary/20 text-accent-secondary',
     blue: 'bg-blue-500/10 border-blue-500/20 text-blue-400',
     purple: 'bg-purple-500/10 border-purple-500/20 text-purple-400',
     green: 'bg-green-500/10 border-green-500/20 text-green-400',

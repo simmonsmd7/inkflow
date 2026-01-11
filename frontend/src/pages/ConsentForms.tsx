@@ -474,7 +474,7 @@ export function ConsentForms() {
           onClick={() => setActiveTab('templates')}
           className={`pb-3 px-1 text-sm font-medium transition-colors ${
             activeTab === 'templates'
-              ? 'text-accent-400 border-b-2 border-accent-400'
+              ? 'text-accent-secondary border-b-2 border-accent-secondary'
               : 'text-ink-400 hover:text-ink-200'
           }`}
         >
@@ -484,7 +484,7 @@ export function ConsentForms() {
           onClick={() => setActiveTab('submissions')}
           className={`pb-3 px-1 text-sm font-medium transition-colors ${
             activeTab === 'submissions'
-              ? 'text-accent-400 border-b-2 border-accent-400'
+              ? 'text-accent-secondary border-b-2 border-accent-secondary'
               : 'text-ink-400 hover:text-ink-200'
           }`}
         >
@@ -502,7 +502,7 @@ export function ConsentForms() {
                   loadPrebuiltTemplates();
                   setShowPrebuiltModal(true);
                 }}
-                className="px-4 py-2 bg-accent-600 hover:bg-accent-500 text-white rounded-lg transition-colors"
+                className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/80 text-white rounded-lg transition-colors"
               >
                 + Use Template
               </button>
@@ -536,7 +536,7 @@ export function ConsentForms() {
                       <div className="flex items-center space-x-3">
                         <h3 className="text-lg font-medium text-ink-100">{template.name}</h3>
                         {template.is_default && (
-                          <span className="px-2 py-0.5 text-xs bg-accent-600/30 text-accent-400 rounded">
+                          <span className="px-2 py-0.5 text-xs bg-accent-primary/30 text-accent-secondary rounded">
                             Default
                           </span>
                         )}
@@ -590,11 +590,11 @@ export function ConsentForms() {
               placeholder="Search by email..."
               value={searchEmail}
               onChange={(e) => setSearchEmail(e.target.value)}
-              className="flex-1 max-w-md px-4 py-2 bg-ink-800 border border-ink-600 rounded-lg text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-500"
+              className="flex-1 max-w-md px-4 py-2 bg-ink-800 border border-ink-600 rounded-lg text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-primary"
             />
             <button
               onClick={loadSubmissions}
-              className="px-4 py-2 bg-accent-600 hover:bg-accent-500 text-white rounded-lg transition-colors"
+              className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/80 text-white rounded-lg transition-colors"
             >
               Search
             </button>
@@ -755,7 +755,7 @@ export function ConsentForms() {
                     type="text"
                     value={editingTemplate.name}
                     onChange={(e) => setEditingTemplate({ ...editingTemplate, name: e.target.value })}
-                    className="w-full px-3 py-2 bg-ink-700 border border-ink-600 rounded text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-500"
+                    className="w-full px-3 py-2 bg-ink-700 border border-ink-600 rounded text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-primary"
                     disabled={!isOwner}
                   />
                 </div>
@@ -770,7 +770,7 @@ export function ConsentForms() {
                         age_requirement: parseInt(e.target.value) || 18,
                       })
                     }
-                    className="w-full px-3 py-2 bg-ink-700 border border-ink-600 rounded text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-500"
+                    className="w-full px-3 py-2 bg-ink-700 border border-ink-600 rounded text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-primary"
                     disabled={!isOwner}
                     min={0}
                     max={100}
@@ -783,7 +783,7 @@ export function ConsentForms() {
                 <textarea
                   value={editingTemplate.description || ''}
                   onChange={(e) => setEditingTemplate({ ...editingTemplate, description: e.target.value })}
-                  className="w-full px-3 py-2 bg-ink-700 border border-ink-600 rounded text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-500"
+                  className="w-full px-3 py-2 bg-ink-700 border border-ink-600 rounded text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-primary"
                   rows={2}
                   disabled={!isOwner}
                 />
@@ -794,7 +794,7 @@ export function ConsentForms() {
                 <textarea
                   value={editingTemplate.header_text || ''}
                   onChange={(e) => setEditingTemplate({ ...editingTemplate, header_text: e.target.value })}
-                  className="w-full px-3 py-2 bg-ink-700 border border-ink-600 rounded text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-500"
+                  className="w-full px-3 py-2 bg-ink-700 border border-ink-600 rounded text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-primary"
                   rows={3}
                   disabled={!isOwner}
                 />
@@ -865,7 +865,7 @@ export function ConsentForms() {
                             e.target.value = '';
                           }
                         }}
-                        className="px-3 py-1.5 bg-ink-700 border border-ink-600 rounded text-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+                        className="px-3 py-1.5 bg-ink-700 border border-ink-600 rounded text-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-accent-primary"
                         defaultValue=""
                       >
                         <option value="">+ Add Field</option>
@@ -927,7 +927,7 @@ export function ConsentForms() {
                             type="text"
                             value={field.label}
                             onChange={(e) => updateField(index, { label: e.target.value })}
-                            className="w-full px-2 py-1.5 bg-ink-700 border border-ink-600 rounded text-ink-100 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+                            className="w-full px-2 py-1.5 bg-ink-700 border border-ink-600 rounded text-ink-100 text-sm focus:outline-none focus:ring-2 focus:ring-accent-primary"
                             disabled={!isOwner}
                           />
                         </div>
@@ -939,7 +939,7 @@ export function ConsentForms() {
                               type="text"
                               value={field.placeholder || ''}
                               onChange={(e) => updateField(index, { placeholder: e.target.value })}
-                              className="w-full px-2 py-1.5 bg-ink-700 border border-ink-600 rounded text-ink-100 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+                              className="w-full px-2 py-1.5 bg-ink-700 border border-ink-600 rounded text-ink-100 text-sm focus:outline-none focus:ring-2 focus:ring-accent-primary"
                               disabled={!isOwner}
                             />
                           </div>
@@ -951,7 +951,7 @@ export function ConsentForms() {
                             <textarea
                               value={field.content || ''}
                               onChange={(e) => updateField(index, { content: e.target.value })}
-                              className="w-full px-2 py-1.5 bg-ink-700 border border-ink-600 rounded text-ink-100 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+                              className="w-full px-2 py-1.5 bg-ink-700 border border-ink-600 rounded text-ink-100 text-sm focus:outline-none focus:ring-2 focus:ring-accent-primary"
                               rows={2}
                               disabled={!isOwner}
                             />
@@ -970,7 +970,7 @@ export function ConsentForms() {
                                   options: e.target.value.split('\n').filter((o) => o.trim()),
                                 })
                               }
-                              className="w-full px-2 py-1.5 bg-ink-700 border border-ink-600 rounded text-ink-100 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+                              className="w-full px-2 py-1.5 bg-ink-700 border border-ink-600 rounded text-ink-100 text-sm focus:outline-none focus:ring-2 focus:ring-accent-primary"
                               rows={3}
                               disabled={!isOwner}
                             />
@@ -999,7 +999,7 @@ export function ConsentForms() {
                               type="text"
                               value={field.help_text || ''}
                               onChange={(e) => updateField(index, { help_text: e.target.value })}
-                              className="w-full px-2 py-1.5 bg-ink-700 border border-ink-600 rounded text-ink-100 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+                              className="w-full px-2 py-1.5 bg-ink-700 border border-ink-600 rounded text-ink-100 text-sm focus:outline-none focus:ring-2 focus:ring-accent-primary"
                               disabled={!isOwner}
                             />
                           </div>
@@ -1021,7 +1021,7 @@ export function ConsentForms() {
                 <textarea
                   value={editingTemplate.footer_text || ''}
                   onChange={(e) => setEditingTemplate({ ...editingTemplate, footer_text: e.target.value })}
-                  className="w-full px-3 py-2 bg-ink-700 border border-ink-600 rounded text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-500"
+                  className="w-full px-3 py-2 bg-ink-700 border border-ink-600 rounded text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-primary"
                   rows={3}
                   disabled={!isOwner}
                 />
@@ -1043,7 +1043,7 @@ export function ConsentForms() {
                   </button>
                   <button
                     onClick={handleSaveTemplate}
-                    className="px-6 py-2 bg-accent-600 hover:bg-accent-500 text-white rounded-lg transition-colors"
+                    className="px-6 py-2 bg-accent-primary hover:bg-accent-primary/80 text-white rounded-lg transition-colors"
                   >
                     Save Template
                   </button>
@@ -1175,7 +1175,7 @@ export function ConsentForms() {
                       <button
                         onClick={() => loadDecryptedSignature(selectedSubmission.id)}
                         disabled={loadingDecryption}
-                        className="px-3 py-1.5 text-sm bg-accent-600 hover:bg-accent-500 text-white rounded transition-colors disabled:opacity-50"
+                        className="px-3 py-1.5 text-sm bg-accent-primary hover:bg-accent-primary/80 text-white rounded transition-colors disabled:opacity-50"
                       >
                         {loadingDecryption ? 'Decrypting...' : 'View Signature'}
                       </button>
@@ -1208,7 +1208,7 @@ export function ConsentForms() {
                         <button
                           onClick={() => loadDecryptedPhotoId(selectedSubmission.id)}
                           disabled={loadingDecryption}
-                          className="px-3 py-1.5 text-sm bg-accent-600 hover:bg-accent-500 text-white rounded transition-colors disabled:opacity-50"
+                          className="px-3 py-1.5 text-sm bg-accent-primary hover:bg-accent-primary/80 text-white rounded transition-colors disabled:opacity-50"
                         >
                           {loadingDecryption ? 'Decrypting...' : 'View ID'}
                         </button>
@@ -1466,7 +1466,7 @@ export function ConsentForms() {
               <textarea
                 value={voidReason}
                 onChange={(e) => setVoidReason(e.target.value)}
-                className="w-full px-3 py-2 bg-ink-700 border border-ink-600 rounded text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-500"
+                className="w-full px-3 py-2 bg-ink-700 border border-ink-600 rounded text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-primary"
                 rows={3}
                 placeholder="Enter the reason for voiding this consent form..."
               />
@@ -1522,7 +1522,7 @@ export function ConsentForms() {
               <textarea
                 value={ageVerifyNotes}
                 onChange={(e) => setAgeVerifyNotes(e.target.value)}
-                className="w-full px-3 py-2 bg-ink-700 border border-ink-600 rounded text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-500"
+                className="w-full px-3 py-2 bg-ink-700 border border-ink-600 rounded text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-primary"
                 rows={2}
                 placeholder="Any notes about age verification..."
               />
@@ -1563,7 +1563,7 @@ export function ConsentForms() {
                   type="text"
                   value={guardianData.guardian_name}
                   onChange={(e) => setGuardianData({ ...guardianData, guardian_name: e.target.value })}
-                  className="w-full px-3 py-2 bg-ink-700 border border-ink-600 rounded text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-500"
+                  className="w-full px-3 py-2 bg-ink-700 border border-ink-600 rounded text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-primary"
                   placeholder="Full legal name"
                 />
               </div>
@@ -1572,7 +1572,7 @@ export function ConsentForms() {
                 <select
                   value={guardianData.guardian_relationship}
                   onChange={(e) => setGuardianData({ ...guardianData, guardian_relationship: e.target.value })}
-                  className="w-full px-3 py-2 bg-ink-700 border border-ink-600 rounded text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-500"
+                  className="w-full px-3 py-2 bg-ink-700 border border-ink-600 rounded text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-primary"
                 >
                   <option value="">Select relationship</option>
                   <option value="Parent">Parent</option>
@@ -1587,7 +1587,7 @@ export function ConsentForms() {
                   type="tel"
                   value={guardianData.guardian_phone || ''}
                   onChange={(e) => setGuardianData({ ...guardianData, guardian_phone: e.target.value })}
-                  className="w-full px-3 py-2 bg-ink-700 border border-ink-600 rounded text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-500"
+                  className="w-full px-3 py-2 bg-ink-700 border border-ink-600 rounded text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-primary"
                   placeholder="(555) 123-4567"
                 />
               </div>
@@ -1597,7 +1597,7 @@ export function ConsentForms() {
                   type="email"
                   value={guardianData.guardian_email || ''}
                   onChange={(e) => setGuardianData({ ...guardianData, guardian_email: e.target.value })}
-                  className="w-full px-3 py-2 bg-ink-700 border border-ink-600 rounded text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-500"
+                  className="w-full px-3 py-2 bg-ink-700 border border-ink-600 rounded text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-primary"
                   placeholder="guardian@example.com"
                 />
               </div>
@@ -1610,7 +1610,7 @@ export function ConsentForms() {
                   type="text"
                   value={guardianSignature}
                   onChange={(e) => setGuardianSignature(e.target.value)}
-                  className="w-full px-3 py-2 bg-ink-700 border border-ink-600 rounded text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-500"
+                  className="w-full px-3 py-2 bg-ink-700 border border-ink-600 rounded text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-primary"
                   placeholder="Type guardian's full name as signature"
                 />
               </div>
@@ -1619,7 +1619,7 @@ export function ConsentForms() {
                 <textarea
                   value={guardianData.notes || ''}
                   onChange={(e) => setGuardianData({ ...guardianData, notes: e.target.value })}
-                  className="w-full px-3 py-2 bg-ink-700 border border-ink-600 rounded text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-500"
+                  className="w-full px-3 py-2 bg-ink-700 border border-ink-600 rounded text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-primary"
                   rows={2}
                   placeholder="Any additional notes..."
                 />

@@ -18,6 +18,139 @@ Make InkFlow production-ready for real paying customers. This is a CONTINUOUS im
 
 ---
 
+## PRIORITY PHASE: Landing Page + Onboarding Flow
+
+**IMPORTANT:** Complete this phase BEFORE starting the regular iteration loop. Check ralph.log - if this phase is marked complete, skip to the Iteration Protocol.
+
+### Overview
+Add a public landing page at `/` and a minimal onboarding flow for new users to create their business after registration.
+
+### Part 1: Landing Page
+
+**Create:** `frontend/src/pages/LandingPage.tsx`
+
+Sections:
+1. **Hero** - "Run your tattoo business, not paperwork"
+   - Subtext: Brief value prop
+   - CTA: "Get Started Free" → /register
+
+2. **Features** (4 cards)
+   - Booking management
+   - Deposit payments
+   - Digital consent forms
+   - Aftercare tracking
+
+3. **How it works** (3 steps)
+   - Sign up → Set up your business → Share your booking link
+
+4. **Footer CTA** - "Ready to get started?" + button
+
+**Styling:** Match existing dark theme (ink-900 bg, accent-primary buttons)
+
+### Part 2: Onboarding Flow
+
+**Create:** `frontend/src/pages/Onboarding.tsx`
+
+Single-step wizard after login for users with no business:
+
+**Fields:**
+- Business name (required)
+- Business email (required, pre-filled from account email)
+
+**Flow:**
+1. User registers at /register
+2. User logs in at /login
+3. If user has no studios → redirect to /onboarding
+4. User enters business name + email
+5. Studio created via API
+6. Redirect to /dashboard with success message
+
+### Part 3: Backend Changes
+
+**File:** `backend/app/routers/auth.py`
+
+Add endpoint:
+```
+POST /api/v1/auth/onboarding/create-business
+Body: { "business_name": "string", "business_email": "string" }
+```
+
+Creates a Studio with:
+- name = business_name
+- slug = auto-generated from name
+- email = business_email
+- owner_id = current user
+- Default timezone, pay period settings
+
+**File:** `backend/app/schemas/user.py`
+
+Add `has_studio: bool` to AuthResponse so frontend knows whether to redirect to onboarding.
+
+**File:** `backend/app/routers/auth.py`
+
+In login endpoint, check if user owns any studios and include in response.
+
+### Part 4: Route Updates
+
+**File:** `frontend/src/App.tsx`
+
+```tsx
+// Public routes
+<Route path="/" element={<LandingPage />} />
+<Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
+
+// Protected routes
+<Route path="/dashboard" element={<Dashboard />} />
+// Update catch-all to start at /dashboard instead of /
+```
+
+**File:** `frontend/src/pages/Login.tsx`
+
+After successful login:
+- If `response.has_studio === false` AND role is owner → navigate to `/onboarding`
+- Otherwise → navigate to `/dashboard`
+
+**File:** `frontend/src/components/layout/Sidebar.tsx`
+
+Update logo link: clicking logo goes to `/dashboard` (not `/`)
+
+### Files Summary
+
+**Create:**
+- `frontend/src/pages/LandingPage.tsx`
+- `frontend/src/pages/Onboarding.tsx`
+
+**Modify:**
+- `frontend/src/App.tsx` - Add routes, update catch-all
+- `frontend/src/pages/index.ts` - Export new pages
+- `frontend/src/pages/Login.tsx` - Smart redirect after login
+- `frontend/src/services/auth.ts` - Add createBusiness function
+- `backend/app/routers/auth.py` - Add onboarding endpoint, update login response
+- `backend/app/schemas/user.py` - Add has_studio to AuthResponse
+- `frontend/src/components/layout/Sidebar.tsx` - Update logo link
+
+### Verification Checklist
+
+1. Landing page: Visit `http://localhost:5173/` - should see landing page (not login redirect)
+2. Register flow: Click "Get Started" → register → login → should redirect to /onboarding
+3. Onboarding: Enter business name/email → creates studio → redirects to dashboard
+4. Existing users: Login → should go straight to /dashboard (skip onboarding)
+5. Booking link: After onboarding, `/book/{slug}` should work with new studio
+
+### Phase Completion
+
+When complete, append to ralph.log:
+```
+=== PHASE COMPLETE: Landing Page + Onboarding ===
+Date: [timestamp]
+Files Created: LandingPage.tsx, Onboarding.tsx
+Files Modified: [list]
+Verification: [all 5 checks passed]
+Status: COMPLETE
+```
+
+---
+
 ## Iteration Protocol
 
 Each iteration, pick ONE category and work on it:

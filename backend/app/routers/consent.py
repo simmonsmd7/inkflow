@@ -927,10 +927,13 @@ async def get_submission_audit_log(
 @router.get("/sign/{studio_slug}/{template_id}", response_model=ConsentFormTemplateResponse)
 async def get_template_for_signing(
     studio_slug: str,
-    template_id: uuid.UUID,
+    template_id: str,
     db: AsyncSession = Depends(get_db),
 ) -> ConsentFormTemplateResponse:
-    """Get a consent form template for public signing (no auth required)."""
+    """Get a consent form template for public signing (no auth required).
+
+    Accepts either a UUID template ID or "default" to get the studio's default template.
+    """
     result = await db.execute(
         select(Studio).where(Studio.slug == studio_slug, Studio.deleted_at.is_(None))
     )
@@ -938,9 +941,34 @@ async def get_template_for_signing(
     if not studio:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Studio not found")
 
-    template = await _get_template(db, template_id, studio.id)
-    if not template.is_active:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found or inactive")
+    # Handle "default" keyword to get the default template
+    if template_id.lower() == "default":
+        result = await db.execute(
+            select(ConsentFormTemplate).where(
+                ConsentFormTemplate.studio_id == studio.id,
+                ConsentFormTemplate.is_default == True,
+                ConsentFormTemplate.is_active == True,
+                ConsentFormTemplate.deleted_at.is_(None),
+            )
+        )
+        template = result.scalar_one_or_none()
+        if not template:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No default template found for this studio. Please contact the studio for a valid consent form link."
+            )
+    else:
+        # Validate as UUID
+        try:
+            template_uuid = uuid.UUID(template_id)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid template ID. Must be a valid UUID or 'default'"
+            )
+        template = await _get_template(db, template_uuid, studio.id)
+        if not template.is_active:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found or inactive")
 
     return _template_to_response(template)
 

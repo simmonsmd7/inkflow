@@ -414,7 +414,7 @@ async def get_dashboard(
             and_(
                 User.role == "artist",
                 User.is_active == True,
-                User.is_deleted == False,
+                User.deleted_at.is_(None),
             )
         )
     )
@@ -1039,7 +1039,7 @@ async def get_artist_performance_list(
             and_(
                 User.role == "artist",
                 User.is_active == True,
-                User.is_deleted == False,
+                User.deleted_at.is_(None),
             )
         )
     )
@@ -1061,19 +1061,22 @@ async def get_artist_performance_list(
 
     artist_items = []
     for artist in artists:
-        # Get profile image
+        # Get profile (for potential future use)
         profile_result = await db.execute(
             select(ArtistProfile).where(ArtistProfile.user_id == artist.id)
         )
         profile = profile_result.scalar_one_or_none()
-        profile_image = profile.profile_image_url if profile else None
+        # ArtistProfile doesn't have profile_image_url - use first portfolio image if available
+        profile_image = None
+        if profile and profile.portfolio_images:
+            profile_image = profile.portfolio_images[0].image_url if profile.portfolio_images else None
 
         # Revenue and commission data
         commission_result = await db.execute(
             select(
                 func.coalesce(func.sum(EarnedCommission.service_total), 0).label("revenue"),
                 func.coalesce(func.sum(EarnedCommission.tips_amount), 0).label("tips"),
-                func.coalesce(func.sum(EarnedCommission.commission_amount), 0).label("commission"),
+                func.coalesce(func.sum(EarnedCommission.artist_payout), 0).label("commission"),
                 func.count(EarnedCommission.id).label("completed"),
             ).where(
                 and_(
@@ -1205,7 +1208,7 @@ async def get_artist_detailed_performance(
         select(
             func.coalesce(func.sum(EarnedCommission.service_total), 0).label("revenue"),
             func.coalesce(func.sum(EarnedCommission.tips_amount), 0).label("tips"),
-            func.coalesce(func.sum(EarnedCommission.commission_amount), 0).label("commission"),
+            func.coalesce(func.sum(EarnedCommission.artist_payout), 0).label("commission"),
             func.count(EarnedCommission.id).label("completed"),
         ).where(
             and_(
@@ -1450,11 +1453,16 @@ async def get_artist_detailed_performance(
     returning_clients = len(returning_result.all())
     retention_rate = (returning_clients / total_clients * 100) if total_clients > 0 else 0
 
+    # Use first portfolio image as profile image if available
+    profile_image = None
+    if profile and profile.portfolio_images:
+        profile_image = profile.portfolio_images[0].image_url if profile.portfolio_images else None
+
     return ArtistDetailedPerformance(
         artist_id=str(artist.id),
         artist_name=f"{artist.first_name} {artist.last_name}",
         artist_email=artist.email,
-        profile_image=profile.profile_image_url if profile else None,
+        profile_image=profile_image,
         specialties=profile.specialties if profile and profile.specialties else [],
         bio=profile.bio if profile else None,
         revenue=revenue,

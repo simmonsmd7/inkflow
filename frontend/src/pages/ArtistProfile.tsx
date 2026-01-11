@@ -13,6 +13,8 @@ import {
 } from '../services/artists';
 import type { ArtistDetail, ArtistProfileUpdate, PortfolioImage } from '../types/api';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 // Common tattoo styles
 const TATTOO_STYLES = [
   'Traditional',
@@ -311,7 +313,7 @@ export function ArtistProfile() {
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
                 rows={4}
-                className="w-full px-4 py-2 bg-ink-900 border border-ink-600 rounded-lg text-ink-100 placeholder-ink-500 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent resize-none"
+                className="w-full px-4 py-2 bg-ink-900 border border-ink-600 rounded-lg text-ink-100 placeholder-ink-500 focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent resize-none"
                 placeholder="Tell clients about yourself, your style, and your approach to tattooing..."
               />
             </div>
@@ -329,7 +331,7 @@ export function ArtistProfile() {
                   }
                   min={0}
                   max={100}
-                  className="w-full px-4 py-2 bg-ink-900 border border-ink-600 rounded-lg text-ink-100 placeholder-ink-500 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent"
+                  className="w-full px-4 py-2 bg-ink-900 border border-ink-600 rounded-lg text-ink-100 placeholder-ink-500 focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent"
                   placeholder="5"
                 />
               </div>
@@ -346,7 +348,7 @@ export function ArtistProfile() {
                   }
                   min={0}
                   step={0.01}
-                  className="w-full px-4 py-2 bg-ink-900 border border-ink-600 rounded-lg text-ink-100 placeholder-ink-500 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent"
+                  className="w-full px-4 py-2 bg-ink-900 border border-ink-600 rounded-lg text-ink-100 placeholder-ink-500 focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent"
                   placeholder="150"
                 />
               </div>
@@ -363,7 +365,7 @@ export function ArtistProfile() {
                   }
                   min={1}
                   max={24}
-                  className="w-full px-4 py-2 bg-ink-900 border border-ink-600 rounded-lg text-ink-100 placeholder-ink-500 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent"
+                  className="w-full px-4 py-2 bg-ink-900 border border-ink-600 rounded-lg text-ink-100 placeholder-ink-500 focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent"
                   placeholder="2"
                 />
               </div>
@@ -379,7 +381,7 @@ export function ArtistProfile() {
             {specialties.map((specialty) => (
               <span
                 key={specialty}
-                className="inline-flex items-center gap-1 px-3 py-1 bg-accent-500/20 text-accent-400 rounded-full text-sm"
+                className="inline-flex items-center gap-1 px-3 py-1 bg-accent-primary/20 text-accent-secondary rounded-full text-sm"
               >
                 {specialty}
                 <button
@@ -404,7 +406,7 @@ export function ArtistProfile() {
             <select
               value={newSpecialty}
               onChange={(e) => setNewSpecialty(e.target.value)}
-              className="flex-1 px-4 py-2 bg-ink-900 border border-ink-600 rounded-lg text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent"
+              className="flex-1 px-4 py-2 bg-ink-900 border border-ink-600 rounded-lg text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent"
             >
               <option value="">Select a style...</option>
               {TATTOO_STYLES.filter((s) => !specialties.includes(s)).map((style) => (
@@ -417,7 +419,7 @@ export function ArtistProfile() {
               type="button"
               onClick={handleAddSpecialty}
               disabled={!newSpecialty}
-              className="px-4 py-2 bg-accent-500 text-white rounded-lg hover:bg-accent-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-primary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Add
             </button>
@@ -441,7 +443,7 @@ export function ArtistProfile() {
                   type="text"
                   value={instagramHandle}
                   onChange={(e) => setInstagramHandle(e.target.value.replace('@', ''))}
-                  className="flex-1 px-4 py-2 bg-ink-900 border border-ink-600 rounded-r-lg text-ink-100 placeholder-ink-500 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent"
+                  className="flex-1 px-4 py-2 bg-ink-900 border border-ink-600 rounded-r-lg text-ink-100 placeholder-ink-500 focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent"
                   placeholder="yourusername"
                 />
               </div>
@@ -453,7 +455,7 @@ export function ArtistProfile() {
                 type="url"
                 value={websiteUrl}
                 onChange={(e) => setWebsiteUrl(e.target.value)}
-                className="w-full px-4 py-2 bg-ink-900 border border-ink-600 rounded-lg text-ink-100 placeholder-ink-500 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent"
+                className="w-full px-4 py-2 bg-ink-900 border border-ink-600 rounded-lg text-ink-100 placeholder-ink-500 focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent"
                 placeholder="https://yourwebsite.com"
               />
             </div>
@@ -465,7 +467,7 @@ export function ArtistProfile() {
           <button
             type="submit"
             disabled={saving}
-            className="px-6 py-2 bg-accent-500 text-white rounded-lg hover:bg-accent-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            className="px-6 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-primary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
           >
             {saving ? (
               <>
@@ -499,7 +501,7 @@ export function ArtistProfile() {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-ink-100">Portfolio Gallery</h2>
 
-          <label className="px-4 py-2 bg-accent-500 text-white rounded-lg hover:bg-accent-600 cursor-pointer transition-colors flex items-center gap-2">
+          <label className="px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-primary/80 cursor-pointer transition-colors flex items-center gap-2">
             {uploadingImage ? (
               <>
                 <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
@@ -573,7 +575,7 @@ export function ArtistProfile() {
                 className="relative group aspect-square bg-ink-900 rounded-lg overflow-hidden"
               >
                 <img
-                  src={`http://localhost:8000${image.image_url}`}
+                  src={`${API_URL}${image.image_url}`}
                   alt={image.title || 'Portfolio image'}
                   className="w-full h-full object-cover"
                 />
@@ -651,7 +653,7 @@ export function ArtistProfile() {
                   type="text"
                   value={imageTitle}
                   onChange={(e) => setImageTitle(e.target.value)}
-                  className="w-full px-4 py-2 bg-ink-900 border border-ink-600 rounded-lg text-ink-100 placeholder-ink-500 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent"
+                  className="w-full px-4 py-2 bg-ink-900 border border-ink-600 rounded-lg text-ink-100 placeholder-ink-500 focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent"
                   placeholder="e.g., Dragon Sleeve"
                 />
               </div>
@@ -662,7 +664,7 @@ export function ArtistProfile() {
                   value={imageDescription}
                   onChange={(e) => setImageDescription(e.target.value)}
                   rows={3}
-                  className="w-full px-4 py-2 bg-ink-900 border border-ink-600 rounded-lg text-ink-100 placeholder-ink-500 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent resize-none"
+                  className="w-full px-4 py-2 bg-ink-900 border border-ink-600 rounded-lg text-ink-100 placeholder-ink-500 focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent resize-none"
                   placeholder="Describe this piece..."
                 />
               </div>
@@ -672,7 +674,7 @@ export function ArtistProfile() {
                 <select
                   value={imageStyle}
                   onChange={(e) => setImageStyle(e.target.value)}
-                  className="w-full px-4 py-2 bg-ink-900 border border-ink-600 rounded-lg text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent"
+                  className="w-full px-4 py-2 bg-ink-900 border border-ink-600 rounded-lg text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent"
                 >
                   <option value="">Select style...</option>
                   {TATTOO_STYLES.map((style) => (
@@ -688,7 +690,7 @@ export function ArtistProfile() {
                 <select
                   value={imagePlacement}
                   onChange={(e) => setImagePlacement(e.target.value)}
-                  className="w-full px-4 py-2 bg-ink-900 border border-ink-600 rounded-lg text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent"
+                  className="w-full px-4 py-2 bg-ink-900 border border-ink-600 rounded-lg text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent"
                 >
                   <option value="">Select placement...</option>
                   {PLACEMENTS.map((placement) => (
@@ -713,7 +715,7 @@ export function ArtistProfile() {
                 <button
                   type="button"
                   onClick={handleSaveImageEdit}
-                  className="px-4 py-2 bg-accent-500 text-white rounded-lg hover:bg-accent-600 transition-colors"
+                  className="px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-primary/80 transition-colors"
                 >
                   Save Changes
                 </button>

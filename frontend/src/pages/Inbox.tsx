@@ -454,7 +454,7 @@ export function Inbox() {
           </div>
           <button
             onClick={() => setShowNewConversation(true)}
-            className="px-4 py-2 bg-accent-500 hover:bg-accent-600 rounded-lg font-medium transition-colors"
+            className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/80 rounded-lg font-medium transition-colors"
           >
             New Conversation
           </button>
@@ -488,7 +488,7 @@ export function Inbox() {
               type="checkbox"
               checked={assignedToMe}
               onChange={(e) => setAssignedToMe(e.target.checked)}
-              className="w-4 h-4 rounded border-ink-600 bg-ink-800 text-accent-500 focus:ring-accent-500"
+              className="w-4 h-4 rounded border-ink-600 bg-ink-800 text-accent-primary focus:ring-accent-primary"
             />
             Assigned to me
           </label>
@@ -498,7 +498,7 @@ export function Inbox() {
             placeholder="Search conversations..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="flex-1 max-w-xs px-3 py-1.5 bg-ink-800 border border-ink-700 rounded-lg text-sm placeholder-ink-500 focus:outline-none focus:border-accent-500"
+            className="flex-1 max-w-xs px-3 py-1.5 bg-ink-800 border border-ink-700 rounded-lg text-sm placeholder-ink-500 focus:outline-none focus:border-accent-primary"
           />
         </div>
       </div>
@@ -598,7 +598,7 @@ export function Inbox() {
                           handleAssignmentChange(e.target.value || null)
                         }
                         disabled={assigningTo}
-                        className="px-3 py-1.5 bg-ink-700 border border-ink-600 rounded-lg text-sm focus:outline-none focus:border-accent-500 disabled:opacity-50"
+                        className="px-3 py-1.5 bg-ink-700 border border-ink-600 rounded-lg text-sm focus:outline-none focus:border-accent-primary disabled:opacity-50"
                       >
                         <option value="">Unassigned</option>
                         {teamMembers.map((member) => (
@@ -615,7 +615,7 @@ export function Inbox() {
                       onChange={(e) =>
                         handleStatusChange(e.target.value as ConversationStatus)
                       }
-                      className="px-3 py-1.5 bg-ink-700 border border-ink-600 rounded-lg text-sm focus:outline-none focus:border-accent-500"
+                      className="px-3 py-1.5 bg-ink-700 border border-ink-600 rounded-lg text-sm focus:outline-none focus:border-accent-primary"
                     >
                       <option value="unread">Unread</option>
                       <option value="pending">Pending</option>
@@ -632,7 +632,7 @@ export function Inbox() {
                   <div className="mt-3 p-3 bg-ink-700/50 rounded-lg border border-ink-600">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-accent-400">
+                        <span className="text-xs font-medium text-accent-secondary">
                           Linked Booking
                         </span>
                         <span className="text-xs px-1.5 py-0.5 bg-ink-600 rounded text-ink-300">
@@ -682,7 +682,7 @@ export function Inbox() {
                     </div>
                     <a
                       href={`/bookings?view=${selectedConversation.booking.id}`}
-                      className="mt-2 inline-block text-xs text-accent-400 hover:text-accent-300"
+                      className="mt-2 inline-block text-xs text-accent-secondary hover:text-accent-primary/80"
                     >
                       View Full Booking →
                     </a>
@@ -709,7 +709,7 @@ export function Inbox() {
                       <div
                         className={`max-w-[70%] rounded-lg p-3 ${
                           message.direction === 'outbound'
-                            ? 'bg-accent-500/20 text-white'
+                            ? 'bg-accent-primary/20 text-white'
                             : 'bg-ink-700 text-ink-200'
                         }`}
                       >
@@ -842,7 +842,7 @@ export function Inbox() {
                             <button
                               type="button"
                               onClick={openNewTemplate}
-                              className="text-xs px-2 py-1 bg-accent-500 hover:bg-accent-600 rounded transition-colors"
+                              className="text-xs px-2 py-1 bg-accent-primary hover:bg-accent-primary/80 rounded transition-colors"
                             >
                               + New
                             </button>
@@ -852,7 +852,7 @@ export function Inbox() {
                             placeholder="Search templates..."
                             value={templateSearch}
                             onChange={(e) => setTemplateSearch(e.target.value)}
-                            className="w-full px-3 py-1.5 bg-ink-900 border border-ink-700 rounded text-sm focus:outline-none focus:border-accent-500"
+                            className="w-full px-3 py-1.5 bg-ink-900 border border-ink-700 rounded text-sm focus:outline-none focus:border-accent-primary"
                           />
                         </div>
                         <div className="flex-1 overflow-y-auto p-2">
@@ -940,7 +940,7 @@ export function Inbox() {
                     }
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
-                    className="flex-1 px-4 py-2 bg-ink-800 border border-ink-700 rounded-lg focus:outline-none focus:border-accent-500"
+                    className="flex-1 px-4 py-2 bg-ink-800 border border-ink-700 rounded-lg focus:outline-none focus:border-accent-primary"
                     disabled={sendingMessage}
                   />
                   <button
@@ -951,7 +951,7 @@ export function Inbox() {
                         ? 'bg-blue-500 hover:bg-blue-600'
                         : selectedChannel === 'sms'
                         ? 'bg-green-500 hover:bg-green-600'
-                        : 'bg-accent-500 hover:bg-accent-600'
+                        : 'bg-accent-primary hover:bg-accent-primary/80'
                     }`}
                   >
                     {sendingMessage
@@ -1009,7 +1009,7 @@ export function Inbox() {
                       client_name: e.target.value,
                     }))
                   }
-                  className="w-full px-3 py-2 bg-ink-900 border border-ink-700 rounded-lg focus:outline-none focus:border-accent-500"
+                  className="w-full px-3 py-2 bg-ink-900 border border-ink-700 rounded-lg focus:outline-none focus:border-accent-primary"
                   required
                 />
               </div>
@@ -1026,7 +1026,7 @@ export function Inbox() {
                       client_email: e.target.value,
                     }))
                   }
-                  className="w-full px-3 py-2 bg-ink-900 border border-ink-700 rounded-lg focus:outline-none focus:border-accent-500"
+                  className="w-full px-3 py-2 bg-ink-900 border border-ink-700 rounded-lg focus:outline-none focus:border-accent-primary"
                 />
               </div>
               <div>
@@ -1042,7 +1042,7 @@ export function Inbox() {
                       client_phone: e.target.value,
                     }))
                   }
-                  className="w-full px-3 py-2 bg-ink-900 border border-ink-700 rounded-lg focus:outline-none focus:border-accent-500"
+                  className="w-full px-3 py-2 bg-ink-900 border border-ink-700 rounded-lg focus:outline-none focus:border-accent-primary"
                 />
               </div>
               <div>
@@ -1058,7 +1058,7 @@ export function Inbox() {
                       subject: e.target.value,
                     }))
                   }
-                  className="w-full px-3 py-2 bg-ink-900 border border-ink-700 rounded-lg focus:outline-none focus:border-accent-500"
+                  className="w-full px-3 py-2 bg-ink-900 border border-ink-700 rounded-lg focus:outline-none focus:border-accent-primary"
                   placeholder="Optional"
                 />
               </div>
@@ -1075,7 +1075,7 @@ export function Inbox() {
                     }))
                   }
                   rows={3}
-                  className="w-full px-3 py-2 bg-ink-900 border border-ink-700 rounded-lg focus:outline-none focus:border-accent-500 resize-none"
+                  className="w-full px-3 py-2 bg-ink-900 border border-ink-700 rounded-lg focus:outline-none focus:border-accent-primary resize-none"
                   placeholder="Start the conversation..."
                 />
               </div>
@@ -1090,7 +1090,7 @@ export function Inbox() {
                 <button
                   type="submit"
                   disabled={creatingConversation || !newConversationData.client_name.trim()}
-                  className="flex-1 px-4 py-2 bg-accent-500 hover:bg-accent-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-medium transition-colors"
+                  className="flex-1 px-4 py-2 bg-accent-primary hover:bg-accent-primary/80 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-medium transition-colors"
                 >
                   {creatingConversation ? 'Creating...' : 'Create'}
                 </button>
@@ -1124,7 +1124,7 @@ export function Inbox() {
                     }))
                   }
                   placeholder="e.g., Booking Confirmation"
-                  className="w-full px-3 py-2 bg-ink-900 border border-ink-700 rounded-lg focus:outline-none focus:border-accent-500"
+                  className="w-full px-3 py-2 bg-ink-900 border border-ink-700 rounded-lg focus:outline-none focus:border-accent-primary"
                   required
                 />
               </div>
@@ -1142,7 +1142,7 @@ export function Inbox() {
                     }))
                   }
                   placeholder="e.g., Booking, Aftercare, General"
-                  className="w-full px-3 py-2 bg-ink-900 border border-ink-700 rounded-lg focus:outline-none focus:border-accent-500"
+                  className="w-full px-3 py-2 bg-ink-900 border border-ink-700 rounded-lg focus:outline-none focus:border-accent-primary"
                 />
                 <p className="text-xs text-ink-500 mt-1">
                   Optional. Use categories to organize your templates.
@@ -1162,7 +1162,7 @@ export function Inbox() {
                   }
                   rows={6}
                   placeholder="Type your template message here..."
-                  className="w-full px-3 py-2 bg-ink-900 border border-ink-700 rounded-lg focus:outline-none focus:border-accent-500 resize-none"
+                  className="w-full px-3 py-2 bg-ink-900 border border-ink-700 rounded-lg focus:outline-none focus:border-accent-primary resize-none"
                   required
                 />
                 <p className="text-xs text-ink-500 mt-1">
@@ -1188,7 +1188,7 @@ export function Inbox() {
                     !templateFormData.name.trim() ||
                     !templateFormData.content.trim()
                   }
-                  className="flex-1 px-4 py-2 bg-accent-500 hover:bg-accent-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-medium transition-colors"
+                  className="flex-1 px-4 py-2 bg-accent-primary hover:bg-accent-primary/80 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-medium transition-colors"
                 >
                   {savingTemplate ? 'Saving...' : editingTemplate ? 'Update' : 'Create'}
                 </button>

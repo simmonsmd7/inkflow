@@ -122,7 +122,7 @@ export function TouchUpRequest() {
   if (loading) {
     return (
       <div className="min-h-screen bg-ink-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-accent-500"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-accent-primary"></div>
       </div>
     );
   }
@@ -226,7 +226,7 @@ export function TouchUpRequest() {
               <textarea
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                className="w-full px-3 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent"
                 rows={4}
                 placeholder="Please describe any issues with your tattoo (fading, color loss, uneven lines, etc.)"
                 required
@@ -250,7 +250,7 @@ export function TouchUpRequest() {
                       value={date}
                       onChange={(e) => updatePreferredDate(index, e.target.value)}
                       min={new Date().toISOString().split('T')[0]}
-                      className="flex-1 px-3 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent"
+                      className="flex-1 px-3 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent"
                     />
                     {preferredDates.length > 1 && (
                       <button
@@ -270,7 +270,7 @@ export function TouchUpRequest() {
                 <button
                   type="button"
                   onClick={addPreferredDate}
-                  className="mt-2 text-sm text-accent-600 hover:text-accent-700"
+                  className="mt-2 text-sm text-accent-primary hover:text-accent-primary"
                 >
                   + Add another date
                 </button>
@@ -285,7 +285,7 @@ export function TouchUpRequest() {
               <textarea
                 value={additionalNotes}
                 onChange={(e) => setAdditionalNotes(e.target.value)}
-                className="w-full px-3 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent"
                 rows={2}
                 placeholder="Any other information you'd like to share..."
               />
@@ -296,7 +296,7 @@ export function TouchUpRequest() {
             <button
               type="submit"
               disabled={submitting || reason.trim().length < 10}
-              className="w-full py-3 bg-accent-500 text-white rounded-lg font-medium hover:bg-accent-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full py-3 bg-accent-primary text-white rounded-lg font-medium hover:bg-accent-primary/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? 'Submitting...' : 'Submit Touch-up Request'}
             </button>

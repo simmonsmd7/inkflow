@@ -256,8 +256,8 @@ async def forgot_password(
     token = client.generate_password_reset_token()
     await db.flush()
 
-    # Send password reset email
-    await email_service.send_password_reset_email(
+    # Send password reset email (uses client-specific URL)
+    await email_service.send_client_password_reset_email(
         to_email=client.email,
         first_name=client.first_name,
         token=token,

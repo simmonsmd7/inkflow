@@ -12,6 +12,8 @@ import type {
   PortfolioImageUpdate,
 } from '../types/api';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 /**
  * Get the current artist's profile.
  */
@@ -76,7 +78,7 @@ export async function uploadPortfolioImage(
   const url = `/artists/me/portfolio${queryString ? `?${queryString}` : ''}`;
 
   const token = localStorage.getItem('inkflow_token');
-  const response = await fetch(`http://localhost:8000/api/v1${url}`, {
+  const response = await fetch(`${API_URL}/api/v1${url}`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,

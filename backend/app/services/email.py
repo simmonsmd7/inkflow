@@ -276,6 +276,57 @@ The InkFlow Team
             )
         )
 
+    async def send_client_password_reset_email(
+        self, to_email: str, first_name: str, token: str
+    ) -> bool:
+        """Send password reset email for client portal users."""
+        reset_url = f"{settings.frontend_url}/client/reset-password?token={token}"
+
+        body_text = f"""Hi {first_name},
+
+We received a request to reset your Client Portal password. Click the link below to set a new password:
+
+{reset_url}
+
+This link will expire in 1 hour.
+
+If you didn't request a password reset, you can safely ignore this email.
+
+Best,
+The InkFlow Team
+"""
+
+        body_html = f"""
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+    <h2 style="color: #1a1a1a;">Reset Your Client Portal Password</h2>
+    <p>Hi {first_name},</p>
+    <p>We received a request to reset your Client Portal password. Click the button below to set a new password:</p>
+    <p style="text-align: center; margin: 30px 0;">
+        <a href="{reset_url}"
+           style="background-color: #e11d48; color: white; padding: 12px 24px;
+                  text-decoration: none; border-radius: 6px; font-weight: bold;">
+            Reset Password
+        </a>
+    </p>
+    <p style="color: #666; font-size: 14px;">
+        Or copy this link: <a href="{reset_url}">{reset_url}</a>
+    </p>
+    <p style="color: #666; font-size: 14px;">This link expires in 1 hour.</p>
+    <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+    <p style="color: #999; font-size: 12px;">
+        If you didn't request a password reset, you can safely ignore this email.
+    </p>
+</div>
+"""
+
+        return await self.send(
+            EmailMessage(
+                to_email=to_email,
+                subject="Reset your InkFlow Client Portal password",
+                body_text=body_text,
+                body_html=body_html,
+            )
+        )
 
     async def send_invite_email(
         self, to_email: str, first_name: str, token: str

@@ -40,9 +40,9 @@ export function StubCheckout() {
       <div className="bg-ink-800 border border-ink-700 rounded-xl p-8 max-w-md w-full">
         {/* Header */}
         <div className="text-center mb-6">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-accent-500/20 flex items-center justify-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-accent-primary/20 flex items-center justify-center">
             <svg
-              className="w-8 h-8 text-accent-400"
+              className="w-8 h-8 text-accent-secondary"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -135,7 +135,7 @@ export function StubCheckout() {
           <button
             onClick={handleConfirmPayment}
             disabled={processing}
-            className="w-full bg-accent-600 hover:bg-accent-500 disabled:bg-ink-600 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
+            className="w-full bg-accent-primary hover:bg-accent-primary/80 disabled:bg-ink-600 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
           >
             {processing ? (
               <>

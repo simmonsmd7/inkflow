@@ -12,6 +12,7 @@ import type {
   MessageResponse,
 } from '../types/api';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const API_BASE = '/api/v1/studios';
 
 /**
@@ -49,8 +50,8 @@ export async function uploadLogo(studioId: string, file: File): Promise<StudioLo
   const formData = new FormData();
   formData.append('file', file);
 
-  const token = localStorage.getItem('auth_token');
-  const response = await fetch(`http://localhost:8000${API_BASE}/${studioId}/logo`, {
+  const token = localStorage.getItem('inkflow_token');
+  const response = await fetch(`${API_URL}${API_BASE}/${studioId}/logo`, {
     method: 'POST',
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),

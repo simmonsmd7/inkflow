@@ -18,7 +18,40 @@ export function useApiHealth(): UseApiHealthResult {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchHealth = async () => {
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchHealth = async () => {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const response = await api.get<HealthResponse>('/health', {
+          skipAuth: true,
+        });
+        if (isMounted) {
+          setHealth(response);
+        }
+      } catch (err) {
+        if (isMounted) {
+          setError(err instanceof Error ? err.message : 'Failed to connect to API');
+          setHealth(null);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    fetchHealth();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const refetch = async () => {
     setIsLoading(true);
     setError(null);
 
@@ -35,15 +68,11 @@ export function useApiHealth(): UseApiHealthResult {
     }
   };
 
-  useEffect(() => {
-    fetchHealth();
-  }, []);
-
   return {
     health,
     isLoading,
     error,
-    refetch: fetchHealth,
+    refetch,
   };
 }
 

@@ -60,7 +60,7 @@ export const clientPortalService = {
 
     return api.get<ClientBookingsListResponse>(
       `/api/v1/client/portal/bookings?${queryParams.toString()}`,
-      { headers: getClientAuthHeaders() }
+      { skipAuth: true, headers: getClientAuthHeaders() }
     );
   },
 
@@ -70,7 +70,7 @@ export const clientPortalService = {
   async getBookingDetail(bookingId: string): Promise<ClientBookingDetail> {
     return api.get<ClientBookingDetail>(
       `/api/v1/client/portal/bookings/${bookingId}`,
-      { headers: getClientAuthHeaders() }
+      { skipAuth: true, headers: getClientAuthHeaders() }
     );
   },
 
@@ -80,7 +80,7 @@ export const clientPortalService = {
   async getBookingStats(): Promise<ClientBookingStats> {
     return api.get<ClientBookingStats>(
       '/api/v1/client/portal/bookings/stats/summary',
-      { headers: getClientAuthHeaders() }
+      { skipAuth: true, headers: getClientAuthHeaders() }
     );
   },
 
@@ -92,7 +92,7 @@ export const clientPortalService = {
   async getPendingConsentForms(): Promise<ClientConsentPendingResponse> {
     return api.get<ClientConsentPendingResponse>(
       '/api/v1/client/portal/consent/pending',
-      { headers: getClientAuthHeaders() }
+      { skipAuth: true, headers: getClientAuthHeaders() }
     );
   },
 
@@ -109,7 +109,7 @@ export const clientPortalService = {
 
     return api.get<ClientSignedConsentsResponse>(
       `/api/v1/client/portal/consent/signed?${queryParams.toString()}`,
-      { headers: getClientAuthHeaders() }
+      { skipAuth: true, headers: getClientAuthHeaders() }
     );
   },
 
@@ -119,7 +119,7 @@ export const clientPortalService = {
   async getConsentTemplate(bookingId: string): Promise<ClientConsentTemplateResponse> {
     return api.get<ClientConsentTemplateResponse>(
       `/api/v1/client/portal/consent/template/${bookingId}`,
-      { headers: getClientAuthHeaders() }
+      { skipAuth: true, headers: getClientAuthHeaders() }
     );
   },
 
@@ -130,7 +130,7 @@ export const clientPortalService = {
     return api.post<ClientConsentSignResponse>(
       '/api/v1/client/portal/consent/sign',
       data,
-      { headers: getClientAuthHeaders() }
+      { skipAuth: true, headers: getClientAuthHeaders() }
     );
   },
 
@@ -149,7 +149,7 @@ export const clientPortalService = {
 
     return api.get<ClientAftercareListResponse>(
       `/api/v1/client/portal/aftercare?${queryParams.toString()}`,
-      { headers: getClientAuthHeaders() }
+      { skipAuth: true, headers: getClientAuthHeaders() }
     );
   },
 
@@ -159,7 +159,7 @@ export const clientPortalService = {
   async getAftercareDetail(aftercareId: string): Promise<ClientAftercareDetail> {
     return api.get<ClientAftercareDetail>(
       `/api/v1/client/portal/aftercare/${aftercareId}`,
-      { headers: getClientAuthHeaders() }
+      { skipAuth: true, headers: getClientAuthHeaders() }
     );
   },
 
@@ -170,7 +170,7 @@ export const clientPortalService = {
     return api.post<ClientHealingIssueResponse>(
       `/api/v1/client/portal/aftercare/${aftercareId}/report-issue`,
       data,
-      { headers: getClientAuthHeaders() }
+      { skipAuth: true, headers: getClientAuthHeaders() }
     );
   },
 
@@ -180,7 +180,7 @@ export const clientPortalService = {
   async getHealingIssues(aftercareId: string): Promise<ClientHealingIssueSummary[]> {
     return api.get<ClientHealingIssueSummary[]>(
       `/api/v1/client/portal/aftercare/${aftercareId}/issues`,
-      { headers: getClientAuthHeaders() }
+      { skipAuth: true, headers: getClientAuthHeaders() }
     );
   },
 
@@ -192,7 +192,7 @@ export const clientPortalService = {
   async getRebookingData(bookingId: string): Promise<ClientRebookingData> {
     return api.get<ClientRebookingData>(
       `/api/v1/client/portal/rebooking/${bookingId}`,
-      { headers: getClientAuthHeaders() }
+      { skipAuth: true, headers: getClientAuthHeaders() }
     );
   },
 
@@ -203,7 +203,7 @@ export const clientPortalService = {
     return api.post<ClientRebookingResponse>(
       '/api/v1/client/portal/rebooking/submit',
       data,
-      { headers: getClientAuthHeaders() }
+      { skipAuth: true, headers: getClientAuthHeaders() }
     );
   },
 };

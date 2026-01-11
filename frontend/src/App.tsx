@@ -12,7 +12,9 @@ import {
   ClientAftercareInstructions,
   ClientBookingHistory,
   ClientConsentForms,
+  ClientForgotPassword,
   ClientLogin,
+  ClientResetPassword,
   ClientPortal,
   ClientRebooking,
   ClientRegister,
@@ -61,6 +63,8 @@ function App() {
       {/* Client Portal routes - public (login/register) */}
       <Route path="/client/login" element={<ClientLogin />} />
       <Route path="/client/register" element={<ClientRegister />} />
+      <Route path="/client/forgot-password" element={<ClientForgotPassword />} />
+      <Route path="/client/reset-password" element={<ClientResetPassword />} />
 
       {/* Client Portal routes - protected */}
       <Route path="/client" element={<ClientProtectedRoute><ClientPortal /></ClientProtectedRoute>} />

@@ -224,7 +224,7 @@ export function ClientConsentForms() {
   // Render a form field
   const renderField = (field: ClientConsentFormField) => {
     const fieldError = formErrors[field.id];
-    const baseInputClass = `w-full px-3 py-2 bg-ink-700 border rounded-lg focus:ring-2 focus:ring-accent-500 focus:border-accent-500 text-white ${
+    const baseInputClass = `w-full px-3 py-2 bg-ink-700 border rounded-lg focus:ring-2 focus:ring-accent-primary focus:border-accent-primary text-white ${
       fieldError ? 'border-red-500' : 'border-ink-500'
     }`;
 
@@ -293,7 +293,7 @@ export function ClientConsentForms() {
                 type="checkbox"
                 checked={Boolean(responses[field.id])}
                 onChange={(e) => handleFieldChange(field.id, e.target.checked)}
-                className="w-5 h-5 mt-0.5 rounded border-ink-500 text-accent-600 focus:ring-accent-500 bg-ink-700"
+                className="w-5 h-5 mt-0.5 rounded border-ink-500 text-accent-primary focus:ring-accent-primary bg-ink-700"
               />
               <span className="text-sm text-ink-200">
                 {field.label}
@@ -369,7 +369,7 @@ export function ClientConsentForms() {
                     value={option}
                     checked={responses[field.id] === option}
                     onChange={(e) => handleFieldChange(field.id, e.target.value)}
-                    className="w-4 h-4 border-ink-500 text-accent-600 focus:ring-accent-500 bg-ink-700"
+                    className="w-4 h-4 border-ink-500 text-accent-primary focus:ring-accent-primary bg-ink-700"
                   />
                   <span className="text-sm text-ink-200">{option}</span>
                 </label>
@@ -466,7 +466,7 @@ export function ClientConsentForms() {
       <div className="min-h-screen bg-ink-900">
         <Header />
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-accent-500"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-accent-primary"></div>
         </div>
       </div>
     );
@@ -501,7 +501,7 @@ export function ClientConsentForms() {
               )}
               <button
                 onClick={handleCancelSigning}
-                className="px-6 py-2 bg-accent-600 text-white font-medium rounded-lg hover:bg-accent-700 transition-colors"
+                className="px-6 py-2 bg-accent-primary text-white font-medium rounded-lg hover:bg-accent-primary/80 transition-colors"
               >
                 Back to Consent Forms
               </button>
@@ -568,7 +568,7 @@ export function ClientConsentForms() {
                     setClientName(e.target.value);
                     setFormErrors((prev) => ({ ...prev, clientName: '' }));
                   }}
-                  className={`w-full px-3 py-2 bg-ink-700 border rounded-lg focus:ring-2 focus:ring-accent-500 focus:border-accent-500 text-white ${
+                  className={`w-full px-3 py-2 bg-ink-700 border rounded-lg focus:ring-2 focus:ring-accent-primary focus:border-accent-primary text-white ${
                     formErrors.clientName ? 'border-red-500' : 'border-ink-500'
                   }`}
                   placeholder="Enter your full legal name"
@@ -586,7 +586,7 @@ export function ClientConsentForms() {
                   type="tel"
                   value={clientPhone}
                   onChange={(e) => setClientPhone(e.target.value)}
-                  className="w-full px-3 py-2 bg-ink-700 border border-ink-500 rounded-lg focus:ring-2 focus:ring-accent-500 focus:border-accent-500 text-white"
+                  className="w-full px-3 py-2 bg-ink-700 border border-ink-500 rounded-lg focus:ring-2 focus:ring-accent-primary focus:border-accent-primary text-white"
                   placeholder="(555) 555-5555"
                 />
               </div>
@@ -603,7 +603,7 @@ export function ClientConsentForms() {
                       setDateOfBirth(e.target.value);
                       setFormErrors((prev) => ({ ...prev, dateOfBirth: '' }));
                     }}
-                    className={`w-full px-3 py-2 bg-ink-700 border rounded-lg focus:ring-2 focus:ring-accent-500 focus:border-accent-500 text-white ${
+                    className={`w-full px-3 py-2 bg-ink-700 border rounded-lg focus:ring-2 focus:ring-accent-primary focus:border-accent-primary text-white ${
                       formErrors.dateOfBirth ? 'border-red-500' : 'border-ink-500'
                     }`}
                   />
@@ -652,7 +652,7 @@ export function ClientConsentForms() {
             <button
               type="submit"
               disabled={submitting}
-              className="flex-1 py-3 px-4 bg-accent-600 text-white font-semibold rounded-lg hover:bg-accent-700 focus:ring-4 focus:ring-accent-500/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex-1 py-3 px-4 bg-accent-primary text-white font-semibold rounded-lg hover:bg-accent-primary/80 focus:ring-4 focus:ring-accent-primary/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {submitting ? (
                 <span className="flex items-center justify-center gap-2">
@@ -701,7 +701,7 @@ export function ClientConsentForms() {
           onClick={() => setActiveTab('pending')}
           className={`flex-1 py-2 px-4 rounded-md font-medium transition-colors ${
             activeTab === 'pending'
-              ? 'bg-accent-600 text-white'
+              ? 'bg-accent-primary text-white'
               : 'text-ink-400 hover:text-white hover:bg-ink-700'
           }`}
         >
@@ -711,7 +711,7 @@ export function ClientConsentForms() {
           onClick={() => setActiveTab('signed')}
           className={`flex-1 py-2 px-4 rounded-md font-medium transition-colors ${
             activeTab === 'signed'
-              ? 'bg-accent-600 text-white'
+              ? 'bg-accent-primary text-white'
               : 'text-ink-400 hover:text-white hover:bg-ink-700'
           }`}
         >
@@ -722,7 +722,7 @@ export function ClientConsentForms() {
       {/* Loading template indicator */}
       {loadingTemplate && (
         <div className="flex items-center justify-center h-32">
-          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-accent-500"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-accent-primary"></div>
         </div>
       )}
 
@@ -785,7 +785,7 @@ export function ClientConsentForms() {
                   <button
                     onClick={() => handleStartSigning(booking)}
                     disabled={!booking.template_id}
-                    className="px-4 py-2 bg-accent-600 text-white font-medium rounded-lg hover:bg-accent-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                    className="px-4 py-2 bg-accent-primary text-white font-medium rounded-lg hover:bg-accent-primary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />

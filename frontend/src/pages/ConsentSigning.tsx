@@ -225,7 +225,7 @@ export function ConsentSigning() {
   // Render a single form field
   const renderField = (field: FormField) => {
     const fieldError = formErrors[field.id];
-    const baseInputClass = `w-full px-3 py-2 bg-white border rounded-lg focus:ring-2 focus:ring-accent-500 focus:border-accent-500 text-ink-900 ${
+    const baseInputClass = `w-full px-3 py-2 bg-white border rounded-lg focus:ring-2 focus:ring-accent-primary focus:border-accent-primary text-ink-900 ${
       fieldError ? 'border-red-500' : 'border-ink-300'
     }`;
 
@@ -294,7 +294,7 @@ export function ConsentSigning() {
                 type="checkbox"
                 checked={Boolean(responses[field.id])}
                 onChange={(e) => handleFieldChange(field.id, e.target.checked)}
-                className="w-5 h-5 mt-0.5 rounded border-ink-300 text-accent-600 focus:ring-accent-500"
+                className="w-5 h-5 mt-0.5 rounded border-ink-300 text-accent-primary focus:ring-accent-primary"
               />
               <span className="text-sm text-ink-700">
                 {field.label}
@@ -370,7 +370,7 @@ export function ConsentSigning() {
                     value={option}
                     checked={responses[field.id] === option}
                     onChange={(e) => handleFieldChange(field.id, e.target.value)}
-                    className="w-4 h-4 border-ink-300 text-accent-600 focus:ring-accent-500"
+                    className="w-4 h-4 border-ink-300 text-accent-primary focus:ring-accent-primary"
                   />
                   <span className="text-sm text-ink-700">{option}</span>
                 </label>
@@ -430,7 +430,7 @@ export function ConsentSigning() {
   if (loading) {
     return (
       <div className="min-h-screen bg-ink-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-accent-500"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-accent-primary"></div>
       </div>
     );
   }
@@ -507,7 +507,7 @@ export function ConsentSigning() {
             ) : (
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="w-full py-12 border-2 border-dashed border-ink-300 rounded-lg hover:border-accent-500 hover:bg-ink-50 transition-colors"
+                className="w-full py-12 border-2 border-dashed border-ink-300 rounded-lg hover:border-accent-primary hover:bg-ink-50 transition-colors"
               >
                 <div className="text-center">
                   <svg className="w-12 h-12 text-ink-400 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -532,7 +532,7 @@ export function ConsentSigning() {
             <button
               onClick={handlePhotoIdUpload}
               disabled={!photoIdFile || uploadingPhotoId}
-              className="w-full py-3 px-4 bg-accent-600 text-white font-semibold rounded-lg hover:bg-accent-700 focus:ring-4 focus:ring-accent-500/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="w-full py-3 px-4 bg-accent-primary text-white font-semibold rounded-lg hover:bg-accent-primary/80 focus:ring-4 focus:ring-accent-primary/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {uploadingPhotoId ? (
                 <span className="flex items-center justify-center gap-2">
@@ -630,7 +630,7 @@ export function ConsentSigning() {
                     setClientName(e.target.value);
                     setFormErrors((prev) => ({ ...prev, clientName: '' }));
                   }}
-                  className={`w-full px-3 py-2 bg-white border rounded-lg focus:ring-2 focus:ring-accent-500 focus:border-accent-500 text-ink-900 ${
+                  className={`w-full px-3 py-2 bg-white border rounded-lg focus:ring-2 focus:ring-accent-primary focus:border-accent-primary text-ink-900 ${
                     formErrors.clientName ? 'border-red-500' : 'border-ink-300'
                   }`}
                   placeholder="Enter your full legal name"
@@ -651,7 +651,7 @@ export function ConsentSigning() {
                     setClientEmail(e.target.value);
                     setFormErrors((prev) => ({ ...prev, clientEmail: '' }));
                   }}
-                  className={`w-full px-3 py-2 bg-white border rounded-lg focus:ring-2 focus:ring-accent-500 focus:border-accent-500 text-ink-900 ${
+                  className={`w-full px-3 py-2 bg-white border rounded-lg focus:ring-2 focus:ring-accent-primary focus:border-accent-primary text-ink-900 ${
                     formErrors.clientEmail ? 'border-red-500' : 'border-ink-300'
                   }`}
                   placeholder="your.email@example.com"
@@ -669,7 +669,7 @@ export function ConsentSigning() {
                   type="tel"
                   value={clientPhone}
                   onChange={(e) => setClientPhone(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-ink-300 rounded-lg focus:ring-2 focus:ring-accent-500 focus:border-accent-500 text-ink-900"
+                  className="w-full px-3 py-2 bg-white border border-ink-300 rounded-lg focus:ring-2 focus:ring-accent-primary focus:border-accent-primary text-ink-900"
                   placeholder="(555) 555-5555"
                 />
               </div>
@@ -686,7 +686,7 @@ export function ConsentSigning() {
                       setDateOfBirth(e.target.value);
                       setFormErrors((prev) => ({ ...prev, dateOfBirth: '' }));
                     }}
-                    className={`w-full px-3 py-2 bg-white border rounded-lg focus:ring-2 focus:ring-accent-500 focus:border-accent-500 text-ink-900 ${
+                    className={`w-full px-3 py-2 bg-white border rounded-lg focus:ring-2 focus:ring-accent-primary focus:border-accent-primary text-ink-900 ${
                       formErrors.dateOfBirth ? 'border-red-500' : 'border-ink-300'
                     }`}
                   />
@@ -729,7 +729,7 @@ export function ConsentSigning() {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full py-3 px-4 bg-accent-600 text-white font-semibold rounded-lg hover:bg-accent-700 focus:ring-4 focus:ring-accent-500/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="w-full py-3 px-4 bg-accent-primary text-white font-semibold rounded-lg hover:bg-accent-primary/80 focus:ring-4 focus:ring-accent-primary/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {submitting ? (
                 <span className="flex items-center justify-center gap-2">

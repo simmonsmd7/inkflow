@@ -644,9 +644,8 @@ export function Commissions() {
     try {
       const settings = await getPayPeriodSettings();
       setPayPeriodSettings(settings);
-    } catch (err) {
+    } catch {
       // Settings might not exist yet, that's okay
-      console.log('No pay period settings found');
     }
   };
 
