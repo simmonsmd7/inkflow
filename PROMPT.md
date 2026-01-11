@@ -18,6 +18,49 @@ Make InkFlow production-ready for real paying customers. This is a CONTINUOUS im
 
 ---
 
+## PRIORITY BUG FIX: Registration "Failed to Fetch" Error
+
+**CRITICAL:** Fix this bug FIRST before any other work.
+
+### Problem
+Users cannot create accounts. The registration form shows "Failed to fetch" error when submitting.
+
+### Debug Steps
+1. Start backend: `cd backend && uvicorn app.main:app --reload`
+2. Start frontend: `cd frontend && npm run dev`
+3. Navigate to `/register` and attempt to create an account
+4. Check browser Network tab for the failing request
+5. Check backend terminal for errors
+
+### Common Causes
+- Backend not running
+- CORS misconfiguration
+- Database connection issue
+- API endpoint path mismatch (missing /api/v1 prefix)
+- Frontend calling wrong URL
+
+### Files to Check
+- `frontend/src/services/auth.ts` - registration API call
+- `frontend/src/pages/Register.tsx` - form submission
+- `backend/app/routers/auth.py` - registration endpoint
+- `backend/app/main.py` - CORS settings
+
+### Verification
+1. Register a new user successfully
+2. User appears in database
+3. Login works with new credentials
+
+When fixed, append to ralph.log:
+```
+=== BUG FIX: Registration Failed to Fetch ===
+Date: [timestamp]
+Root Cause: [what was wrong]
+Fix: [what was changed]
+Status: FIXED
+```
+
+---
+
 ## PRIORITY PHASE: Landing Page + Onboarding Flow
 
 **IMPORTANT:** Complete this phase BEFORE starting the regular iteration loop. Check ralph.log - if this phase is marked complete, skip to the Iteration Protocol.
