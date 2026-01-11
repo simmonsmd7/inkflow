@@ -1330,15 +1330,35 @@ async def get_decrypted_signature(
 # === Helper Functions ===
 
 async def _get_user_studio(db: AsyncSession, user: User) -> Studio:
-    """Get the studio for a user."""
+    """Get the studio for a user.
+
+    For owners, gets their owned studio.
+    For artists/receptionists, gets the first active studio (single-studio mode).
+    """
+    from app.models.user import UserRole
+
+    # For owner, get their owned studio
+    if user.role == UserRole.OWNER:
+        result = await db.execute(
+            select(Studio).where(Studio.owner_id == user.id, Studio.deleted_at.is_(None))
+        )
+        studio = result.scalar_one_or_none()
+        if not studio:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No studio found for this user",
+            )
+        return studio
+
+    # For artists/receptionists, get the first active studio
     result = await db.execute(
-        select(Studio).where(Studio.owner_id == user.id, Studio.deleted_at.is_(None))
+        select(Studio).where(Studio.deleted_at.is_(None)).limit(1)
     )
     studio = result.scalar_one_or_none()
     if not studio:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="No studio found for this user",
+            detail="No studio found",
         )
     return studio
 
