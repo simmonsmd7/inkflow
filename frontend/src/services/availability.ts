@@ -15,7 +15,7 @@ import type {
   WeeklySchedule,
 } from '../types/api';
 
-const BASE_URL = '/availability';
+const BASE_URL = '/api/v1/availability';
 
 /**
  * Get current artist's weekly availability schedule.
