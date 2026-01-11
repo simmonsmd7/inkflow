@@ -137,3 +137,65 @@ All roles tested: Owner, Artist, Receptionist
 All access controls verified working
 
 Ready for Category B: UI/UX Polish
+
+--- Session: 2026-01-10 (Continued) ---
+Category B - UI/UX Polish
+
+=== Dark/Light Mode Testing ===
+- Toggle works correctly in both directions
+- Dark mode properly styled across all tested pages
+- Status: OK
+
+BUG #9: Consent Forms 404 Error for Non-Owner Users
+- Location: backend/app/routers/consent.py:1332-1343 (_get_user_studio function)
+- Cause: Function only searched for studios where owner_id == current_user.id
+- This failed for artists/receptionists who aren't studio owners
+- Fix: Modified function to check user role:
+  - For owners: find their owned studio
+  - For artists/receptionists: find the first active studio
+- Verified working for Owner (Marcus Rivera) and Receptionist (Sofia Chen)
+- Status: FIXED
+- Commit: e139fca - "fix(consent): allow non-owner users to access consent forms"
+
+=== Toast Notification Audit ===
+FINDING: User feedback mechanism needs improvement
+- Current implementation: Inline success/error banners at top of form
+- Issue: When saving from bottom of long form, user must scroll up to see feedback
+- The 5-second timeout often expires before user can scroll to see message
+- Recommendation: Implement floating toast notifications (react-hot-toast or sonner)
+- Benefits: Always visible regardless of scroll position
+- Status: DOCUMENTED (UI/UX improvement opportunity)
+
+=== Completed UI/UX Checks ===
+- Dark/light mode toggle: OK
+- Empty states have clear CTAs: OK (verified previously)
+- Access control messages: Clear and user-friendly
+
+=== Loading States Verification ===
+- Skeleton loading states implemented across 38 files
+- Uses `animate-pulse` Tailwind animation
+- Shows placeholder content while data loads
+- Status: OK (well implemented)
+
+=== Error States Verification ===
+- Login error: Shows "Invalid email or password" - user-friendly, doesn't reveal which field is wrong (security best practice)
+- 404 pages: MISSING - shows blank content instead of friendly error page
+- Recommendation: Add a dedicated 404 page component with "Page not found" message and navigation back to dashboard
+- Status: PARTIAL (login good, 404 missing)
+
+=== Mobile Responsiveness Verification ===
+- Responsive Tailwind classes used across 18 pages (72 occurrences)
+- Grid layouts use `md:` and `lg:` breakpoints for responsive columns
+- Sidebar has collapse functionality but NO mobile-specific handling:
+  - Missing: Hidden sidebar on mobile with hamburger menu
+  - Missing: Responsive padding that adjusts for mobile
+- Recommendation: Add mobile menu toggle and responsive sidebar behavior
+- Status: PARTIAL (content responsive, sidebar needs work)
+
+=== Category B Session Summary ===
+Bugs Fixed: 1 (BUG #9: Consent forms for non-owner users)
+UI/UX Findings Documented: 4
+- Toast notifications need floating implementation
+- 404 page missing
+- Sidebar mobile responsiveness needs work
+- Overall loading states and error messages are good
